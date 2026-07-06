@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 import gpuRoutes from "./routes/gpuRoutes";
 
 const app = express();
@@ -15,6 +16,15 @@ app.use("/api/gpus", gpuRoutes);
 // Health check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() });
+});
+
+// Serve compiled frontend (production)
+const publicPath = path.join(__dirname, "../public/browser");
+app.use(express.static(publicPath));
+
+// SPA fallback — serve index.html for all non-API routes
+app.use((_req, res, next) => {
+  res.sendFile(path.join(publicPath, "index.html"));
 });
 
 app.listen(PORT, HOST, () => {

@@ -6,11 +6,12 @@
   "scripts": {
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "build": "cd backend && npm run build && cd ../frontend && npm run build",
+    "start": "cd backend && npm run start",
     "start:backend": "cd backend && npm run start",
     "start:frontend": "cd frontend && npm run start",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run start",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+    "dev:frontend": "cd frontend && npx ng build --watch --configuration development",
+    "dev": "concurrently \"cd frontend && npx ng build --watch --configuration development\" \"cd backend && npm run dev\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
