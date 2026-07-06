@@ -1,0 +1,110 @@
+.spacer {
+  flex: 1 1 auto;
+}
+
+.container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.error-card,
+.empty-card {
+  margin-top: 32px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.gpu-table {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.gpu-name {
+  font-weight: 500;
+}
+
+.pci-cell {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* VRAM bar */
+.vram-cell {
+  min-width: 160px;
+}
+
+.vram-text {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+
+.vram-bar-bg {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.vram-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+/* Usage bar */
+.usage-cell {
+  min-width: 130px;
+}
+
+.usage-value {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.usage-bar-bg {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+/* Temperature */
+.temp-value {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Table header styling */
+.mat-header-cell {
+  font-weight: 500;
+  color: #555;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.mat-row {
+  transition: background 0.2s ease;
+}
+
+.mat-row:hover {
+  background: #fafafa;
+}
+
+.mat-header-row {
+  height: 48px;
+}
+
+.mat-row {
+  height: 56px;
+}
