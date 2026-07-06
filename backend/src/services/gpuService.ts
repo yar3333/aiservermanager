@@ -1,342 +1,110 @@
-import { exec as execCallback } from "child_process";
-import { promisify } from "util";
 import { GpuInfo } from "../types";
+import { GpuDetector } from "./detectors/gpuDetector";
+import { NvidiaSmiDetector } from "./detectors/nvidiaSmiDetector";
+import { AmdLinuxDetector } from "./detectors/amdLinuxDetector";
+import { WmiDetector } from "./detectors/wmiDetector";
+import { GpuEnricher } from "./enrichers/gpuEnricher";
+import { VulkanEnricher } from "./enrichers/vulkanEnricher";
+import { LspciEnricher } from "./enrichers/lspciEnricher";
 
-const exec = promisify(execCallback);
+/**
+ * Compose the platform-specific pipeline of detectors and enrichers.
+ *
+ * Detectors run sequentially (each may depend on previous results).
+ * Enrichers run in parallel after all detection is complete.
+ */
+export class GpuService {
+  private readonly detectors: GpuDetector[];
+  private readonly enrichers: GpuEnricher[];
 
-function safeExec(command: string, opts?: { timeout: number }): Promise<{ stdout: string; stderr: string }> {
-  return exec(command, {
-    timeout: opts?.timeout ?? 10000,
-    maxBuffer: 1024 * 1024,
-    shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
-  }).catch((err) => ({ stdout: "", stderr: err.message }));
-}
+  constructor() {
+    const isWindows = process.platform === "win32";
 
-/* ------------------------------------------------------------------ */
-/*  NVIDIA                                                            */
-/* ------------------------------------------------------------------ */
+    this.detectors = isWindows
+      ? [new NvidiaSmiDetector(), new WmiDetector()]
+      : [new NvidiaSmiDetector(), new AmdLinuxDetector()];
 
-async function detectNvidia(): Promise<GpuInfo[]> {
-  const result = await safeExec(
-    'nvidia-smi --query-gpu=index,name,vbios_version,memory.total,memory.used,utilization.gpu,temperature.gpu,pci.bus_id --format=csv,noheader,nounits',
-    { timeout: 10000 }
-  );
-
-  if (result.stderr && !result.stdout) return [];
-
-  const lines = result.stdout
-    .trim()
-    .split("\n")
-    .filter((l) => l.trim().length > 0);
-
-  const gpus: GpuInfo[] = [];
-
-  for (const line of lines) {
-    // nvidia-smi CSV: "0, NVIDIA GeForce RTX 4090, 96.0.88.0.0f, 24564, 2048, 12, 45, 00000000:0B:00.0"
-    const parts = line.split(",").map((s) => s.trim());
-    if (parts.length < 8) continue;
-
-    const name = parts[1];
-    const vramTotalMiB = parseFloat(parts[3]);
-    const vramUsedMiB = parseFloat(parts[4]);
-    const usage = parseFloat(parts[5]);
-    const temperature = parseFloat(parts[6]);
-    const pciBusId = parts[7];
-
-    gpus.push({
-      index: parseInt(parts[0], 10),
-      vendor: "NVIDIA",
-      brand: "NVIDIA",
-      name,
-      vulkanName: name,
-      vramTotal: Math.round(vramTotalMiB / 1024),
-      vramUsed: Math.round(vramUsedMiB / 1024),
-      usage: isNaN(usage) ? 0 : usage,
-      temperature: isNaN(temperature) ? 0 : temperature,
-      pciBusId,
-    });
+    this.enrichers = isWindows ? [] : [new LspciEnricher(), new VulkanEnricher()];
   }
 
-  return gpus;
-}
+  async getGpuList(): Promise<GpuInfo[]> {
+    // 1. Run detectors sequentially, merging results
+    const gpus = await this.runDetectors();
 
-/* ------------------------------------------------------------------ */
-/*  AMD (Linux — rocm-smi)                                            */
-/* ------------------------------------------------------------------ */
+    // 2. Deduplicate by GPU name (in case multiple detectors report the same card)
+    const deduped = deduplicate(gpus);
 
-async function detectAmdLinux(): Promise<GpuInfo[]> {
-  const nameResult = await safeExec("rocm-smi --showproductname --json", { timeout: 10000 });
-  const tempResult = await safeExec("rocm-smi --showtemperature --json", { timeout: 10000 });
-  const usageResult = await safeExec("rocm-smi --showusage --json", { timeout: 10000 });
-  const vramResult = await safeExec("rocm-smi --showmemusage --json", { timeout: 10000 });
+    // 3. Enrich in parallel
+    await this.runEnrichers(deduped);
 
-  if (nameResult.stderr && !nameResult.stdout) return [];
-
-  const gpus: GpuInfo[] = [];
-  let count = 0;
-
-  try {
-    const nameData = JSON.parse(nameResult.stdout);
-    count = nameData.card_count ?? 0;
-  } catch {
-    return [];
+    return deduped;
   }
 
-  for (let i = 0; i < count; i++) {
-    let name = `AMD GPU ${i}`;
-    let temperature = 0;
-    let usage = 0;
-    let vramUsed = 0;
-    let vramTotal = 0;
+  private async runDetectors(): Promise<GpuInfo[]> {
+    const all: GpuInfo[] = [];
 
-    try {
-      const nameData = JSON.parse(nameResult.stdout);
-      name = nameData.card_product_name?.[i] ?? name;
-    } catch { /* keep default */ }
+    for (const detector of this.detectors) {
+      if (!(await detector.isAvailable())) continue;
 
-    try {
-      const tempData = JSON.parse(tempResult.stdout);
-      temperature = tempData.card_temperature?.[i] ?? 0;
-    } catch { /* keep default */ }
-
-    try {
-      const usageData = JSON.parse(usageResult.stdout);
-      usage = usageData.gpu_usage_percent?.[i] ?? 0;
-    } catch { /* keep default */ }
-
-    try {
-      const vramData = JSON.parse(vramResult.stdout);
-      vramUsed = Math.round((vramData.used_memory_vif_block_percent?.[i] ?? 0) / 100 * vramTotal);
-    } catch { /* keep default */ }
-
-    gpus.push({
-      index: i,
-      vendor: "AMD",
-      brand: "RADEON",
-      name,
-      vulkanName: name,
-      vramTotal,
-      vramUsed,
-      usage,
-      temperature,
-      pciBusId: "",
-    });
-  }
-
-  return gpus;
-}
-
-/* ------------------------------------------------------------------ */
-/*  AMD (Windows — PowerShell WMI)                                    */
-/* ------------------------------------------------------------------ */
-
-async function detectAmdWindows(): Promise<GpuInfo[]> {
-  const psScript = `
-    Get-CimInstance -ClassName Win32_VideoController | Where-Object { $_.Name -match 'AMD|RADEON|Radeon' } | ` +
-    `ForEach-Object { @{index=0; name=$_.Name; vram=$_.AdapterRAM; pci=$_.PNPDeviceID} } | ConvertTo-Json
-  `;
-
-  const result = await safeExec(psScript, { timeout: 15000 });
-  if (result.stderr && !result.stdout) return [];
-
-  const gpus: GpuInfo[] = [];
-  let idx = 0;
-
-  try {
-    const data = JSON.parse(result.stdout);
-    const items = Array.isArray(data) ? data : [data];
-
-    for (const item of items) {
-      const vramBytes = parseInt(item.vram ?? item.AdapterRAM ?? "0", 10);
-      gpus.push({
-        index: idx++,
-        vendor: "AMD",
-        brand: "RADEON",
-        name: item.name ?? `AMD GPU ${idx - 1}`,
-        vulkanName: "",
-        vramTotal: Math.round(vramBytes / (1024 * 1024 * 1024)),
-        vramUsed: 0,
-        usage: 0,
-        temperature: 0,
-        pciBusId: item.pci ?? item.PNPDeviceID ?? "",
-      });
+      const detected = await detector.detect();
+      all.push(...detected);
     }
-  } catch {
-    // parse error — return empty
+
+    return all;
   }
 
-  return gpus;
+  private async runEnrichers(gpus: GpuInfo[]): Promise<void> {
+    const tasks: Promise<void>[] = [];
+
+    for (const enricher of this.enrichers) {
+      if (await enricher.isAvailable()) {
+        tasks.push(enricher.enrich(gpus));
+      }
+    }
+
+    await Promise.all(tasks);
+  }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Vulkan names (Linux — vulkaninfo)                                 */
-/* ------------------------------------------------------------------ */
+/**
+ * Remove duplicate GPUs that share the same name.
+ * When multiple detectors report the same card (e.g. nvidia-smi + WMI),
+ * prefer the entry with more populated fields.
+ */
+function deduplicate(gpus: GpuInfo[]): GpuInfo[] {
+  const seen = new Map<string, GpuInfo>();
 
-async function getVulkanNames(): Promise<Record<number, string>> {
-  if (process.platform !== "linux") return {};
+  for (const gpu of gpus) {
+    const existing = seen.get(gpu.name);
+    if (!existing) {
+      seen.set(gpu.name, gpu);
+      continue;
+    }
 
-  const result = await safeExec(
-    "vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|deviceType' | paste - - ",
-    { timeout: 10000 }
-  );
-
-  if (result.stderr && !result.stdout) return {};
-
-  const map: Record<number, string> = {};
-  const lines = result.stdout.trim().split("\n");
-
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(/deviceName\s+=\s+(.+)/);
-    if (match) {
-      map[i] = match[1].trim();
+    // Keep the entry with more data (usage, temperature, VRAM details)
+    const existingScore = score(existing);
+    const newScore = score(gpu);
+    if (newScore > existingScore) {
+      seen.set(gpu.name, gpu);
     }
   }
 
-  return map;
+  return [...seen.values()];
 }
 
-/* ------------------------------------------------------------------ */
-/*  PCI vendor enrichment (Linux — lspci)                             */
-/* ------------------------------------------------------------------ */
-
-async function getLspciBrands(): Promise<Record<string, string>> {
-  if (process.platform !== "linux") return {};
-
-  const result = await safeExec(
-    "lspci -vnn | grep -A 3 -E 'VGA|3D|Display'",
-    { timeout: 10000 }
-  );
-
-  if (result.stderr && !result.stdout) return {};
-
-  const map: Record<string, string> = {};
-  const blocks = result.stdout.split("\n\n");
-
-  for (const block of blocks) {
-    const pciMatch = block.match(/^([0-9a-fA-F]{2}):([0-9a-fA-F]{2}):([0-9a-fA-F]{2})\.([0-9])/);
-    if (!pciMatch) continue;
-
-    const busId = `${pciMatch[1]}:${pciMatch[2]}:${pciMatch[3]}.${pciMatch[4]}`.toUpperCase();
-    const brand = detectBrandFromPci(block);
-    if (brand) map[busId] = brand;
-  }
-
-  return map;
+function score(gpu: GpuInfo): number {
+  let s = 0;
+  if (gpu.usage > 0) s += 2;
+  if (gpu.temperature > 0) s += 2;
+  if (gpu.vramUsed > 0) s += 1;
+  if (gpu.vulkanName) s += 1;
+  if (gpu.pciBusId) s += 1;
+  return s;
 }
 
-function detectBrandFromPci(block: string): string {
-  const upper = block.toUpperCase();
-  if (upper.includes("ASROK") || upper.includes("ASROCK")) return "ASROCK";
-  if (upper.includes("MSI ")) return "MSI";
-  if (upper.includes("GIGABYTE")) return "GIGABYTE";
-  if (upper.includes("EVGA")) return "EVGA";
-  if (upper.includes("ZOTAC")) return "ZOTAC";
-  if (upper.includes("SAPPHIRE")) return "SAPPHIRE";
-  if (upper.includes("POWERCOLOR")) return "POWERCOLOR";
-  if (upper.includes("XFX")) return "XFX";
-  if (upper.includes("SAPPHIRE")) return "SAPPHIRE";
-  return "";
-}
-
-/* ------------------------------------------------------------------ */
-/*  Windows WMI fallback (all GPUs)                                   */
-/* ------------------------------------------------------------------ */
-
-async function detectWindowsWmi(): Promise<GpuInfo[]> {
-  const psScript = `
-    Get-CimInstance -ClassName Win32_VideoController | ` +
-    `ForEach-Object { ` +
-    `  @{ name=$_.Name; vram=$_.AdapterRAM; pci=$_.PNPDeviceID; status=$_.Status } ` +
-    `} | ConvertTo-Json
-  `;
-
-  const result = await safeExec(psScript, { timeout: 15000 });
-  if (result.stderr && !result.stdout) return [];
-
-  const gpus: GpuInfo[] = [];
-  let idx = 0;
-
-  try {
-    const data = JSON.parse(result.stdout);
-    const items = Array.isArray(data) ? data : [data];
-
-    for (const item of items) {
-      const name = item.name ?? "Unknown GPU";
-      const vramBytes = parseInt(item.vram ?? item.AdapterRAM ?? "0", 10);
-      const vendor = name.toUpperCase().includes("NVIDIA")
-        ? "NVIDIA"
-        : name.toUpperCase().includes("AMD") || name.toUpperCase().includes("RADEON")
-        ? "AMD"
-        : name.toUpperCase().includes("INTEL")
-        ? "Intel"
-        : "Unknown";
-
-      gpus.push({
-        index: idx++,
-        vendor,
-        brand: vendor === "AMD" ? "RADEON" : vendor,
-        name,
-        vulkanName: "",
-        vramTotal: Math.round(vramBytes / (1024 * 1024 * 1024)),
-        vramUsed: 0,
-        usage: 0,
-        temperature: 0,
-        pciBusId: item.pci ?? item.PNPDeviceID ?? "",
-      });
-    }
-  } catch {
-    // parse error
-  }
-
-  return gpus;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Main                                                              */
-/* ------------------------------------------------------------------ */
+// Default singleton instance — used by routes
+const gpuService = new GpuService();
 
 export async function getGpuList(): Promise<GpuInfo[]> {
-  const isWindows = process.platform === "win32";
-  let gpus: GpuInfo[] = [];
-
-  if (isWindows) {
-    // On Windows: try nvidia-smi first, then WMI fallback
-    const nvidia = await detectNvidia();
-    if (nvidia.length > 0) {
-      gpus.push(...nvidia);
-    }
-
-    // WMI fallback for any non-detected GPUs
-    const wmi = await detectWindowsWmi();
-    const nvidiaNames = new Set(nvidia.map((g) => g.name));
-    for (const gpu of wmi) {
-      if (!nvidiaNames.has(gpu.name)) {
-        gpus.push(gpu);
-      }
-    }
-  } else {
-    // On Linux: nvidia-smi + rocm-smi
-    const nvidia = await detectNvidia();
-    const amd = await detectAmdLinux();
-    gpus = [...nvidia, ...amd];
-
-    // Enrich with lspci brands and vulkan names
-    if (gpus.length > 0) {
-      const [brands, vulkanNames] = await Promise.all([
-        getLspciBrands(),
-        getVulkanNames(),
-      ]);
-
-      for (const gpu of gpus) {
-        if (brands[gpu.pciBusId.toUpperCase()]) {
-          gpu.brand = brands[gpu.pciBusId.toUpperCase()];
-        }
-        if (vulkanNames[gpu.index]) {
-          gpu.vulkanName = vulkanNames[gpu.index];
-        }
-      }
-    }
-  }
-
-  return gpus;
+  return gpuService.getGpuList();
 }
