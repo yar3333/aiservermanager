@@ -1,46 +1,42 @@
+import "reflect-metadata";
+import { Container } from "inversify";
+import { GPU_DETECTOR, GPU_ENRICHER, GPU_SERVICE } from "../../di/types";
+import { GpuDetector } from "../detectors/gpuDetector";
+import { GpuEnricher } from "../enrichers/gpuEnricher";
+import { GpuService } from "../gpuService";
 import { GpuInfo } from "../../types";
 
-// Use module-level WeakMaps to share mock instances across the module boundary
-const mockInstances = {
-  nvidia: null as { isAvailable: jest.Mock; detect: jest.Mock } | null,
-  wmi: null as { isAvailable: jest.Mock; detect: jest.Mock } | null,
+function createTestContainer(detectors: PartialMockDetector[] = [], enrichers: PartialMockEnricher[] = []): Container {
+  const container = new Container();
+
+  for (const d of detectors) {
+    container.bind<GpuDetector>(GPU_DETECTOR).toConstantValue(d as unknown as GpuDetector);
+  }
+  for (const e of enrichers) {
+    container.bind<GpuEnricher>(GPU_ENRICHER).toConstantValue(e as unknown as GpuEnricher);
+  }
+
+  container.bind<GpuService>(GPU_SERVICE).to(GpuService);
+
+  return container;
+}
+
+type PartialMockDetector = {
+  isAvailable: jest.Mock;
+  detect: jest.Mock;
 };
 
-jest.mock("../detectors/nvidiaSmiDetector", () => {
-  return {
-    NvidiaSmiDetector: jest.fn(() => {
-      return mockInstances.nvidia;
-    }),
-  };
-});
-jest.mock("../detectors/wmiDetector", () => {
-  return {
-    WmiDetector: jest.fn(() => {
-      return mockInstances.wmi;
-    }),
-  };
-});
-jest.mock("../detectors/amdLinuxDetector", () => ({
-  AmdLinuxDetector: jest.fn(() => ({
-    isAvailable: jest.fn().mockResolvedValue(false),
-    detect: jest.fn().mockResolvedValue([]),
-  })),
-}));
-jest.mock("../enrichers/lspciEnricher", () => ({
-  LspciEnricher: jest.fn(() => ({
-    isAvailable: jest.fn().mockResolvedValue(false),
-    enrich: jest.fn().mockResolvedValue(undefined),
-  })),
-}));
-jest.mock("../enrichers/vulkanEnricher", () => ({
-  VulkanEnricher: jest.fn(() => ({
-    isAvailable: jest.fn().mockResolvedValue(false),
-    enrich: jest.fn().mockResolvedValue(undefined),
-  })),
-}));
+type PartialMockEnricher = {
+  isAvailable: jest.Mock;
+  enrich: jest.Mock;
+};
 
-// Now import GpuService (imports happen after jest.mock is hoisted)
-import { GpuService } from "../gpuService";
+function makeMockDetector(): PartialMockDetector {
+  return {
+    isAvailable: jest.fn().mockResolvedValue(true),
+    detect: jest.fn().mockResolvedValue([]),
+  };
+}
 
 const gpu1: GpuInfo = {
   index: 0,
@@ -81,51 +77,53 @@ const gpu2: GpuInfo = {
   pciBusId: "2:00.0",
 };
 
-function makeMockDetector() {
-  return {
-    isAvailable: jest.fn().mockResolvedValue(true),
-    detect: jest.fn().mockResolvedValue([]),
-  };
-}
-
 describe("GpuService", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockInstances.nvidia = makeMockDetector();
-    mockInstances.wmi = makeMockDetector();
-  });
+  let container: Container;
 
   describe("getGpuList", () => {
-    it("calls detectors sequentially and returns merged results", async () => {
-      mockInstances.nvidia!.detect.mockResolvedValue([gpu1]);
-      mockInstances.wmi!.detect.mockResolvedValue([gpu2]);
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
-      const service = new GpuService();
+    it("calls detectors sequentially and returns merged results", async () => {
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.detect.mockResolvedValue([gpu1]);
+      det2.detect.mockResolvedValue([gpu2]);
+
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getGpuList();
 
-      expect(mockInstances.nvidia!.isAvailable).toHaveBeenCalled();
-      expect(mockInstances.nvidia!.detect).toHaveBeenCalled();
-      expect(mockInstances.wmi!.isAvailable).toHaveBeenCalled();
-      expect(mockInstances.wmi!.detect).toHaveBeenCalled();
+      expect(det1.isAvailable).toHaveBeenCalled();
+      expect(det1.detect).toHaveBeenCalled();
+      expect(det2.isAvailable).toHaveBeenCalled();
+      expect(det2.detect).toHaveBeenCalled();
       expect(result).toHaveLength(2);
     });
 
     it("skips detectors that are not available", async () => {
-      mockInstances.nvidia!.isAvailable.mockResolvedValue(false);
-      mockInstances.wmi!.detect.mockResolvedValue([gpu2]);
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.isAvailable.mockResolvedValue(false);
+      det2.detect.mockResolvedValue([gpu2]);
 
-      const service = new GpuService();
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       await service.getGpuList();
 
-      expect(mockInstances.nvidia!.detect).not.toHaveBeenCalled();
-      expect(mockInstances.wmi!.detect).toHaveBeenCalled();
+      expect(det1.detect).not.toHaveBeenCalled();
+      expect(det2.detect).toHaveBeenCalled();
     });
 
     it("deduplicates GPUs with the same name", async () => {
-      mockInstances.nvidia!.detect.mockResolvedValue([gpu1]);
-      mockInstances.wmi!.detect.mockResolvedValue([gpu1Lean]);
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.detect.mockResolvedValue([gpu1]);
+      det2.detect.mockResolvedValue([gpu1Lean]);
 
-      const service = new GpuService();
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getGpuList();
 
       expect(result).toHaveLength(1);
@@ -135,10 +133,13 @@ describe("GpuService", () => {
     });
 
     it("returns empty array when no detectors are available", async () => {
-      mockInstances.nvidia!.isAvailable.mockResolvedValue(false);
-      mockInstances.wmi!.isAvailable.mockResolvedValue(false);
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.isAvailable.mockResolvedValue(false);
+      det2.isAvailable.mockResolvedValue(false);
 
-      const service = new GpuService();
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getGpuList();
 
       expect(result).toEqual([]);
@@ -146,11 +147,18 @@ describe("GpuService", () => {
   });
 
   describe("deduplication scoring", () => {
-    it("prefers entry with usage and temperature over lean entry", async () => {
-      mockInstances.nvidia!.detect.mockResolvedValue([gpu1Lean]);
-      mockInstances.wmi!.detect.mockResolvedValue([gpu1]);
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
-      const service = new GpuService();
+    it("prefers entry with usage and temperature over lean entry", async () => {
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.detect.mockResolvedValue([gpu1Lean]);
+      det2.detect.mockResolvedValue([gpu1]);
+
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getGpuList();
 
       expect(result).toHaveLength(1);
@@ -161,10 +169,13 @@ describe("GpuService", () => {
       const gpuA: GpuInfo = { ...gpu1, name: "Unique GPU A" };
       const gpuB: GpuInfo = { ...gpu1, name: "Unique GPU A" };
 
-      mockInstances.nvidia!.detect.mockResolvedValue([gpuA]);
-      mockInstances.wmi!.detect.mockResolvedValue([gpuB]);
+      const det1 = makeMockDetector();
+      const det2 = makeMockDetector();
+      det1.detect.mockResolvedValue([gpuA]);
+      det2.detect.mockResolvedValue([gpuB]);
 
-      const service = new GpuService();
+      container = createTestContainer([det1, det2]);
+      const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getGpuList();
 
       expect(result).toHaveLength(1);

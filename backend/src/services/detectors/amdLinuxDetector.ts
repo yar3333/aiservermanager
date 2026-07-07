@@ -1,3 +1,4 @@
+import { injectable } from "inversify";
 import { GpuInfo } from "../../types";
 import { safeExec } from "../exec";
 import { GpuDetector } from "./gpuDetector";
@@ -5,6 +6,7 @@ import { GpuDetector } from "./gpuDetector";
 /**
  * Detect AMD GPUs on Linux using `rocm-smi`.
  */
+@injectable()
 export class AmdLinuxDetector implements GpuDetector {
   private availableCache: boolean | null = null;
 
@@ -66,15 +68,21 @@ export class AmdLinuxDetector implements GpuDetector {
     try {
       gpu.name = JSON.parse(results[0].stdout).card_product_name?.[i] ?? gpu.name;
       gpu.vulkanName = gpu.name;
-    } catch { /* keep default */ }
+    } catch {
+      /* keep default */
+    }
 
     try {
       gpu.temperature = JSON.parse(results[1].stdout).card_temperature?.[i] ?? 0;
-    } catch { /* keep default */ }
+    } catch {
+      /* keep default */
+    }
 
     try {
       gpu.usage = JSON.parse(results[2].stdout).gpu_usage_percent?.[i] ?? 0;
-    } catch { /* keep default */ }
+    } catch {
+      /* keep default */
+    }
 
     return gpu;
   }

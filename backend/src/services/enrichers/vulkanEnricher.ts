@@ -1,3 +1,4 @@
+import { injectable } from "inversify";
 import { GpuInfo } from "../../types";
 import { safeExec } from "../exec";
 import { GpuEnricher } from "./gpuEnricher";
@@ -6,6 +7,7 @@ import { GpuEnricher } from "./gpuEnricher";
  * Enrich GPU entries with Vulkan device names using `vulkaninfo --summary`.
  * Linux only.
  */
+@injectable()
 export class VulkanEnricher implements GpuEnricher {
   private availableCache: boolean | null = null;
 
@@ -26,14 +28,16 @@ export class VulkanEnricher implements GpuEnricher {
   async enrich(gpus: GpuInfo[]): Promise<void> {
     if (gpus.length === 0) return;
 
-    const result = await safeExec(
-      "vulkaninfo --summary 2>/dev/null | grep 'deviceName' | sed 's/.*deviceName = //'",
-      { timeout: 10000 },
-    );
+    const result = await safeExec("vulkaninfo --summary 2>/dev/null | grep 'deviceName' | sed 's/.*deviceName = //'", {
+      timeout: 10000,
+    });
 
     if (!result.stdout.trim()) return;
 
-    const names = result.stdout.trim().split("\n").map((s) => s.trim());
+    const names = result.stdout
+      .trim()
+      .split("\n")
+      .map((s) => s.trim());
 
     for (let i = 0; i < gpus.length && i < names.length; i++) {
       if (names[i]) {

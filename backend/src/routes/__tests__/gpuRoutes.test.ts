@@ -1,15 +1,25 @@
+import "reflect-metadata";
 import request from "supertest";
 import express from "express";
+import { Container } from "inversify";
+import { GPU_SERVICE } from "../../di/types";
+import { GpuService } from "../../services/gpuService";
 import gpuRoutes from "../gpuRoutes";
-import * as gpuService from "../../services/gpuService";
 
-// Mock the gpuService
-jest.mock("../../services/gpuService");
-const mockGetGpuList = gpuService.getGpuList as jest.MockedFunction<typeof gpuService.getGpuList>;
+// Mock GpuService
+const mockGetGpuList = jest.fn();
+const mockGpuService = { getGpuList: mockGetGpuList } as unknown as GpuService;
 
+function createMockContainer(): Container {
+  const container = new Container();
+  container.bind<GpuService>(GPU_SERVICE).toConstantValue(mockGpuService);
+  return container;
+}
+
+const container = createMockContainer();
 const app = express();
 app.use(express.json());
-app.use("/api/gpus", gpuRoutes);
+app.use("/api/gpus", gpuRoutes(container));
 
 describe("GET /api/gpus", () => {
   beforeEach(() => {

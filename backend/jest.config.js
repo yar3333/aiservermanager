@@ -13,5 +13,12 @@ module.exports = {
         tsconfig: "tsconfig.test.json",
       },
     ],
+    "^.+\\.jsx?$": [
+      "ts-jest",
+      {
+        tsconfig: "tsconfig.test.json",
+      },
+    ],
   },
+  transformIgnorePatterns: ["/node_modules/(?!(inversify|@inversifyjs)/)"],
 };

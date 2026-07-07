@@ -1,8 +1,11 @@
+import "reflect-metadata";
 import express from "express";
 import cors from "cors";
 import path from "path";
+import { createContainer } from "./di/container";
 import gpuRoutes from "./routes/gpuRoutes";
 
+const container = createContainer();
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "4242", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -11,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // API routes
-app.use("/api/gpus", gpuRoutes);
+app.use("/api/gpus", gpuRoutes(container));
 
 // Health check
 app.get("/health", (_req, res) => {

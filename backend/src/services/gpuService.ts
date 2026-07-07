@@ -1,30 +1,28 @@
+import { injectable, multiInject } from "inversify";
 import { GpuInfo } from "../types";
+import { GPU_DETECTOR, GPU_ENRICHER } from "../di/types";
 import { GpuDetector } from "./detectors/gpuDetector";
-import { NvidiaSmiDetector } from "./detectors/nvidiaSmiDetector";
-import { AmdLinuxDetector } from "./detectors/amdLinuxDetector";
-import { WmiDetector } from "./detectors/wmiDetector";
 import { GpuEnricher } from "./enrichers/gpuEnricher";
-import { VulkanEnricher } from "./enrichers/vulkanEnricher";
-import { LspciEnricher } from "./enrichers/lspciEnricher";
 
 /**
  * Compose the platform-specific pipeline of detectors and enrichers.
  *
  * Detectors run sequentially (each may depend on previous results).
  * Enrichers run in parallel after all detection is complete.
+ *
+ * All dependencies are injected by InversifyJS via multiInject.
  */
+@injectable()
 export class GpuService {
   private readonly detectors: GpuDetector[];
   private readonly enrichers: GpuEnricher[];
 
-  constructor() {
-    const isWindows = process.platform === "win32";
-
-    this.detectors = isWindows
-      ? [new NvidiaSmiDetector(), new WmiDetector()]
-      : [new NvidiaSmiDetector(), new AmdLinuxDetector()];
-
-    this.enrichers = isWindows ? [] : [new LspciEnricher(), new VulkanEnricher()];
+  constructor(
+    @multiInject(GPU_DETECTOR) detectors: GpuDetector[],
+    @multiInject(GPU_ENRICHER) enrichers: GpuEnricher[],
+  ) {
+    this.detectors = detectors;
+    this.enrichers = enrichers;
   }
 
   async getGpuList(): Promise<GpuInfo[]> {
@@ -100,11 +98,4 @@ function score(gpu: GpuInfo): number {
   if (gpu.vulkanName) s += 1;
   if (gpu.pciBusId) s += 1;
   return s;
-}
-
-// Default singleton instance — used by routes
-const gpuService = new GpuService();
-
-export async function getGpuList(): Promise<GpuInfo[]> {
-  return gpuService.getGpuList();
 }

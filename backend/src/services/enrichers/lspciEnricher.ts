@@ -1,3 +1,4 @@
+import { injectable } from "inversify";
 import { GpuInfo } from "../../types";
 import { safeExec } from "../exec";
 import { GpuEnricher } from "./gpuEnricher";
@@ -6,6 +7,7 @@ import { GpuEnricher } from "./gpuEnricher";
  * Enrich GPU entries with PCI brand (ASRock, MSI, Gigabyte, etc.) using `lspci -vnn`.
  * Linux only.
  */
+@injectable()
 export class LspciEnricher implements GpuEnricher {
   private availableCache: boolean | null = null;
 

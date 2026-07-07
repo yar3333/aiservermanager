@@ -1,3 +1,4 @@
+import { injectable } from "inversify";
 import { GpuInfo } from "../../types";
 import { safeExec } from "../exec";
 import { GpuDetector } from "./gpuDetector";
@@ -7,6 +8,7 @@ import { GpuDetector } from "./gpuDetector";
  * Supports all vendors — NVIDIA, AMD, Intel.
  * Usage and temperature are not available through WMI.
  */
+@injectable()
 export class WmiDetector implements GpuDetector {
   private availableCache: boolean | null = null;
 
@@ -29,11 +31,11 @@ export class WmiDetector implements GpuDetector {
 
   async detect(): Promise<GpuInfo[]> {
     const psScript = [
-      'Get-CimInstance -ClassName Win32_VideoController |',
-      '  ForEach-Object {',
-      '    @{',
-      '      name = $_.Name',
-      '      vram = $_.AdapterRAM',
+      "Get-CimInstance -ClassName Win32_VideoController |",
+      "  ForEach-Object {",
+      "    @{",
+      "      name = $_.Name",
+      "      vram = $_.AdapterRAM",
       "      pci  = $_.PNPDeviceID",
       "    }",
       "  } | ConvertTo-Json",
@@ -47,9 +49,7 @@ export class WmiDetector implements GpuDetector {
 
   private parseJson(raw: string): GpuInfo[] {
     try {
-      const items: unknown[] = Array.isArray(JSON.parse(raw))
-        ? JSON.parse(raw)
-        : [JSON.parse(raw)];
+      const items: unknown[] = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [JSON.parse(raw)];
 
       return items.map((item, idx) => {
         const data = item as Record<string, unknown>;

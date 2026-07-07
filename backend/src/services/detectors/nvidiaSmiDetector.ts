@@ -1,3 +1,4 @@
+import { injectable } from "inversify";
 import { GpuInfo } from "../../types";
 import { safeExec } from "../exec";
 import { GpuDetector } from "./gpuDetector";
@@ -6,6 +7,7 @@ import { GpuDetector } from "./gpuDetector";
  * Detect NVIDIA GPUs using `nvidia-smi`.
  * Works on both Linux and Windows.
  */
+@injectable()
 export class NvidiaSmiDetector implements GpuDetector {
   private availableCache: boolean | null = null;
 
