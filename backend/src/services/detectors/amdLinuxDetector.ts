@@ -93,7 +93,9 @@ export class AmdLinuxDetector implements GpuDetector {
       vendor: "AMD",
       brand: "RADEON",
       name: `AMD GPU ${index}`,
-      vulkanName: "",
+      engineCudaName: "",
+      engineRocmName: "",
+      engineVulkanName: "",
       vramTotal: 0,
       vramUsed: 0,
       usage: 0,
@@ -105,7 +107,6 @@ export class AmdLinuxDetector implements GpuDetector {
     const cardInfo = productData[cardKey] as Record<string, unknown> | undefined;
     if (cardInfo?.["Card Series"]) {
       gpu.name = String(cardInfo["Card Series"]);
-      gpu.vulkanName = gpu.name;
     }
 
     // Temperature (Sensor edge)

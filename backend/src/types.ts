@@ -3,7 +3,9 @@ export interface GpuInfo {
   vendor: string;
   brand: string;
   name: string;
-  vulkanName: string;
+  engineCudaName: string;
+  engineRocmName: string;
+  engineVulkanName: string;
   vramTotal: number;
   vramUsed: number;
   usage: number;

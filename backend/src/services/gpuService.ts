@@ -32,8 +32,11 @@ export class GpuService {
     // 2. Deduplicate by GPU name (in case multiple detectors report the same card)
     const deduped = deduplicate(gpus);
 
-    // 3. Enrich in parallel
+    // 3. Enrich in parallel (lspci brand, vulkan device names, ...)
     await this.runEnrichers(deduped);
+
+    // 4. Assign llama.cpp engine device names (cuda0, rocm0, ...)
+    assignEngineNames(deduped);
 
     return deduped;
   }
@@ -100,7 +103,27 @@ function score(gpu: GpuInfo): number {
   if (gpu.usage > 0) s += 2;
   if (gpu.temperature > 0) s += 2;
   if (gpu.vramUsed > 0) s += 1;
-  if (gpu.vulkanName) s += 1;
+  if (gpu.engineVulkanName) s += 1;
   if (gpu.pciBusId) s += 1;
   return s;
+}
+
+/**
+ * Assign llama.cpp engine device names based on vendor.
+ * NVIDIA GPUs get cuda0, cuda1, ...
+ * AMD GPUs get rocm0, rocm1, ...
+ * Vulkan names are assigned by the VulkanEnricher.
+ */
+function assignEngineNames(gpus: GpuInfo[]): void {
+  let cudaIndex = 0;
+  let rocmIndex = 0;
+
+  for (const gpu of gpus) {
+    if (gpu.vendor === "NVIDIA" && !gpu.engineCudaName) {
+      gpu.engineCudaName = `cuda${cudaIndex++}`;
+    }
+    if (gpu.vendor === "AMD" && !gpu.engineRocmName) {
+      gpu.engineRocmName = `rocm${rocmIndex++}`;
+    }
+  }
 }

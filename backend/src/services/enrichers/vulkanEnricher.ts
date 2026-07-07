@@ -4,7 +4,8 @@ import { safeExec } from "../exec";
 import { GpuEnricher } from "./gpuEnricher";
 
 /**
- * Enrich GPU entries with Vulkan device names using `vulkaninfo --summary`.
+ * Enrich GPU entries with llama.cpp Vulkan device names (vulkan0, vulkan1, ...).
+ * Uses `vulkaninfo --summary` to detect Vulkan-capable GPUs.
  * Linux only.
  */
 @injectable()
@@ -34,15 +35,10 @@ export class VulkanEnricher implements GpuEnricher {
 
     if (!result.stdout.trim()) return;
 
-    const names = result.stdout
-      .trim()
-      .split("\n")
-      .map((s) => s.trim());
-
-    for (let i = 0; i < gpus.length && i < names.length; i++) {
-      if (names[i]) {
-        gpus[i].vulkanName = names[i];
-      }
+    // Assign llama.cpp Vulkan device names: vulkan0, vulkan1, ...
+    const vulkanDevices = result.stdout.trim().split("\n").length;
+    for (let i = 0; i < gpus.length && i < vulkanDevices; i++) {
+      gpus[i].engineVulkanName = `vulkan${i}`;
     }
   }
 }

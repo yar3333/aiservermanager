@@ -18,7 +18,7 @@ import { GpuService } from "./services/gpu.service";
 export class AppComponent {
   private gpuService = inject(GpuService);
 
-  displayedColumns: string[] = ["index", "name", "vulkanName", "vram", "usage", "temperature", "pciBusId"];
+  displayedColumns: string[] = ["index", "name", "engineNames", "vram", "usage", "temperature", "pciBusId"];
 
   readonly gpus = signal<Gpu[]>([]);
   readonly loading = signal(true);
@@ -65,5 +65,13 @@ export class AppComponent {
     if (temp < 60) return "#4caf50";
     if (temp < 80) return "#ff9800";
     return "#f44336";
+  }
+
+  getEngineNames(gpu: Gpu): string {
+    const parts: string[] = [];
+    if (gpu.engineCudaName) parts.push(gpu.engineCudaName);
+    if (gpu.engineRocmName) parts.push(gpu.engineRocmName);
+    if (gpu.engineVulkanName) parts.push(gpu.engineVulkanName);
+    return parts.length > 0 ? parts.join(", ") : "—";
   }
 }
