@@ -1,8 +1,8 @@
 import { NvidiaSmiDetector } from "../nvidiaSmiDetector";
-import * as execModule from "../../exec";
+import * as execModule from "../../../helpers/ExecTools";
 
-jest.mock("../../exec");
-const mockSafeExec = execModule.safeExec as jest.MockedFunction<typeof execModule.safeExec>;
+jest.mock("../../../helpers/ExecTools");
+const mockSafeExec = execModule.ExecTools.safeExec as jest.MockedFunction<typeof execModule.ExecTools.safeExec>;
 
 describe("NvidiaSmiDetector", () => {
   let detector: NvidiaSmiDetector;

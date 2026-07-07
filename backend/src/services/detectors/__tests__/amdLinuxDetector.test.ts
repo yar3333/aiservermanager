@@ -1,16 +1,24 @@
 import "reflect-metadata";
 import { AmdLinuxDetector } from "../amdLinuxDetector";
-import * as execModule from "../../exec";
+import * as execModule from "../../../helpers/ExecTools";
 
-jest.mock("../../exec");
-const mockSafeExec = execModule.safeExec as jest.MockedFunction<typeof execModule.safeExec>;
+jest.mock("../../../helpers/ExecTools");
+const mockSafeExec = execModule.ExecTools.safeExec as jest.MockedFunction<typeof execModule.ExecTools.safeExec>;
 
 describe("AmdLinuxDetector", () => {
   let detector: AmdLinuxDetector;
 
+  function createDetector(platform: NodeJS.Platform = "linux"): AmdLinuxDetector {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: platform, configurable: true });
+    const d = new AmdLinuxDetector();
+    Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+    return d;
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
-    detector = new AmdLinuxDetector();
+    detector = createDetector();
   });
 
   const productJson = JSON.stringify({

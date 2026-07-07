@@ -4,7 +4,7 @@ import { GPU_DETECTOR, GPU_ENRICHER, GPU_SERVICE } from "../../di/types";
 import { GpuDetector } from "../detectors/gpuDetector";
 import { GpuEnricher } from "../enrichers/gpuEnricher";
 import { GpuService } from "../gpuService";
-import { GpuInfo } from "../../types";
+import { GpuInfo } from "../../models/GpuInfo";
 
 function createTestContainer(detectors: PartialMockDetector[] = [], enrichers: PartialMockEnricher[] = []): Container {
   const container = new Container();

@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
-import { GpuInfo } from "../../types";
-import { safeExec } from "../exec";
+import { GpuInfo } from "../../models/GpuInfo";
+import { ExecTools } from "../../helpers/ExecTools";
 import { GpuEnricher } from "./gpuEnricher";
 
 /**
@@ -19,9 +19,9 @@ export class VulkanEnricher implements GpuEnricher {
   }
 
   async isAvailable(): Promise<boolean> {
-    if (this.availableCache !== null) return this.availableCache;
+    if (this.availableCache !== null) return this.availableCache as boolean;
 
-    const result = await safeExec("vulkaninfo --summary 2>/dev/null", { timeout: 5000 });
+    const result = await ExecTools.safeExec("vulkaninfo --summary 2>/dev/null", { timeout: 5000 });
     this.availableCache = result.stdout.includes("deviceName");
     return this.availableCache;
   }
@@ -29,9 +29,12 @@ export class VulkanEnricher implements GpuEnricher {
   async enrich(gpus: GpuInfo[]): Promise<void> {
     if (gpus.length === 0) return;
 
-    const result = await safeExec("vulkaninfo --summary 2>/dev/null | grep 'deviceName' | sed 's/.*deviceName = //'", {
-      timeout: 10000,
-    });
+    const result = await ExecTools.safeExec(
+      "vulkaninfo --summary 2>/dev/null | grep 'deviceName' | sed 's/.*deviceName = //'",
+      {
+        timeout: 10000,
+      },
+    );
 
     if (!result.stdout.trim()) return;
 

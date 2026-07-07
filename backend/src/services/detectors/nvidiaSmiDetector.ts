@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
-import { GpuInfo } from "../../types";
-import { safeExec } from "../exec";
+import { GpuInfo } from "../../models/GpuInfo";
+import { ExecTools } from "../../helpers/ExecTools";
 import { GpuDetector } from "./gpuDetector";
 
 /**
@@ -14,7 +14,7 @@ export class NvidiaSmiDetector implements GpuDetector {
   async isAvailable(): Promise<boolean> {
     if (this.availableCache !== null) return this.availableCache;
 
-    const result = await safeExec("nvidia-smi --query-gpu=index --format=csv,noheader,nounits", {
+    const result = await ExecTools.safeExec("nvidia-smi --query-gpu=index --format=csv,noheader,nounits", {
       timeout: 5000,
     });
     this.availableCache = result.stdout.trim().length > 0;
@@ -22,7 +22,7 @@ export class NvidiaSmiDetector implements GpuDetector {
   }
 
   async detect(): Promise<GpuInfo[]> {
-    const result = await safeExec(
+    const result = await ExecTools.safeExec(
       "nvidia-smi --query-gpu=index,name,memory.total,memory.used,utilization.gpu,temperature.gpu,pci.bus_id --format=csv,noheader,nounits",
       { timeout: 10000 },
     );

@@ -1,10 +1,10 @@
 import "reflect-metadata";
 import { LspciEnricher } from "../lspciEnricher";
-import * as execModule from "../../exec";
-import { GpuInfo } from "../../../types";
+import * as execModule from "../../../helpers/ExecTools";
+import { GpuInfo } from "../../../models/GpuInfo";
 
-jest.mock("../../exec");
-const mockSafeExec = execModule.safeExec as jest.MockedFunction<typeof execModule.safeExec>;
+jest.mock("../../../helpers/ExecTools");
+const mockSafeExec = execModule.ExecTools.safeExec as jest.MockedFunction<typeof execModule.ExecTools.safeExec>;
 
 const lspciOutput = [
   "05:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Navi 31 [1002:744c]",

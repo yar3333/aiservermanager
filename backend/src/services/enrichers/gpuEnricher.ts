@@ -1,4 +1,4 @@
-import { GpuInfo } from "../../types";
+import { GpuInfo } from "../../models/GpuInfo";
 
 /**
  * Strategy interface for GPU data enrichment.

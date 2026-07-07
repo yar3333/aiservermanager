@@ -7,3 +7,4 @@ frontend/dist/
 *.log
 .env
 .angular/
+*.tsbuildinfo

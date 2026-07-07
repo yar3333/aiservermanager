@@ -1,5 +1,5 @@
 import { injectable, multiInject } from "inversify";
-import { GpuInfo } from "../types";
+import { GpuInfo } from "../models/GpuInfo";
 import { GPU_DETECTOR, GPU_ENRICHER } from "../di/types";
 import { GpuDetector } from "./detectors/gpuDetector";
 import { GpuEnricher } from "./enrichers/gpuEnricher";

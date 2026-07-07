@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
-import { GpuInfo } from "../../types";
-import { safeExec } from "../exec";
+import { GpuInfo } from "../../models/GpuInfo";
+import { ExecTools } from "../../helpers/ExecTools";
 import { GpuDetector } from "./gpuDetector";
 
 /**
@@ -21,7 +21,7 @@ export class WmiDetector implements GpuDetector {
   async isAvailable(): Promise<boolean> {
     if (this.availableCache !== null) return this.availableCache;
 
-    const result = await safeExec(
+    const result = await ExecTools.safeExec(
       "Get-CimInstance -ClassName Win32_VideoController | Select-Object -First 1 | ConvertTo-Json",
       { timeout: 8000 },
     );
@@ -41,7 +41,7 @@ export class WmiDetector implements GpuDetector {
       "  } | ConvertTo-Json",
     ].join("\n");
 
-    const result = await safeExec(psScript, { timeout: 15000 });
+    const result = await ExecTools.safeExec(psScript, { timeout: 15000 });
     if (!result.stdout.trim()) return [];
 
     return this.parseJson(result.stdout);

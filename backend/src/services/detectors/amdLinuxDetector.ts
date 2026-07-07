@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
-import { GpuInfo } from "../../types";
-import { safeExec } from "../exec";
+import { GpuInfo } from "../../models/GpuInfo";
+import { ExecTools } from "../../helpers/ExecTools";
 import { GpuDetector } from "./gpuDetector";
 
 /**
@@ -25,18 +25,18 @@ export class AmdLinuxDetector implements GpuDetector {
   async isAvailable(): Promise<boolean> {
     if (this.availableCache !== null) return this.availableCache;
 
-    const result = await safeExec("rocm-smi --showproductname --json", { timeout: 5000 });
+    const result = await ExecTools.safeExec("rocm-smi --showproductname --json", { timeout: 5000 });
     this.availableCache = result.stdout.trim().length > 0;
     return this.availableCache;
   }
 
   async detect(): Promise<GpuInfo[]> {
     const results = await Promise.all([
-      safeExec("rocm-smi --showproductname --json", { timeout: 10000 }),
-      safeExec("rocm-smi -t --json", { timeout: 10000 }),
-      safeExec("rocm-smi -u --json", { timeout: 10000 }),
-      safeExec("rocm-smi --showmeminfo vram --json", { timeout: 10000 }),
-      safeExec("rocm-smi --showbus --json", { timeout: 10000 }),
+      ExecTools.safeExec("rocm-smi --showproductname --json", { timeout: 10000 }),
+      ExecTools.safeExec("rocm-smi -t --json", { timeout: 10000 }),
+      ExecTools.safeExec("rocm-smi -u --json", { timeout: 10000 }),
+      ExecTools.safeExec("rocm-smi --showmeminfo vram --json", { timeout: 10000 }),
+      ExecTools.safeExec("rocm-smi --showbus --json", { timeout: 10000 }),
     ]);
 
     if (!results[0].stdout.trim()) return [];

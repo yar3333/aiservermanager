@@ -1,6 +1,6 @@
 import { injectable } from "inversify";
-import { GpuInfo } from "../../types";
-import { safeExec } from "../exec";
+import { GpuInfo } from "../../models/GpuInfo";
+import { ExecTools } from "../../helpers/ExecTools";
 import { GpuEnricher } from "./gpuEnricher";
 
 /**
@@ -18,9 +18,9 @@ export class LspciEnricher implements GpuEnricher {
   }
 
   async isAvailable(): Promise<boolean> {
-    if (this.availableCache !== null) return this.availableCache;
+    if (this.availableCache !== null) return this.availableCache as boolean;
 
-    const result = await safeExec("lspci -vnn 2>/dev/null", { timeout: 5000 });
+    const result = await ExecTools.safeExec("lspci -vnn 2>/dev/null", { timeout: 5000 });
     this.availableCache = result.stdout.includes("VGA") || result.stdout.includes("3D");
     return this.availableCache;
   }
@@ -28,7 +28,7 @@ export class LspciEnricher implements GpuEnricher {
   async enrich(gpus: GpuInfo[]): Promise<void> {
     if (gpus.length === 0) return;
 
-    const result = await safeExec("lspci -vnn | grep -A 3 -E 'VGA|3D|Display'", {
+    const result = await ExecTools.safeExec("lspci -vnn | grep -A 3 -E 'VGA|3D|Display'", {
       timeout: 10000,
     });
 
