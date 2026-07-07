@@ -67,7 +67,7 @@ aiservermanager/
 interface GpuInfo {
   index: number;
   vendor: string; // "NVIDIA" | "AMD" | "Intel" | "Unknown"
-  brand: string; // "NVIDIA" | "RADEON" | производитель платы
+  brand: string; // "MSI" | "ASROCK" | "GIGABYTE" | производитель платы
   name: string;
   vulkanName: string;
   vramTotal: number; // GB

@@ -61,7 +61,7 @@ const gpu1Lean: GpuInfo = {
   vramUsed: 0,
   usage: 0,
   temperature: 0,
-  pciBusId: "",
+  pciBusId: "1:00.0",
 };
 
 const gpu2: GpuInfo = {

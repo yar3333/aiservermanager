@@ -27,24 +27,24 @@
   font-weight: 500;
 }
 
-.gpu-brand-nvidia {
+.gpu-vendor-nvidia {
   @include mat.chips-overrides(
     (
       elevated-container-color: #a4f021,
     )
   );
 }
-.gpu-brand-amd {
+.gpu-vendor-amd {
   @include mat.chips-overrides(
     (
-      elevated-container-color: #ff6600,
+      elevated-container-color: #ffa1a1,
     )
   );
 }
-.gpu-brand-other {
+.gpu-vendor-other {
   @include mat.chips-overrides(
     (
-      elevated-container-color: #607d8b,
+      elevated-container-color: #b6e7ff,
     )
   );
 }

@@ -42,8 +42,8 @@
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>Name</th>
               <td mat-cell *matCellDef="let gpu">
-                <mat-chip [ngClass]="{ 'gpu-name': true, 'gpu-brand-nvidia': gpu.vendor === 'NVIDIA' }">
-                  {{ gpu.name + "/" + gpu.vendor }}
+                <mat-chip class="gpu-name" [ngClass]="getVendorCssClass(gpu)">
+                  {{ gpu.name + " / " + gpu.brand }}
                 </mat-chip>
               </td>
             </ng-container>

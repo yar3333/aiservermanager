@@ -41,6 +41,15 @@ export class AppComponent {
     });
   }
 
+  getVendorCssClass(gpu: Gpu) {
+    return {
+      "gpu-name": true,
+      "gpu-vendor-nvidia": gpu.vendor === "NVIDIA",
+      "gpu-vendor-amd": gpu.vendor === "AMD",
+      "gpu-vendor-other": !["NVIDIA", "AMD"].includes(gpu.vendor),
+    };
+  }
+
   vramPercent(gpu: Gpu): number {
     if (gpu.vramTotal === 0) return 0;
     return Math.round((gpu.vramUsed / gpu.vramTotal) * 100);

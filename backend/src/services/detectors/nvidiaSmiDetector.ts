@@ -44,7 +44,11 @@ export class NvidiaSmiDetector implements GpuDetector {
       const vramUsedMiB = parseFloat(parts[3]);
       const usage = parseFloat(parts[4]);
       const temperature = parseFloat(parts[5]);
-      const pciBusId = parts[6];
+      let busId = parts[6];
+      // Normalize to lspci format: strip "0000:" domain prefix (Linux)
+      if (busId.startsWith("0000:")) {
+        busId = busId.slice(5);
+      }
 
       gpus.push({
         index: parseInt(parts[0], 10),
@@ -56,7 +60,7 @@ export class NvidiaSmiDetector implements GpuDetector {
         vramUsed: Math.round(vramUsedMiB / 1024),
         usage: Number.isNaN(usage) ? 0 : usage,
         temperature: Number.isNaN(temperature) ? 0 : temperature,
-        pciBusId,
+        pciBusId: busId,
       });
     }
 

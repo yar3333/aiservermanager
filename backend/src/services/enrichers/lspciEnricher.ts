@@ -47,13 +47,13 @@ export class LspciEnricher implements GpuEnricher {
   private parseBlocks(raw: string): Record<string, string> {
     const map: Record<string, string> = {};
 
-    const blocks = raw.split("\n\n");
+    const blocks = raw.split(/\n--\n|\n--$/m);
 
     for (const block of blocks) {
-      const pciMatch = block.match(/^([0-9a-fA-F]{2}):([0-9a-fA-F]{2}):([0-9a-fA-F]{2})\.([0-9])/);
+      const pciMatch = block.match(/^([0-9a-fA-F]+):([0-9a-fA-F]+)\.([0-9])/);
       if (!pciMatch) continue;
 
-      const busId = `${pciMatch[1]}:${pciMatch[2]}:${pciMatch[3]}.${pciMatch[4]}`.toUpperCase();
+      const busId = `${pciMatch[1]}:${pciMatch[2]}.${pciMatch[3]}`.toUpperCase();
       const brand = detectBrand(block);
       if (brand) map[busId] = brand;
     }
@@ -65,7 +65,7 @@ export class LspciEnricher implements GpuEnricher {
 function detectBrand(block: string): string {
   const upper = block.toUpperCase();
   if (upper.includes("ASROK") || upper.includes("ASROCK")) return "ASROCK";
-  if (upper.includes("MSI ")) return "MSI";
+  if (upper.includes("MICRO-STAR")) return "MSI";
   if (upper.includes("GIGABYTE")) return "GIGABYTE";
   if (upper.includes("EVGA")) return "EVGA";
   if (upper.includes("ZOTAC")) return "ZOTAC";

@@ -65,17 +65,22 @@ export class GpuService {
 }
 
 /**
- * Remove duplicate GPUs that share the same name.
+ * Remove duplicate GPUs that share the same identity.
  * When multiple detectors report the same card (e.g. nvidia-smi + WMI),
  * prefer the entry with more populated fields.
+ *
+ * Identity key: vendor + pciBusId (if available), otherwise vendor + name.
+ * This prevents deduplication of multiple identical GPUs (e.g. 4x RX 7900 XTX).
  */
 function deduplicate(gpus: GpuInfo[]): GpuInfo[] {
   const seen = new Map<string, GpuInfo>();
 
   for (const gpu of gpus) {
-    const existing = seen.get(gpu.name);
+    const key = gpu.pciBusId ? `${gpu.vendor}:${gpu.pciBusId}` : `${gpu.vendor}:${gpu.name}`;
+
+    const existing = seen.get(key);
     if (!existing) {
-      seen.set(gpu.name, gpu);
+      seen.set(key, gpu);
       continue;
     }
 
@@ -83,7 +88,7 @@ function deduplicate(gpus: GpuInfo[]): GpuInfo[] {
     const existingScore = score(existing);
     const newScore = score(gpu);
     if (newScore > existingScore) {
-      seen.set(gpu.name, gpu);
+      seen.set(key, gpu);
     }
   }
 
