@@ -1,56 +1,42 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatTableModule } from '@angular/material/table';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
-import { Gpu } from './models/gpu';
-import { GpuService } from './services/gpu.service';
+import { Component, computed, effect, inject, signal } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { MatToolbarModule } from "@angular/material/toolbar";
+import { MatTableModule } from "@angular/material/table";
+import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { MatCardModule } from "@angular/material/card";
+import { MatChipsModule } from "@angular/material/chips";
+import { Gpu } from "./models/gpu";
+import { GpuService } from "./services/gpu.service";
 
 @Component({
-  selector: 'app-root',
+  selector: "app-root",
   standalone: true,
-  imports: [
-    CommonModule,
-    MatToolbarModule,
-    MatTableModule,
-    MatProgressBarModule,
-    MatCardModule,
-    MatChipsModule,
-  ],
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css'],
+  imports: [CommonModule, MatToolbarModule, MatTableModule, MatProgressBarModule, MatCardModule, MatChipsModule],
+  templateUrl: "./app.component.html",
+  styleUrls: ["./app.component.scss"],
 })
-export class AppComponent implements OnInit {
+export class AppComponent {
   private gpuService = inject(GpuService);
 
-  displayedColumns: string[] = [
-    'index',
-    'vendor',
-    'brand',
-    'name',
-    'vulkanName',
-    'vram',
-    'usage',
-    'temperature',
-    'pciBusId',
-  ];
+  displayedColumns: string[] = ["index", "name", "vulkanName", "vram", "usage", "temperature", "pciBusId"];
 
-  gpus: Gpu[] = [];
-  loading = true;
-  error: string | null = null;
+  readonly gpus = signal<Gpu[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
+  readonly hasGpus = computed(() => this.gpus().length > 0);
 
-  ngOnInit(): void {
-    this.gpuService.watchGpus().subscribe({
+  constructor() {
+    //this.gpuService.watchGpus().subscribe({
+    this.gpuService.fetchGpus().subscribe({
       next: (data) => {
-        this.gpus = data;
-        this.loading = false;
-        this.error = null;
+        this.gpus.set(data);
+        this.loading.set(false);
+        this.error.set(null);
       },
       error: (err) => {
-        this.error = `Failed to fetch GPU data: ${err.message}`;
-        this.loading = false;
+        console.error("GPU fetch error:", err);
+        this.error.set(`Failed to fetch GPU data: ${err.message}`);
+        this.loading.set(false);
       },
     });
   }
@@ -61,14 +47,14 @@ export class AppComponent implements OnInit {
   }
 
   colorForUsage(usage: number): string {
-    if (usage < 40) return '#4caf50';
-    if (usage < 75) return '#ff9800';
-    return '#f44336';
+    if (usage < 40) return "#4caf50";
+    if (usage < 75) return "#ff9800";
+    return "#f44336";
   }
 
   colorForTemp(temp: number): string {
-    if (temp < 60) return '#4caf50';
-    if (temp < 80) return '#ff9800';
-    return '#f44336';
+    if (temp < 60) return "#4caf50";
+    if (temp < 80) return "#ff9800";
+    return "#f44336";
   }
 }

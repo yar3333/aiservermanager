@@ -1,3 +1,5 @@
+@use "@angular/material" as mat;
+
 .spacer {
   flex: 1 1 auto;
 }
@@ -25,8 +27,30 @@
   font-weight: 500;
 }
 
+.gpu-brand-nvidia {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #a4f021,
+    )
+  );
+}
+.gpu-brand-amd {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #ff6600,
+    )
+  );
+}
+.gpu-brand-other {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #607d8b,
+    )
+  );
+}
+
 .pci-cell {
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 0.85rem;
   color: #666;
 }
@@ -52,7 +76,9 @@
 .vram-bar-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.4s ease, background 0.4s ease;
+  transition:
+    width 0.4s ease,
+    background 0.4s ease;
 }
 
 /* Usage bar */
@@ -77,7 +103,9 @@
 .usage-bar-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.4s ease, background 0.4s ease;
+  transition:
+    width 0.4s ease,
+    background 0.4s ease;
 }
 
 /* Temperature */
