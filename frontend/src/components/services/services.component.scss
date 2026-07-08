@@ -4,6 +4,21 @@
   margin-bottom: 24px;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  margin-top: 8px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+  }
+}
+
 .services-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -24,7 +39,7 @@
 }
 
 .service-name {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 600;
   text-transform: capitalize;
 }
@@ -95,4 +110,44 @@
 .service-actions button {
   flex: 1 1 auto;
   min-width: 100px;
+}
+
+/* Config card styles */
+.config-item .service-header {
+  margin-bottom: 8px;
+}
+
+.config-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.config-cmd {
+  font-size: 0.8rem;
+  color: #555;
+  font-family: monospace;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.config-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.flag-chip {
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.empty-configs {
+  text-align: center;
+  padding: 24px;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.empty-configs p {
+  margin: 0;
 }

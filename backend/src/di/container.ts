@@ -1,6 +1,14 @@
 import "reflect-metadata";
 import { Container } from "inversify";
-import { GPU_SERVICE, GPU_DETECTOR, GPU_ENRICHER, GPU_USAGE_PROBE, SERVICE_MANAGER, SERVICE_CONTROLLER } from "./types";
+import {
+  GPU_SERVICE,
+  GPU_DETECTOR,
+  GPU_ENRICHER,
+  GPU_USAGE_PROBE,
+  SERVICE_MANAGER,
+  SERVICE_CONTROLLER,
+  SERVICE_CONFIG_CONTROLLER,
+} from "./types";
 import { GpuService } from "../services/gpuService";
 import { GpuDetector } from "../services/detectors/gpuDetector";
 import { NvidiaSmiDetector } from "../services/detectors/nvidiaSmiDetector";
@@ -16,6 +24,7 @@ import { ServiceManager } from "../services/serviceManager";
 import { ServiceController } from "../services/serviceController";
 import { SystemctlController } from "../services/controllers/systemctlController";
 import { WindowsServiceController } from "../services/controllers/windowsServiceController";
+import { ServiceConfigController } from "../services/serviceConfigController";
 
 const isWindows = process.platform === "win32";
 
@@ -51,6 +60,9 @@ export function createContainer(): Container {
 
   // Service manager — orchestrates llama.cpp / ComfyUI (multi-injects controllers)
   container.bind<ServiceManager>(SERVICE_MANAGER).to(ServiceManager).inSingletonScope();
+
+  // Service config controller — CRUD for user-created llama service configs
+  container.bind<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER).to(ServiceConfigController).inSingletonScope();
 
   return container;
 }

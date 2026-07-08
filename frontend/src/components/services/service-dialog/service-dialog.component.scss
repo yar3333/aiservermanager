@@ -1,0 +1,75 @@
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 480px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.flags-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.flags-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.flags-title {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.flags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flag-key {
+  flex: 0 0 140px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.flag-value {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.flag-key:focus,
+.flag-value:focus {
+  outline: none;
+  border-color: #3f51b5;
+  box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+}
+
+.flag-key:invalid {
+  border-color: #f44336;
+}
+
+mat-dialog-actions {
+  margin-top: 16px;
+  gap: 8px;
+}

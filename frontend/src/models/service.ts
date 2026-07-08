@@ -9,3 +9,13 @@ export interface ServiceStatus {
 
 /** Actions the client can perform. */
 export type ServiceAction = "start" | "stop" | "enable" | "disable";
+
+/** User-created service config (llama.cpp server). */
+export interface ServiceConfig {
+  /** Suffix used in service name: aism-llama-{suffix}.service */
+  suffix: string;
+  /** Absolute path to the executable */
+  command: string;
+  /** CLI flags as key→value pairs */
+  flags: Record<string, string>;
+}

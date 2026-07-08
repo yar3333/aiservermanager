@@ -1,7 +1,12 @@
 <mat-card class="services-card">
   <mat-card-content>
+    <!-- Built-in services section -->
+    <div class="section-header">
+      <h2>Services</h2>
+    </div>
+
     <div class="services-grid">
-      @for (svc of services(); track svc.name) {
+      @for (svc of services; track svc.name) {
         <mat-card class="service-item">
           <mat-card-content>
             <div class="service-header">
@@ -46,5 +51,50 @@
         </mat-card>
       }
     </div>
+
+    <!-- User-created llama services section -->
+    <div class="section-header">
+      <h2>Llama Servers</h2>
+      <button mat-raised-button color="primary" (click)="addService()">
+        <span class="material-icons" style="font-size: 18px; margin-right: 4px">add</span>
+        Add
+      </button>
+    </div>
+
+    @if (configs.length > 0) {
+      <div class="services-grid">
+        @for (cfg of configs; track cfg.suffix) {
+          <mat-card class="service-item config-item">
+            <mat-card-content>
+              <div class="service-header">
+                <span class="service-name">aism-llama-{{ cfg.suffix }}</span>
+                <div class="config-actions">
+                  <button mat-icon-button color="primary" (click)="editConfig(cfg)">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button mat-icon-button color="warn" (click)="deleteConfig(cfg.suffix)">
+                    <span class="material-icons">delete</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="config-cmd">{{ cfg.command }}</div>
+
+              @if (hasFlags(cfg)) {
+                <div class="config-flags">
+                  @for (entry of cfg.flags | keyvalue; track entry.key) {
+                    <mat-chip class="flag-chip">{{ entry.key }}={{ entry.value }}</mat-chip>
+                  }
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    } @else {
+      <div class="empty-configs">
+        <p>No llama servers configured. Click "Add" to create one.</p>
+      </div>
+    }
   </mat-card-content>
 </mat-card>

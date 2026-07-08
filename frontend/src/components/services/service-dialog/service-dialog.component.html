@@ -1,0 +1,57 @@
+<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} Llama Server</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="dialog-form">
+    <mat-form-field appearance="outline" class="full-width">
+      <input matInput formControlName="suffix" placeholder="e.g. qwen3" [disabled]="isEdit" />
+      <mat-label>Suffix (e.g. qwen3 → aism-llama-qwen3)</mat-label>
+      @if (suffixControl.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      } @else if (suffixControl.errors?.["pattern"]) {
+        <mat-error>Lowercase alphanumeric + hyphens, max 31 chars</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <input matInput formControlName="command" placeholder="/path/to/llama-server" />
+      <mat-label>Command (absolute path)</mat-label>
+      @if (commandControl.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="flags-section">
+      <div class="flags-header">
+        <span class="flags-title">CLI Flags</span>
+        <button mat-icon-button type="button" color="primary" (click)="addFlag()" [disabled]="flagsArray.length >= 20">
+          <mat-icon>add_circle_outline</mat-icon>
+        </button>
+      </div>
+
+      <div formArrayName="flags" class="flags-list">
+        @for (_ of flagsArray.controls; track _; let i = $index) {
+          <div [formGroupName]="i" class="flag-row">
+            <input type="text" formControlName="key" placeholder="--flag-name" class="flag-key" />
+            <input type="text" formControlName="value" placeholder="value" class="flag-value" />
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="removeFlag(i)"
+              [disabled]="flagsArray.length <= 1"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
+    {{ isEdit ? "Save" : "Create" }}
+  </button>
+</mat-dialog-actions>

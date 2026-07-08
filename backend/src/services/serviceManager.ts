@@ -1,15 +1,44 @@
 import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
+import { ConfigManager } from "./configManager";
+import { computeServiceName } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
 interface ServiceDef {
   name: string;
 }
 
-const KNOWN_SERVICES: ServiceDef[] = [{ name: "llama" }, { name: "comfyui" }];
+const BUILT_IN_SERVICES: ServiceDef[] = [{ name: "llama" }, { name: "comfyui" }];
+
+/** Resolve all service names: built-in + user-created llama configs. */
+function resolveServiceDefs(configManager: ConfigManager): ServiceDef[] {
+  const seen = new Set<string>();
+  const defs: ServiceDef[] = [];
+
+  // Built-in services first
+  for (const def of BUILT_IN_SERVICES) {
+    if (!seen.has(def.name)) {
+      seen.add(def.name);
+      defs.push(def);
+    }
+  }
+
+  // User-created llama services from configs
+  for (const cfg of configManager.list()) {
+    const name = computeServiceName(cfg.suffix);
+    if (!seen.has(name)) {
+      seen.add(name);
+      defs.push({ name });
+    }
+  }
+
+  return defs;
+}
 
 export class ServiceManager {
+  private readonly configManager = new ConfigManager();
+
   constructor(
     @multiInject("SERVICE_CONTROLLER")
     private readonly controllers: ServiceController[],
@@ -22,11 +51,16 @@ export class ServiceManager {
     return null;
   }
 
+  private getServiceDefs(): ServiceDef[] {
+    return resolveServiceDefs(this.configManager);
+  }
+
   async getStatusList(): Promise<ServiceStatus[]> {
     const controller = await this.getActiveController();
+    const defs = this.getServiceDefs();
 
     if (!controller) {
-      return KNOWN_SERVICES.map((def) => ({
+      return defs.map((def) => ({
         ...def,
         running: false,
         enabled: false,
@@ -35,7 +69,7 @@ export class ServiceManager {
     }
 
     const results = await Promise.all(
-      KNOWN_SERVICES.map(async (def) => {
+      defs.map(async (def) => {
         try {
           const status = await controller.getStatus(def.name);
           return { ...def, ...status };
@@ -54,7 +88,8 @@ export class ServiceManager {
   }
 
   async performAction(name: string, action: ServiceAction): Promise<ServiceStatus> {
-    const def = KNOWN_SERVICES.find((s) => s.name === name);
+    const defs = this.getServiceDefs();
+    const def = defs.find((s) => s.name === name);
     if (!def) {
       throw new Error(`Unknown service: ${name}`);
     }
