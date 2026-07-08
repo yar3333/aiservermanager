@@ -1,4 +1,4 @@
-import { inject, multiInject } from "inversify";
+import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc --build -p tsconfig.build.json",
+    "build": "tsc --build tsconfig.build.json && copy /Y src\\services\\detectors\\wmiGpuQuery.ps1 dist\\services\\detectors\\",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn src/index.ts -p tsconfig.build.json",
     "test": "jest --verbose",

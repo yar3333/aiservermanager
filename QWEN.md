@@ -22,7 +22,7 @@ aiservermanager/
 │       │   ├── serviceRoutes.ts      # GET / POST /control
 │       │   └── __tests__/
 │       ├── helpers/
-│       │   └── ExecTools.ts          # safeExec (platform-aware shell)
+│       │   └── ExecTools.ts          # safeExec (platform-aware shell), safeExecPs1 (.ps1 files)
 │       └── services/
 │           ├── gpuService.ts         # Bootstrap (once) + usage polling (every req)
 │           ├── serviceController.ts  # ServiceController стратегия
@@ -37,7 +37,8 @@ aiservermanager/
 │           │   ├── gpuDetector.ts    # GpuDetector стратегия
 │           │   ├── nvidiaSmiDetector.ts  # nvidia-smi (Win + Linux)
 │           │   ├── amdLinuxDetector.ts   # rocm-smi (Linux)
-│           │   ├── wmiDetector.ts        # WMI PowerShell (Win)
+│           │   ├── wmiDetector.ts        # WMI PowerShell (Win) + registry for pciBusId
+│           │   ├── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │           │   └── __tests__/
 │           ├── enrichers/            # Enrich static info
 │           │   ├── gpuEnricher.ts    # GpuEnricher стратегия
@@ -123,9 +124,11 @@ aiservermanager/
 - `sc start|stop <name>` — запуск/остановка
 - `sc config <name> start= auto|disabled` — включение/отключение
 
-### `ExecTools.safeExec`
+### `ExecTools`
 
-`ExecTools.safeExec()` — обёртка над `child_process.exec` с promisify. `powershell.exe` на Windows, `/bin/sh` на Linux. Таймаут 10 секунд. Никогда не бросает exception, возвращает `{ stdout: "", stderr: err.message }` при ошибке.
+`safeExec()` — обёртка над `child_process.exec` с promisify. `powershell.exe` на Windows, `/bin/sh` на Linux. Таймаут 10 секунд.
+
+`safeExecPs1(scriptPath)` — `child_process.spawn` для выполнения `.ps1` файлов. Избегает проблем с экранированием при передаче сложных скриптов через `exec`. Оба метода никогда не бросают exception, возвращают `{ stdout: "", stderr: err.message }` при ошибке.
 
 ### API
 
@@ -178,7 +181,7 @@ type ServiceAction = "start" | "stop" | "enable" | "disable";
 
 ### Тесты backend
 
-Jest 30 + ts-jest + supertest. 8 файлов тестов, 59 тестов.
+Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (включая safeExecPs1 + PCI domain normalization).
 
 ## Frontend
 

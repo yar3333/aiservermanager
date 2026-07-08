@@ -80,6 +80,16 @@ describe("NvidiaSmiDetector", () => {
       expect(gpus[0].pciBusId).toBe("01:00.0");
     });
 
+    it("strips 00000000: domain prefix from pci.bus_id", async () => {
+      mockSafeExec.mockResolvedValue({
+        stdout: "0, GeForce RTX 3080, 10240, 00000000:01:00.0\n",
+        stderr: "",
+      });
+
+      const gpus = await detector.detect();
+      expect(gpus[0].pciBusId).toBe("01:00.0");
+    });
+
     it("returns empty array on empty output", async () => {
       mockSafeExec.mockResolvedValue({ stdout: "", stderr: "" });
 

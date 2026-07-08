@@ -1,4 +1,5 @@
 import { injectable } from "inversify";
+import * as path from "path";
 import { GpuInfo } from "../../models/GpuInfo";
 import { ExecTools } from "../../helpers/ExecTools";
 import { GpuDetector } from "./gpuDetector";
@@ -6,10 +7,12 @@ import { GpuDetector } from "./gpuDetector";
 /**
  * Detect GPUs on Windows using PowerShell WMI (Win32_VideoController).
  * Supports all vendors — NVIDIA, AMD, Intel.
- * Returns only static info: index, name, vendor, brand, vramTotal, pciBusId.
+ * PCI bus ID is read from the Windows registry (LocationInformation) to match
+ * the format produced by nvidia-smi (e.g. "01:00.0"), enabling correct dedup.
  */
 @injectable()
 export class WmiDetector implements GpuDetector {
+  private readonly scriptPath = path.join(__dirname, "wmiGpuQuery.ps1");
   private availableCache: boolean | null = null;
 
   constructor() {
@@ -30,18 +33,7 @@ export class WmiDetector implements GpuDetector {
   }
 
   async detect(): Promise<GpuInfo[]> {
-    const psScript = [
-      "Get-CimInstance -ClassName Win32_VideoController |",
-      "  ForEach-Object {",
-      "    @{",
-      "      name = $_.Name",
-      "      vram = $_.AdapterRAM",
-      "      pci  = $_.PNPDeviceID",
-      "    }",
-      "  } | ConvertTo-Json",
-    ].join("\n");
-
-    const result = await ExecTools.safeExec(psScript, { timeout: 15000 });
+    const result = await ExecTools.safeExecPs1(this.scriptPath, { timeout: 15000 });
     if (!result.stdout.trim()) return [];
 
     return this.parseJson(result.stdout);

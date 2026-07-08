@@ -44,10 +44,8 @@ export class NvidiaSmiDetector implements GpuDetector {
       const vramTotalMiB = parseFloat(parts[2]);
       let busId = parts[3];
 
-      // Normalize to lspci format: strip "0000:" domain prefix (Linux)
-      if (busId.startsWith("0000:")) {
-        busId = busId.slice(5);
-      }
+      // Normalize: strip PCI domain prefix (e.g. "0000:" on Linux or "00000000:" on Windows)
+      busId = busId.replace(/^0+:/, "");
 
       gpus.push({
         index: parseInt(parts[0], 10),

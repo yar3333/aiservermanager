@@ -3,6 +3,9 @@ import * as execModule from "../../../helpers/ExecTools";
 
 jest.mock("../../../helpers/ExecTools");
 const mockSafeExec = execModule.ExecTools.safeExec as jest.MockedFunction<typeof execModule.ExecTools.safeExec>;
+const mockSafeExecPs1 = execModule.ExecTools.safeExecPs1 as jest.MockedFunction<
+  typeof execModule.ExecTools.safeExecPs1
+>;
 
 describe("WmiDetector", () => {
   beforeEach(() => {
@@ -32,12 +35,10 @@ describe("WmiDetector", () => {
   });
 
   describe("detect", () => {
-    it("parses NVIDIA GPU from WMI JSON", async () => {
+    it("parses NVIDIA GPU from WMI JSON with PCI bus ID", async () => {
       const detector = createDetector();
-      const wmiJson = JSON.stringify([
-        { name: "NVIDIA GeForce RTX 3080", vram: "8589934592", pci: "PCI\\VEN_10DE&DEV_2206" },
-      ]);
-      mockSafeExec.mockResolvedValue({ stdout: wmiJson, stderr: "" });
+      const wmiJson = JSON.stringify([{ name: "NVIDIA GeForce RTX 3080", vram: 8589934592, pci: "01:00.0" }]);
+      mockSafeExecPs1.mockResolvedValue({ stdout: wmiJson, stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus).toHaveLength(1);
@@ -47,16 +48,14 @@ describe("WmiDetector", () => {
         brand: "NVIDIA",
         name: "NVIDIA GeForce RTX 3080",
         vramTotal: 8,
-        pciBusId: "PCI\\VEN_10DE&DEV_2206",
+        pciBusId: "01:00.0",
       });
     });
 
     it("parses AMD GPU from WMI JSON", async () => {
       const detector = createDetector();
-      const wmiJson = JSON.stringify([
-        { name: "AMD Radeon RX 6800", vram: "16106127360", pci: "PCI\\VEN_1002&DEV_7340" },
-      ]);
-      mockSafeExec.mockResolvedValue({ stdout: wmiJson, stderr: "" });
+      const wmiJson = JSON.stringify([{ name: "AMD Radeon RX 6800", vram: 16106127360, pci: "02:00.0" }]);
+      mockSafeExecPs1.mockResolvedValue({ stdout: wmiJson, stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus[0].vendor).toBe("AMD");
@@ -65,10 +64,8 @@ describe("WmiDetector", () => {
 
     it("parses Intel GPU from WMI JSON", async () => {
       const detector = createDetector();
-      const wmiJson = JSON.stringify([
-        { name: "Intel(R) UHD Graphics", vram: "1073741824", pci: "PCI\\VEN_8086&DEV_9BC4" },
-      ]);
-      mockSafeExec.mockResolvedValue({ stdout: wmiJson, stderr: "" });
+      const wmiJson = JSON.stringify([{ name: "Intel(R) UHD Graphics", vram: 1073741824, pci: "00:02.0" }]);
+      mockSafeExecPs1.mockResolvedValue({ stdout: wmiJson, stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus[0].vendor).toBe("Intel");
@@ -76,7 +73,7 @@ describe("WmiDetector", () => {
 
     it("returns empty array on malformed JSON", async () => {
       const detector = createDetector();
-      mockSafeExec.mockResolvedValue({ stdout: "not json at all", stderr: "" });
+      mockSafeExecPs1.mockResolvedValue({ stdout: "not json at all", stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus).toEqual([]);
@@ -84,7 +81,7 @@ describe("WmiDetector", () => {
 
     it("returns empty array on empty output", async () => {
       const detector = createDetector();
-      mockSafeExec.mockResolvedValue({ stdout: "", stderr: "" });
+      mockSafeExecPs1.mockResolvedValue({ stdout: "", stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus).toEqual([]);
@@ -92,8 +89,8 @@ describe("WmiDetector", () => {
 
     it("handles single object (not array) from WMI", async () => {
       const detector = createDetector();
-      const wmiJson = JSON.stringify({ name: "NVIDIA GeForce GTX 1660", vram: "4294967296", pci: "PCI\\VEN_10DE" });
-      mockSafeExec.mockResolvedValue({ stdout: wmiJson, stderr: "" });
+      const wmiJson = JSON.stringify({ name: "NVIDIA GeForce GTX 1660", vram: 4294967296, pci: "01:00.0" });
+      mockSafeExecPs1.mockResolvedValue({ stdout: wmiJson, stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus).toHaveLength(1);
@@ -109,8 +106,8 @@ describe("WmiDetector", () => {
       ["Some Unknown GPU", "Unknown"],
     ])("classifies '%s' as '%s'", async (name: string, expected: string) => {
       const detector = createDetector();
-      const wmiJson = JSON.stringify([{ name, vram: "0", pci: "" }]);
-      mockSafeExec.mockResolvedValue({ stdout: wmiJson, stderr: "" });
+      const wmiJson = JSON.stringify([{ name, vram: 0, pci: "" }]);
+      mockSafeExecPs1.mockResolvedValue({ stdout: wmiJson, stderr: "" });
 
       const gpus = await detector.detect();
       expect(gpus[0].vendor).toBe(expected);

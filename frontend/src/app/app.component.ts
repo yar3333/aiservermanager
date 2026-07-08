@@ -3,10 +3,10 @@ import { CommonModule } from "@angular/common";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatCardModule } from "@angular/material/card";
-import { Gpu, GpuWithUsage, GpuUsage } from "./models/gpu";
-import { GpuService } from "./services/gpu.service";
-import { GpuTableComponent } from "./components/gpu-table/gpu-table.component";
-import { ServicesComponent } from "./components/services/services.component";
+import { Gpu, GpuWithUsage, GpuUsage } from "../models/gpu";
+import { GpuService } from "../services/gpu.service";
+import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
+import { ServicesComponent } from "../components/services/services.component";
 
 @Component({
   selector: "app-root",
