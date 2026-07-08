@@ -70,7 +70,7 @@ aiservermanager/
 
 Все детекторы биндятся к токену `GPU_DETECTOR` (multi-inject как массив). Enrichers — к `GPU_ENRICHER`.
 
-### `safeExec`
+### `ExecTools.safeExec`
 
 `ExecTools.safeExec()` — обёртка над `child_process.exec` с promisify. `powershell.exe` на Windows, `/bin/sh` на Linux. Таймаут 10 секунд. Никогда не бросает exception, возвращает `{ stdout: "", stderr: err.message }` при ошибке.
 
@@ -87,7 +87,7 @@ aiservermanager/
 interface GpuInfo {
   index: number;
   vendor: string; // "NVIDIA" | "AMD" | "Intel" | "Unknown"
-  brand: string; // "MSI" | "ASROCK" | "GIGABYTE" | "RADEON" | производитель платы
+  brand: string; // "MSI" | "ASROCK" | "GIGABYTE" | производитель платы
   name: string;
   engineCudaName: string; // "cuda0", "cuda1", ...
   engineRocmName: string; // "rocm0", "rocm1", ...
@@ -99,6 +99,10 @@ interface GpuInfo {
   pciBusId: string; // e.g. "01:00.0"
 }
 ```
+
+### Тесты backend
+
+Jest 30 + ts-jest + supertest
 
 ## Frontend
 
@@ -118,37 +122,6 @@ readonly error   = signal<string | null>(null);
 readonly hasGpus = computed(() => this.gpus().length > 0);
 ```
 
-### Шаблон
-
-Современный Angular control flow (`@if`/`@else`). Цветовая индикация: green <40%, orange <75%, red ≥75% (usage); green <60°C, orange <80°C, red ≥80°C (temp). Vendor chips: NVIDIA = зелёный (#a4f021), AMD = красный (#ffa1a1), другие = синий (#b6e7ff).
-
-Колонки таблицы: `index`, `name`, `engineNames`, `vram`, `usage`, `temperature`, `pciBusId`.
-
-### Гибкое подключение
-
-AppComponent принимает `backendUrl` и `refreshInterval` через `@Input()`, что позволяет монтировать компонент с разными настройками.
-
-## Тесты
-
-### Backend
-
-Jest 30 + ts-jest + supertest. 8 файлов тестов:
-
-- `app.test.ts` — health endpoint + CORS headers
-- `gpuRoutes.test.ts` — mock container, 200/empty/500 responses
-- `gpuService.test.ts` — sequential detectors, dedup scoring, unavailable detectors
-- `exec.test.ts` — safeExec success/failure, platform shell
-- `nvidiaSmiDetector.test.ts` — CSV parsing, domain prefix stripping, NaN, VRAM conversion
-- `amdLinuxDetector.test.ts` — JSON parsing, multi-GPU, defaults, bytes→GB
-- `wmiDetector.test.ts` — NVIDIA/AMD/Intel classification, malformed JSON
-- `lspciEnricher.test.ts` — MSI, Gigabyte, Sapphire, ASRock brand detection
-
-`vulkanEnricher.test.ts` отсутствует.
-
-### Frontend
-
-Karma + Jasmine конфигурированы, `.spec.ts` файлы не созданы.
-
 ## Команды
 
 | Команда                     | Описание                                           |
@@ -158,9 +131,6 @@ Karma + Jasmine конфигурированы, `.spec.ts` файлы не со�
 | `npm run build`             | `tsc` (backend) + `ng build` → `../backend/public` |
 | `cd backend && npm run dev` | Только backend (ts-node-dev --respawn)             |
 | `cd backend && npm test`    | Jest --verbose                                     |
-| `cd frontend && npm start`  | Только frontend (ng serve --port 4243)             |
-
-В dev-режиме frontend (port 4243) и backend (port 4242) работают на разных портах. CORS на backend разрешает кросс-доменные запросы.
 
 ## Паттерны
 

@@ -65,7 +65,7 @@ export class LspciEnricher implements GpuEnricher {
 function detectBrand(block: string): string {
   const upper = block.toUpperCase();
   if (upper.includes("ASROK") || upper.includes("ASROCK")) return "ASROCK";
-  if (upper.includes("MICRO-STAR")) return "MSI";
+  if (upper.includes("MICRO-STAR") || upper.includes("[MSI]")) return "MSI";
   if (upper.includes("GIGABYTE")) return "GIGABYTE";
   if (upper.includes("EVGA")) return "EVGA";
   if (upper.includes("ZOTAC")) return "ZOTAC";

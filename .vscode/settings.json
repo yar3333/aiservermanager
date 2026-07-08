@@ -1,8 +1,6 @@
 {
   "files.exclude": {
-    "**/dist/**": true
-  },
-  "search.exclude": {
-    "**/dist/**": true
+    "**/dist/**": true,
+    "backend/public": true
   }
 }
