@@ -10,13 +10,11 @@ export class WindowsServiceController implements ServiceController {
 
   async getStatus(name: string): Promise<ServiceStatus> {
     // SC query gives STATE (RUNNING/STOPPED), START (AUTO/DEMAND/DISABLED)
-    const { stdout } = await ExecTools.safeExec(
-      `sc queryex "${name}"`,
-    );
+    const { stdout } = await ExecTools.safeExec(`sc queryex "${name}"`);
 
     const lines = stdout.split("\n");
     let running = false;
-    let enabled = true;
+    let enabled = false;
     let pid: number | undefined;
 
     for (const line of lines) {

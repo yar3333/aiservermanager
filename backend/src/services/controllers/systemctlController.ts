@@ -16,8 +16,10 @@ export class SystemctlController implements ServiceController {
       ExecTools.safeExec(`systemctl is-enabled ${name}`),
     ]);
 
-    const running = activeResult.stdout.trim() === "active";
-    const enabled = !["disabled", "masked"].includes(enableResult.stdout.trim());
+    const activeStdout = activeResult.stdout.trim();
+    const enableStdout = enableResult.stdout.trim();
+    const running = activeStdout === "active";
+    const enabled = ["enabled", "static"].includes(enableStdout);
 
     // Try to get PID
     let pid: number | undefined;

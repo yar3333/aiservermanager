@@ -22,7 +22,10 @@ export class ExecTools {
       timeout: opts?.timeout ?? 10_000,
       maxBuffer: 1024 * 1024,
       shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
-    }).catch((err) => ({ stdout: "", stderr: err.message }));
+    }).catch((err) => ({
+      stdout: (err as { stdout?: string }).stdout ?? "",
+      stderr: (err as { stderr?: string }).stderr ?? err.message,
+    }));
   }
 
   /**
