@@ -27,5 +27,8 @@
     "ts-jest": "^29.4.11",
     "ts-node-dev": "^2.0.0",
     "typescript": "^6.0.2"
+  },
+  "allowScripts": {
+    "unrs-resolver@1.12.2": true
   }
 }
