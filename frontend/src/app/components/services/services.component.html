@@ -1,0 +1,60 @@
+<mat-card class="services-card">
+  <mat-card-header>
+    <mat-card-title>
+      <span class="material-icons" style="vertical-align: middle; margin-right: 8px">settings_applications</span>
+      Service Management
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    @if (loading()) {
+      <p>Loading services...</p>
+    } @else {
+      <div class="services-grid">
+        @for (svc of services(); track svc.name) {
+          <mat-card class="service-item">
+            <mat-card-content>
+              <div class="service-header">
+                <span class="service-name">{{ svc.name }}</span>
+                <div class="service-badges">
+                  <mat-chip class="status-chip" [class.running]="svc.running" [class.stopped]="!svc.running">
+                    {{ svc.running ? "Running" : "Stopped" }}
+                  </mat-chip>
+                  <mat-chip class="enabled-chip" [class.enabled]="svc.enabled" [class.disabled]="!svc.enabled">
+                    {{ svc.enabled ? "Enabled" : "Disabled" }}
+                  </mat-chip>
+                </div>
+              </div>
+
+              @if (svc.pid) {
+                <div class="service-pid">PID: {{ svc.pid }}</div>
+              }
+
+              <div class="service-actions">
+                <button mat-raised-button color="primary" [disabled]="svc.running" (click)="control(svc.name, 'start')">
+                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                  Start
+                </button>
+                <button mat-raised-button color="warn" [disabled]="!svc.running" (click)="control(svc.name, 'stop')">
+                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                  Stop
+                </button>
+                <button
+                  mat-stroked-button
+                  [disabled]="svc.enabled && !svc.running"
+                  (click)="control(svc.name, 'disable')"
+                >
+                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                  Disable
+                </button>
+                <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'enable')">
+                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                  Enable
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

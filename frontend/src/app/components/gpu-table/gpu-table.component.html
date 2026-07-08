@@ -1,0 +1,78 @@
+<mat-card>
+  <mat-card-content>
+    <table mat-table [dataSource]="gpus()" class="gpu-table">
+      <!-- Index -->
+      <ng-container matColumnDef="index">
+        <th mat-header-cell *matHeaderCellDef>#</th>
+        <td mat-cell *matCellDef="let gpu">{{ gpu.index }}</td>
+      </ng-container>
+
+      <!-- Name -->
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let gpu">
+          <mat-chip class="gpu-name" [ngClass]="getVendorCssClass(gpu)">
+            {{ gpu.name + " / " + gpu.brand }}
+          </mat-chip>
+        </td>
+      </ng-container>
+
+      <!-- Engine Names (CUDA/ROCm/Vulkan) -->
+      <ng-container matColumnDef="engineNames">
+        <th mat-header-cell *matHeaderCellDef>Engine Names</th>
+        <td mat-cell *matCellDef="let gpu">{{ getEngineNames(gpu) }}</td>
+      </ng-container>
+
+      <!-- VRAM -->
+      <ng-container matColumnDef="vram">
+        <th mat-header-cell *matHeaderCellDef>VRAM</th>
+        <td mat-cell *matCellDef="let gpu">
+          <div class="vram-cell">
+            <span class="vram-text"> {{ gpu.vramUsed }} / {{ gpu.vramTotal }} GB </span>
+            <div class="vram-bar-bg">
+              <div
+                class="vram-bar-fill"
+                [style.width.%]="vramPercent(gpu)"
+                [style.background]="colorForUsage(vramPercent(gpu))"
+              ></div>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+
+      <!-- GPU Usage -->
+      <ng-container matColumnDef="usage">
+        <th mat-header-cell *matHeaderCellDef>GPU Usage</th>
+        <td mat-cell *matCellDef="let gpu">
+          <div class="usage-cell">
+            <span class="usage-value" [style.color]="colorForUsage(gpu.usage)"> {{ gpu.usage }}% </span>
+            <div class="usage-bar-bg">
+              <div
+                class="usage-bar-fill"
+                [style.width.%]="gpu.usage"
+                [style.background]="colorForUsage(gpu.usage)"
+              ></div>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+
+      <!-- Temperature -->
+      <ng-container matColumnDef="temperature">
+        <th mat-header-cell *matHeaderCellDef>Temp °C</th>
+        <td mat-cell *matCellDef="let gpu">
+          <span [style.color]="colorForTemp(gpu.temperature)" class="temp-value"> {{ gpu.temperature }}°C </span>
+        </td>
+      </ng-container>
+
+      <!-- PCI Bus ID -->
+      <ng-container matColumnDef="pciBusId">
+        <th mat-header-cell *matHeaderCellDef>PCI Bus</th>
+        <td mat-cell *matCellDef="let gpu" class="pci-cell">{{ gpu.pciBusId }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+  </mat-card-content>
+</mat-card>

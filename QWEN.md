@@ -1,6 +1,6 @@
 # AI Server Manager
 
-Мониторинг GPU-серверов в реальном времени. Отображает утилизацию, VRAM, температуру и PCI-адреса для NVIDIA и AMD GPU через веб-дашборд.
+Мониторинг GPU-серверов и управление AI-сервисами (llama.cpp, ComfyUI) через веб-дашборд.
 
 ## Архитектура
 
@@ -12,17 +12,24 @@ aiservermanager/
 │   └── src/
 │       ├── index.ts                  # Express entry, port 4242, SPA fallback
 │       ├── models/
-│       │   └── GpuInfo.ts            # GpuInfo (static), GpuUsage, GpuState
+│       │   ├── GpuInfo.ts            # GpuInfo (static), GpuUsage, GpuState
+│       │   └── ServiceStatus.ts      # ServiceStatus, ServiceAction
 │       ├── di/
 │       │   ├── types.ts              # InversifyJS injection tokens
 │       │   └── container.ts          # Platform-aware DI container
 │       ├── routes/
 │       │   ├── gpuRoutes.ts          # GET / /usage /state
+│       │   ├── serviceRoutes.ts      # GET / POST /control
 │       │   └── __tests__/
 │       ├── helpers/
 │       │   └── ExecTools.ts          # safeExec (platform-aware shell)
 │       └── services/
 │           ├── gpuService.ts         # Bootstrap (once) + usage polling (every req)
+│           ├── serviceController.ts  # ServiceController стратегия
+│           ├── serviceManager.ts     # Multi-injects controllers, dispatches actions
+│           ├── controllers/          # Platform-aware service control
+│           │   ├── systemctlController.ts    # systemctl (Linux)
+│           │   └── windowsServiceController.ts # SC cmdlet (Windows)
 │           ├── helpers/
 │           │   ├── gpuDedup.ts       # deduplicateGpus() + staticScore()
 │           │   └── gpuEngineNames.ts # assignEngineNames()
@@ -45,11 +52,18 @@ aiservermanager/
 └── frontend/
     └── src/app/
         ├── app.config.ts             # Zone.js eventCoalescing, HttpClient, Animations
-        ├── app.component.ts          # Сигналы, 2-поточный polling
-        ├── app.component.html        # @if/@else шаблон, таблица GPU
-        ├── app.component.scss        # mat.chips-overrides, vendor colors
-        ├── models/gpu.ts             # Gpu, GpuUsage, GpuState
-        └── services/gpu.service.ts   # fetchGpus() + watchUsage()
+        ├── app.component.ts          # Сигналы, 2-поточный polling GPU
+        ├── app.component.html        # @if/@else шаблон, compose layout
+        ├── app.component.scss        # container layout styles
+        ├── components/
+        │   ├── gpu-table/            # Таблица GPU (вынесен из AppComponent)
+        │   └── services/             # Карточки управления сервисами
+        ├── models/
+        │   ├── gpu.ts                # Gpu, GpuUsage, GpuState
+        │   └── service.ts            # ServiceStatus, ServiceAction
+        └── services/
+            ├── gpu.service.ts        # fetchGpus() + watchUsage()
+            └── service.service.ts    # fetchServices() + control()
 ```
 
 ## Backend
@@ -87,11 +101,27 @@ aiservermanager/
 
 Контейнер (`di/container.ts`) биндит компоненты в зависимости от `process.platform`:
 
-| Токен             | Windows             | Linux                                    |
-| ----------------- | ------------------- | ---------------------------------------- |
-| `GPU_DETECTOR`    | NvidiaSmi + Wmi     | NvidiaSmi + AmdLinux                     |
-| `GPU_ENRICHER`    | —                   | Lspci + Vulkan                           |
-| `GPU_USAGE_PROBE` | NvidiaSmiUsageProbe | NvidiaSmiUsageProbe + AmdLinuxUsageProbe |
+| Токен                | Windows                  | Linux                                          |
+| -------------------- | ------------------------ | ---------------------------------------------- |
+| `GPU_DETECTOR`       | NvidiaSmi + Wmi          | NvidiaSmi + AmdLinux                           |
+| `GPU_ENRICHER`       | —                        | Lspci + Vulkan                                 |
+| `GPU_USAGE_PROBE`    | NvidiaSmiUsageProbe      | NvidiaSmiUsageProbe + AmdLinuxUsageProbe       |
+| `SERVICE_CONTROLLER` | WindowsServiceController | SystemctlController + WindowsServiceController |
+
+Все контроллеры сервиса биндятся всегда (multi-inject). `ServiceManager` выбирает активный через `isAvailable()` — на Windows работает `WindowsServiceController`, на Linux — `SystemctlController`.
+
+**Linux** (`systemctl`):
+
+- `systemctl is-active <name>` — статус запущенности
+- `systemctl is-enabled <name>` — автозагрузка
+- `systemctl show --property=MainPID --value` — PID
+- `systemctl start|stop|enable|disable <name>` — управление
+
+**Windows** (`sc` + PowerShell fallback `Get-Service`):
+
+- `sc queryex <name>` — STATE, START_TYPE, PID
+- `sc start|stop <name>` — запуск/остановка
+- `sc config <name> start= auto|disabled` — включение/отключение
 
 ### `ExecTools.safeExec`
 
@@ -99,11 +129,15 @@ aiservermanager/
 
 ### API
 
-| Endpoint          | Method | Описание                                                       |
-| ----------------- | ------ | -------------------------------------------------------------- |
-| `/api/gpus`       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации) |
-| `/api/gpus/usage` | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)        |
-| `/health`         | GET    | `{ status: "ok", uptime: number }`                             |
+| Endpoint                | Method | Описание                                                         |
+| ----------------------- | ------ | ---------------------------------------------------------------- |
+| `/api/gpus`             | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)   |
+| `/api/gpus/usage`       | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)          |
+| `/api/services`         | GET    | `ServiceStatus[]` — статус llama + comfyui                       |
+| `/api/services/control` | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable |
+| `/health`               | GET    | `{ status: "ok", uptime: number }`                               |
+
+Управляемые сервисы: `llama`, `comfyui`. Сервисы должны быть зарегистрированы как systemd-юниты (Linux) или Windows-сервисы (`sc create`).
 
 ### Модели
 
@@ -128,6 +162,16 @@ interface GpuUsage {
   temperature: number; // Celsius
   vramUsed: number; // GB
 }
+
+// Сервисы — статус llama.cpp / ComfyUI
+interface ServiceStatus {
+  name: string;
+  running: boolean;
+  enabled: boolean;
+  pid?: number;
+  error?: string;
+}
+type ServiceAction = "start" | "stop" | "enable" | "disable";
 ```
 
 Фронтенд мерджит `GpuInfo` + `GpuUsage` на клиенте (`GpuWithUsage`).
@@ -141,9 +185,15 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 59 тестов.
 ### Стек фронта
 
 - **Angular 22** (standalone, signals, control flow `@if/@else`)
-- **Angular Material 22** (Toolbar, Table, ProgressBar, Card, Chips)
+- **Angular Material 22** (Toolbar, Table, ProgressBar, Card, Chips, Button)
 - **RxJS** — два независимых стрима: `fetchGpus()` (1 раз) + `watchUsage()` (poll 3s)
 - **Zone.js** с `eventCoalescing: true`
+
+### Компоненты
+
+- `AppComponent` — compose layout: toolbar + GPU block + Services block
+- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
+- `ServicesComponent` — карточки для `llama` и `comfyui` с бейджами статуса и кнопками Start/Stop/Enable/Disable
 
 ### Состояние компонента
 
@@ -168,7 +218,8 @@ readonly hasGpus = computed(() => this.gpus().length > 0);
 
 ## Паттерны
 
-- **Strategy** — `GpuDetector` / `GpuEnricher` / `GpuUsageProbe` интерфейсы
+- **Strategy** — `GpuDetector` / `GpuEnricher` / `GpuUsageProbe` / `ServiceController` интерфейсы
 - **Two-phase** — bootstrap (static, cached) + polling (dynamic, per-request)
 - **DI** — InversifyJS, platform-aware bindings, multi-inject
 - **Signals** — Angular 22 reactive state management
+- **Component composition** — AppComponent делегирует рендеринг подкомпонентам (GpuTable, Services)

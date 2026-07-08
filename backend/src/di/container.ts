@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { Container } from "inversify";
-import { GPU_SERVICE, GPU_DETECTOR, GPU_ENRICHER, GPU_USAGE_PROBE } from "./types";
+import { GPU_SERVICE, GPU_DETECTOR, GPU_ENRICHER, GPU_USAGE_PROBE, SERVICE_MANAGER, SERVICE_CONTROLLER } from "./types";
 import { GpuService } from "../services/gpuService";
 import { GpuDetector } from "../services/detectors/gpuDetector";
 import { NvidiaSmiDetector } from "../services/detectors/nvidiaSmiDetector";
@@ -12,6 +12,10 @@ import { VulkanEnricher } from "../services/enrichers/vulkanEnricher";
 import { GpuUsageProbe } from "../services/probes/gpuUsageProbe";
 import { NvidiaSmiUsageProbe } from "../services/probes/nvidiaSmiUsageProbe";
 import { AmdLinuxUsageProbe } from "../services/probes/amdLinuxUsageProbe";
+import { ServiceManager } from "../services/serviceManager";
+import { ServiceController } from "../services/serviceController";
+import { SystemctlController } from "../services/controllers/systemctlController";
+import { WindowsServiceController } from "../services/controllers/windowsServiceController";
 
 const isWindows = process.platform === "win32";
 
@@ -40,6 +44,13 @@ export function createContainer(): Container {
   if (!isWindows) {
     container.bind<GpuUsageProbe>(GPU_USAGE_PROBE).to(AmdLinuxUsageProbe);
   }
+
+  // Service controllers — platform-aware strategies
+  container.bind<ServiceController>(SERVICE_CONTROLLER).to(SystemctlController);
+  container.bind<ServiceController>(SERVICE_CONTROLLER).to(WindowsServiceController);
+
+  // Service manager — orchestrates llama.cpp / ComfyUI (multi-injects controllers)
+  container.bind<ServiceManager>(SERVICE_MANAGER).to(ServiceManager).inSingletonScope();
 
   return container;
 }

@@ -1,0 +1,91 @@
+@use "@angular/material" as mat;
+
+.services-card {
+  margin-bottom: 24px;
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.service-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.service-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.service-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.service-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.status-chip,
+.enabled-chip {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-chip.running {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #a5d6a7,
+    )
+  );
+}
+
+.status-chip.stopped {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #ef9a9a,
+    )
+  );
+}
+
+.enabled-chip.enabled {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #90caf9,
+    )
+  );
+}
+
+.enabled-chip.disabled {
+  @include mat.chips-overrides(
+    (
+      elevated-container-color: #bdbdbd,
+    )
+  );
+}
+
+.service-pid {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.service-actions button {
+  flex: 1 1 auto;
+  min-width: 100px;
+}

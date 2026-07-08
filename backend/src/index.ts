@@ -4,6 +4,7 @@ import cors from "cors";
 import path from "path";
 import { createContainer } from "./di/container";
 import gpuRoutes from "./routes/gpuRoutes";
+import serviceRoutes from "./routes/serviceRoutes";
 
 const container = createContainer();
 const app = express();
@@ -15,6 +16,7 @@ app.use(express.json());
 
 // API routes
 app.use("/api/gpus", gpuRoutes(container));
+app.use("/api/services", serviceRoutes(container));
 
 // Health check
 app.get("/health", (_req, res) => {
