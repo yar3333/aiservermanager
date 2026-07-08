@@ -32,15 +32,11 @@
                   <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
                   Stop
                 </button>
-                <button
-                  mat-stroked-button
-                  [disabled]="svc.enabled && !svc.running"
-                  (click)="control(svc.name, 'disable')"
-                >
+                <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
                   <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
                   Disable
                 </button>
-                <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'enable')">
+                <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
                   <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
                   Enable
                 </button>
