@@ -10,18 +10,20 @@ export class WindowsServiceController implements ServiceController {
 
   async getStatus(name: string): Promise<ServiceStatus> {
     // SC query gives STATE (RUNNING/STOPPED), START (AUTO/DEMAND/DISABLED)
-    const { stdout } = await ExecTools.safeExec(`sc queryex "${name}"`);
+    const { stdout, stderr } = await ExecTools.safeExec(`sc queryex "${name}"`);
 
     const lines = stdout.split("\n");
     let running = false;
     let enabled = false;
     let pid: number | undefined;
+    let foundState = false;
 
     for (const line of lines) {
       const trimmed = line.trim();
 
       // STATE line: "        STATE: 4 RUNNING" or "        STATE: 1 STOPPED"
       if (trimmed.startsWith("STATE:")) {
+        foundState = true;
         const parts = trimmed.split(/\s+/);
         const state = parts[parts.length - 1]?.toUpperCase();
         running = state === "RUNNING";
@@ -44,22 +46,30 @@ export class WindowsServiceController implements ServiceController {
     }
 
     // Fallback: if SC query failed (service not found), check with Get-Service
-    if (!running && pid === undefined) {
+    if (!foundState) {
       const psResult = await ExecTools.safeExec(
         `Get-Service "${name}" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status`,
       );
       const status = psResult.stdout.trim().toUpperCase();
       if (status) {
         running = status === "RUNNING";
+        foundState = true;
       }
 
-      const startModeResult = await ExecTools.safeExec(
-        `Get-Service "${name}" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty StartType`,
-      );
-      const startMode = startModeResult.stdout.trim().toUpperCase();
-      if (startMode) {
-        enabled = startMode !== "DISABLED";
+      if (foundState) {
+        const startModeResult = await ExecTools.safeExec(
+          `Get-Service "${name}" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty StartType`,
+        );
+        const startMode = startModeResult.stdout.trim().toUpperCase();
+        if (startMode) {
+          enabled = startMode !== "DISABLED";
+        }
       }
+    }
+
+    if (!foundState) {
+      const errorMsg = stderr.trim() ? `Service "${name}" not found: ${stderr.trim()}` : `Service "${name}" not found`;
+      return { name, running: false, enabled: false, error: errorMsg };
     }
 
     return { name, running, enabled, pid };

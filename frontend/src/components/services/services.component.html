@@ -1,34 +1,28 @@
 <mat-card class="services-card">
-  <mat-card-header>
-    <mat-card-title>
-      <span class="material-icons" style="vertical-align: middle; margin-right: 8px">settings_applications</span>
-      Service Management
-    </mat-card-title>
-  </mat-card-header>
   <mat-card-content>
-    @if (loading()) {
-      <p>Loading services...</p>
-    } @else {
-      <div class="services-grid">
-        @for (svc of services(); track svc.name) {
-          <mat-card class="service-item">
-            <mat-card-content>
-              <div class="service-header">
-                <span class="service-name">{{ svc.name }}</span>
-                <div class="service-badges">
-                  <mat-chip class="status-chip" [class.running]="svc.running" [class.stopped]="!svc.running">
-                    {{ svc.running ? "Running" : "Stopped" }}
-                  </mat-chip>
-                  <mat-chip class="enabled-chip" [class.enabled]="svc.enabled" [class.disabled]="!svc.enabled">
-                    {{ svc.enabled ? "Enabled" : "Disabled" }}
-                  </mat-chip>
-                </div>
+    <div class="services-grid">
+      @for (svc of services(); track svc.name) {
+        <mat-card class="service-item">
+          <mat-card-content>
+            <div class="service-header">
+              <span class="service-name">{{ svc.name }}</span>
+              <div class="service-badges">
+                <mat-chip class="status-chip" [class.running]="svc.running" [class.stopped]="!svc.running">
+                  {{ svc.running ? "Running" : "Stopped" }}
+                </mat-chip>
+                <mat-chip class="enabled-chip" [class.enabled]="svc.enabled" [class.disabled]="!svc.enabled">
+                  {{ svc.enabled ? "Enabled" : "Disabled" }}
+                </mat-chip>
               </div>
+            </div>
 
-              @if (svc.pid) {
-                <div class="service-pid">PID: {{ svc.pid }}</div>
-              }
+            @if (svc.pid) {
+              <div class="service-pid">PID: {{ svc.pid }}</div>
+            }
 
+            @if (svc.error) {
+              <div class="service-error">{{ svc.error }}</div>
+            } @else {
               <div class="service-actions">
                 <button mat-raised-button color="primary" [disabled]="svc.running" (click)="control(svc.name, 'start')">
                   <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
@@ -51,10 +45,10 @@
                   Enable
                 </button>
               </div>
-            </mat-card-content>
-          </mat-card>
-        }
-      </div>
-    }
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
   </mat-card-content>
 </mat-card>

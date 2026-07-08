@@ -18,6 +18,20 @@ export class SystemctlController implements ServiceController {
 
     const activeStdout = activeResult.stdout.trim();
     const enableStdout = enableResult.stdout.trim();
+
+    // "inactive" + "disabled" with no known unit = service doesn't exist
+    if (activeStdout === "inactive" && enableStdout === "disabled") {
+      const listResult = await ExecTools.safeExec(`systemctl list-unit-files ${name} --no-legend`);
+      if (!listResult.stdout.includes(name)) {
+        return {
+          name,
+          running: false,
+          enabled: false,
+          error: `Service "${name}" not found`,
+        };
+      }
+    }
+
     const running = activeStdout === "active";
     const enabled = ["enabled", "static"].includes(enableStdout);
 
