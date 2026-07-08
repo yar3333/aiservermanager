@@ -11,6 +11,8 @@ aiservermanager/
 ├── backend/
 │   └── src/
 │       ├── index.ts                  # Express entry, port 4242, SPA fallback
+│       ├── files/                    # Raw files copied to dist/files/ at build (for ts-node-dev)
+│       │   └── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │       ├── models/
 │       │   ├── GpuInfo.ts            # GpuInfo (static), GpuUsage, GpuState
 │       │   └── ServiceStatus.ts      # ServiceStatus, ServiceAction
@@ -38,7 +40,6 @@ aiservermanager/
 │           │   ├── nvidiaSmiDetector.ts  # nvidia-smi (Win + Linux)
 │           │   ├── amdLinuxDetector.ts   # rocm-smi (Linux)
 │           │   ├── wmiDetector.ts        # WMI PowerShell (Win) + registry for pciBusId
-│           │   ├── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │           │   └── __tests__/
 │           ├── enrichers/            # Enrich static info
 │           │   ├── gpuEnricher.ts    # GpuEnricher стратегия

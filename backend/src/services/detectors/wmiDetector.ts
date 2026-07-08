@@ -12,7 +12,7 @@ import { GpuDetector } from "./gpuDetector";
  */
 @injectable()
 export class WmiDetector implements GpuDetector {
-  private readonly scriptPath = path.join(__dirname, "wmiGpuQuery.ps1");
+  private readonly scriptPath = path.resolve(__dirname, "../../../files/wmiGpuQuery.ps1");
   private availableCache: boolean | null = null;
 
   constructor() {
