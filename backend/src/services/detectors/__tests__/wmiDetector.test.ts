@@ -47,8 +47,6 @@ describe("WmiDetector", () => {
         brand: "NVIDIA",
         name: "NVIDIA GeForce RTX 3080",
         vramTotal: 8,
-        usage: 0,
-        temperature: 0,
         pciBusId: "PCI\\VEN_10DE&DEV_2206",
       });
     });

@@ -5,12 +5,13 @@ import { GpuDetector } from "./gpuDetector";
 
 /**
  * Detect AMD GPUs on Linux using `rocm-smi`.
+ * Returns only static info: index, name, vramTotal, pciBusId.
+ * Dynamic metrics (usage, temperature, vramUsed) are delegated to AmdLinuxUsageProbe.
  *
  * Commands (rocm-smi 6.x compatible):
- *   --showproductname --json  → {"card0": {"Card Series": "..."}, ...}
- *   -t --json                 → {"card0": {"Temperature (Sensor edge) (C)": "42.0"}, ...}
- *   -u --json                 → {"card0": {"GPU use (%)": "0"}, ...}
- *   --showmeminfo vram --json → {"card0": {"VRAM Total Memory (B)": "..."}, ...}
+ *   --showproductname --json  → product name
+ *   --showmeminfo vram --json → VRAM total
+ *   --showbus --json          → PCI bus ID
  */
 @injectable()
 export class AmdLinuxDetector implements GpuDetector {
@@ -33,8 +34,6 @@ export class AmdLinuxDetector implements GpuDetector {
   async detect(): Promise<GpuInfo[]> {
     const results = await Promise.all([
       ExecTools.safeExec("rocm-smi --showproductname --json", { timeout: 10000 }),
-      ExecTools.safeExec("rocm-smi -t --json", { timeout: 10000 }),
-      ExecTools.safeExec("rocm-smi -u --json", { timeout: 10000 }),
       ExecTools.safeExec("rocm-smi --showmeminfo vram --json", { timeout: 10000 }),
       ExecTools.safeExec("rocm-smi --showbus --json", { timeout: 10000 }),
     ]);
@@ -47,15 +46,13 @@ export class AmdLinuxDetector implements GpuDetector {
     const cardKeys = this.getCardKeys(productData);
     if (cardKeys.length === 0) return [];
 
-    const tempData = this.parseJson(results[1].stdout);
-    const usageData = this.parseJson(results[2].stdout);
-    const memData = this.parseJson(results[3].stdout);
-    const busData = this.parseJson(results[4].stdout);
+    const memData = this.parseJson(results[1].stdout);
+    const busData = this.parseJson(results[2].stdout);
 
     const gpus: GpuInfo[] = [];
     for (let i = 0; i < cardKeys.length; i++) {
       const key = cardKeys[i];
-      gpus.push(this.parseCard(i, key, productData, tempData, usageData, memData, busData));
+      gpus.push(this.parseCard(i, key, productData, memData, busData));
     }
 
     return gpus;
@@ -83,8 +80,6 @@ export class AmdLinuxDetector implements GpuDetector {
     index: number,
     cardKey: string,
     productData: Record<string, unknown>,
-    tempData: Record<string, unknown> | null,
-    usageData: Record<string, unknown> | null,
     memData: Record<string, unknown> | null,
     busData: Record<string, unknown> | null,
   ): GpuInfo {
@@ -97,9 +92,6 @@ export class AmdLinuxDetector implements GpuDetector {
       engineRocmName: "",
       engineVulkanName: "",
       vramTotal: 0,
-      vramUsed: 0,
-      usage: 0,
-      temperature: 0,
       pciBusId: "",
     };
 
@@ -109,34 +101,12 @@ export class AmdLinuxDetector implements GpuDetector {
       gpu.name = String(cardInfo["Card Series"]);
     }
 
-    // Temperature (Sensor edge)
-    if (tempData) {
-      const tempCard = tempData[cardKey] as Record<string, unknown> | undefined;
-      const tempStr = tempCard?.["Temperature (Sensor edge) (C)"];
-      if (tempStr !== undefined) {
-        gpu.temperature = parseFloat(String(tempStr)) || 0;
-      }
-    }
-
-    // GPU usage
-    if (usageData) {
-      const usageCard = usageData[cardKey] as Record<string, unknown> | undefined;
-      const usageStr = usageCard?.["GPU use (%)"];
-      if (usageStr !== undefined) {
-        gpu.usage = parseFloat(String(usageStr)) || 0;
-      }
-    }
-
-    // VRAM (bytes → GB)
+    // VRAM total (bytes → GB)
     if (memData) {
       const memCard = memData[cardKey] as Record<string, unknown> | undefined;
       const totalBytes = memCard?.["VRAM Total Memory (B)"];
-      const usedBytes = memCard?.["VRAM Total Used Memory (B)"];
       if (totalBytes !== undefined) {
         gpu.vramTotal = parseFloat(String(totalBytes)) / 1024 ** 3;
-      }
-      if (usedBytes !== undefined) {
-        gpu.vramUsed = parseFloat(String(usedBytes)) / 1024 ** 3;
       }
     }
 

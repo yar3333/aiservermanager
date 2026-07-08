@@ -6,7 +6,7 @@ import { GpuDetector } from "./gpuDetector";
 /**
  * Detect GPUs on Windows using PowerShell WMI (Win32_VideoController).
  * Supports all vendors — NVIDIA, AMD, Intel.
- * Usage and temperature are not available through WMI.
+ * Returns only static info: index, name, vendor, brand, vramTotal, pciBusId.
  */
 @injectable()
 export class WmiDetector implements GpuDetector {
@@ -65,9 +65,6 @@ export class WmiDetector implements GpuDetector {
           engineRocmName: "",
           engineVulkanName: "",
           vramTotal: Math.round(vramBytes / (1024 * 1024 * 1024)),
-          vramUsed: 0,
-          usage: 0,
-          temperature: 0,
           pciBusId: (data.pci as string) ?? (data.PNPDeviceID as string) ?? "",
         };
       });

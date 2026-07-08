@@ -5,7 +5,8 @@ import { GpuDetector } from "./gpuDetector";
 
 /**
  * Detect NVIDIA GPUs using `nvidia-smi`.
- * Works on both Linux and Windows.
+ * Returns only static info: index, name, vramTotal, pciBusId.
+ * Dynamic metrics (usage, temperature, vramUsed) are delegated to NvidiaSmiUsageProbe.
  */
 @injectable()
 export class NvidiaSmiDetector implements GpuDetector {
@@ -23,7 +24,7 @@ export class NvidiaSmiDetector implements GpuDetector {
 
   async detect(): Promise<GpuInfo[]> {
     const result = await ExecTools.safeExec(
-      "nvidia-smi --query-gpu=index,name,memory.total,memory.used,utilization.gpu,temperature.gpu,pci.bus_id --format=csv,noheader,nounits",
+      "nvidia-smi --query-gpu=index,name,memory.total,pci.bus_id --format=csv,noheader,nounits",
       { timeout: 10000 },
     );
 
@@ -37,14 +38,12 @@ export class NvidiaSmiDetector implements GpuDetector {
 
     for (const line of raw.trim().split("\n")) {
       const parts = line.split(",").map((s) => s.trim());
-      if (parts.length < 7) continue;
+      if (parts.length < 4) continue;
 
       const name = parts[1];
       const vramTotalMiB = parseFloat(parts[2]);
-      const vramUsedMiB = parseFloat(parts[3]);
-      const usage = parseFloat(parts[4]);
-      const temperature = parseFloat(parts[5]);
-      let busId = parts[6];
+      let busId = parts[3];
+
       // Normalize to lspci format: strip "0000:" domain prefix (Linux)
       if (busId.startsWith("0000:")) {
         busId = busId.slice(5);
@@ -59,9 +58,6 @@ export class NvidiaSmiDetector implements GpuDetector {
         engineRocmName: "",
         engineVulkanName: "",
         vramTotal: Math.round(vramTotalMiB / 1024),
-        vramUsed: Math.round(vramUsedMiB / 1024),
-        usage: Number.isNaN(usage) ? 0 : usage,
-        temperature: Number.isNaN(temperature) ? 0 : temperature,
         pciBusId: busId,
       });
     }

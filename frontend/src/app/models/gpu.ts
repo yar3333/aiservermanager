@@ -1,3 +1,4 @@
+/** Static GPU information — loaded once on init. */
 export interface Gpu {
   index: number;
   vendor: string;
@@ -7,8 +8,16 @@ export interface Gpu {
   engineRocmName: string;
   engineVulkanName: string;
   vramTotal: number;
-  vramUsed: number;
-  usage: number;
-  temperature: number;
   pciBusId: string;
 }
+
+/** Dynamic GPU metrics — polled from backend. */
+export interface GpuUsage {
+  key: string;
+  usage: number;
+  temperature: number;
+  vramUsed: number;
+}
+
+/** Full GPU display record = static info merged with latest usage. */
+export type GpuWithUsage = Gpu & GpuUsage;

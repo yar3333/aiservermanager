@@ -46,9 +46,6 @@ describe("LspciEnricher", () => {
       engineRocmName: "",
       engineVulkanName: "",
       vramTotal: 24,
-      vramUsed: 13,
-      usage: 20,
-      temperature: 45,
       pciBusId: "05:00.0",
     },
     {
@@ -60,9 +57,6 @@ describe("LspciEnricher", () => {
       engineRocmName: "",
       engineVulkanName: "",
       vramTotal: 24,
-      vramUsed: 14,
-      usage: 15,
-      temperature: 48,
       pciBusId: "08:00.0",
     },
     {
@@ -74,9 +68,6 @@ describe("LspciEnricher", () => {
       engineRocmName: "",
       engineVulkanName: "",
       vramTotal: 24,
-      vramUsed: 14,
-      usage: 18,
-      temperature: 47,
       pciBusId: "0D:00.0",
     },
     {
@@ -88,9 +79,6 @@ describe("LspciEnricher", () => {
       engineRocmName: "",
       engineVulkanName: "",
       vramTotal: 24,
-      vramUsed: 20,
-      usage: 25,
-      temperature: 46,
       pciBusId: "10:00.0",
     },
   ];

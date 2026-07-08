@@ -1,43 +1,65 @@
 import { injectable, multiInject } from "inversify";
-import { GpuInfo } from "../models/GpuInfo";
-import { GPU_DETECTOR, GPU_ENRICHER } from "../di/types";
+import { GpuInfo, GpuUsage } from "../models/GpuInfo";
+import { GPU_DETECTOR, GPU_ENRICHER, GPU_USAGE_PROBE } from "../di/types";
 import { GpuDetector } from "./detectors/gpuDetector";
 import { GpuEnricher } from "./enrichers/gpuEnricher";
+import { GpuUsageProbe } from "./probes/gpuUsageProbe";
+import { deduplicateGpus } from "./helpers/gpuDedup";
+import { assignEngineNames } from "./helpers/gpuEngineNames";
 
 /**
- * Compose the platform-specific pipeline of detectors and enrichers.
+ * Orchestrates GPU detection and usage polling.
  *
- * Detectors run sequentially (each may depend on previous results).
- * Enrichers run in parallel after all detection is complete.
+ * Bootstrap (runs once): detectors → dedup → enrichers → engine names.
+ * Usage polling (every request): probes → GpuUsage[].
  *
- * All dependencies are injected by InversifyJS via multiInject.
+ * Two access patterns:
+ *   - getStaticGpus() → GpuInfo[]  (cached)
+ *   - getUsage()      → GpuUsage[] (fresh each call)
  */
 @injectable()
 export class GpuService {
   private readonly detectors: GpuDetector[];
   private readonly enrichers: GpuEnricher[];
+  private readonly probes: GpuUsageProbe[];
+  private cachedGpus: GpuInfo[] | null = null;
 
   constructor(
     @multiInject(GPU_DETECTOR) detectors: GpuDetector[],
     @multiInject(GPU_ENRICHER) enrichers: GpuEnricher[],
+    @multiInject(GPU_USAGE_PROBE) probes: GpuUsageProbe[],
   ) {
     this.detectors = detectors;
     this.enrichers = enrichers;
+    this.probes = probes;
   }
 
-  async getGpuList(): Promise<GpuInfo[]> {
-    // 1. Run detectors sequentially, merging results
+  /**
+   * Return static GPU info (bootstraps on first call, then caches).
+   */
+  async getStaticGpus(): Promise<GpuInfo[]> {
+    if (!this.cachedGpus) {
+      this.cachedGpus = await this.bootstrap();
+    }
+    return this.cachedGpus;
+  }
+
+  /**
+   * Return only dynamic usage metrics.
+   */
+  async getUsage(): Promise<GpuUsage[]> {
+    const staticGpus = await this.getStaticGpus();
+    return this.runProbes(staticGpus);
+  }
+
+  /**
+   * Full pipeline: detectors → dedup → enrichers → engine names.
+   */
+  private async bootstrap(): Promise<GpuInfo[]> {
     const gpus = await this.runDetectors();
-
-    // 2. Deduplicate by GPU name (in case multiple detectors report the same card)
-    const deduped = deduplicate(gpus);
-
-    // 3. Enrich in parallel (lspci brand, vulkan device names, ...)
+    const deduped = deduplicateGpus(gpus);
     await this.runEnrichers(deduped);
-
-    // 4. Assign llama.cpp engine device names (cuda0, rocm0, ...)
     assignEngineNames(deduped);
-
     return deduped;
   }
 
@@ -65,65 +87,17 @@ export class GpuService {
 
     await Promise.all(tasks);
   }
-}
 
-/**
- * Remove duplicate GPUs that share the same identity.
- * When multiple detectors report the same card (e.g. nvidia-smi + WMI),
- * prefer the entry with more populated fields.
- *
- * Identity key: vendor + pciBusId (if available), otherwise vendor + name.
- * This prevents deduplication of multiple identical GPUs (e.g. 4x RX 7900 XTX).
- */
-function deduplicate(gpus: GpuInfo[]): GpuInfo[] {
-  const seen = new Map<string, GpuInfo>();
+  private async runProbes(gpus: GpuInfo[]): Promise<GpuUsage[]> {
+    const all: GpuUsage[] = [];
 
-  for (const gpu of gpus) {
-    const key = gpu.pciBusId ? `${gpu.vendor}:${gpu.pciBusId}` : `${gpu.vendor}:${gpu.name}`;
+    for (const probe of this.probes) {
+      if (!(await probe.isAvailable())) continue;
 
-    const existing = seen.get(key);
-    if (!existing) {
-      seen.set(key, gpu);
-      continue;
+      const result = await probe.probe(gpus);
+      all.push(...result);
     }
 
-    // Keep the entry with more data (usage, temperature, VRAM details)
-    const existingScore = score(existing);
-    const newScore = score(gpu);
-    if (newScore > existingScore) {
-      seen.set(key, gpu);
-    }
-  }
-
-  return [...seen.values()];
-}
-
-function score(gpu: GpuInfo): number {
-  let s = 0;
-  if (gpu.usage > 0) s += 2;
-  if (gpu.temperature > 0) s += 2;
-  if (gpu.vramUsed > 0) s += 1;
-  if (gpu.engineVulkanName) s += 1;
-  if (gpu.pciBusId) s += 1;
-  return s;
-}
-
-/**
- * Assign llama.cpp engine device names based on vendor.
- * NVIDIA GPUs get cuda0, cuda1, ...
- * AMD GPUs get rocm0, rocm1, ...
- * Vulkan names are assigned by the VulkanEnricher.
- */
-function assignEngineNames(gpus: GpuInfo[]): void {
-  let cudaIndex = 0;
-  let rocmIndex = 0;
-
-  for (const gpu of gpus) {
-    if (gpu.vendor === "NVIDIA" && !gpu.engineCudaName) {
-      gpu.engineCudaName = `cuda${cudaIndex++}`;
-    }
-    if (gpu.vendor === "AMD" && !gpu.engineRocmName) {
-      gpu.engineRocmName = `rocm${rocmIndex++}`;
-    }
+    return all;
   }
 }

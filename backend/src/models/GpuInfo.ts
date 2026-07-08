@@ -1,3 +1,4 @@
+/** Static GPU information — does not change during runtime. */
 export interface GpuInfo {
   index: number;
   vendor: string;
@@ -7,8 +8,14 @@ export interface GpuInfo {
   engineRocmName: string;
   engineVulkanName: string;
   vramTotal: number;
-  vramUsed: number;
+  pciBusId: string;
+}
+
+/** Dynamic GPU metrics — changes on every poll. */
+export interface GpuUsage {
+  /** Key to match against GpuInfo.pciBusId. */
+  key: string;
   usage: number;
   temperature: number;
-  pciBusId: string;
+  vramUsed: number;
 }

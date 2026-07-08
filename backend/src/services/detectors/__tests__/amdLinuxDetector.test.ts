@@ -26,16 +26,6 @@ describe("AmdLinuxDetector", () => {
     card1: { "Card Series": "AMD Radeon RX 7900 XTX" },
   });
 
-  const tempJson = JSON.stringify({
-    card0: { "Temperature (Sensor edge) (C)": "45.0" },
-    card1: { "Temperature (Sensor edge) (C)": "48.0" },
-  });
-
-  const usageJson = JSON.stringify({
-    card0: { "GPU use (%)": "20" },
-    card1: { "GPU use (%)": "15" },
-  });
-
   const memJson = JSON.stringify({
     card0: { "VRAM Total Memory (B)": "25753026560", "VRAM Total Used Memory (B)": "14252920832" },
     card1: { "VRAM Total Memory (B)": "25753026560", "VRAM Total Used Memory (B)": "8589934592" },
@@ -49,8 +39,6 @@ describe("AmdLinuxDetector", () => {
   function mockAllResponses(): void {
     mockSafeExec.mockImplementation(async (cmd: string) => {
       if (cmd.includes("showproductname")) return { stdout: productJson, stderr: "" };
-      if (cmd.includes("-t")) return { stdout: tempJson, stderr: "" };
-      if (cmd.includes("-u")) return { stdout: usageJson, stderr: "" };
       if (cmd.includes("showmeminfo")) return { stdout: memJson, stderr: "" };
       if (cmd.includes("showbus")) return { stdout: busJson, stderr: "" };
       return { stdout: "", stderr: "" };
@@ -77,7 +65,7 @@ describe("AmdLinuxDetector", () => {
   });
 
   describe("detect", () => {
-    it("parses multiple AMD GPUs", async () => {
+    it("parses multiple AMD GPUs (static info only)", async () => {
       mockAllResponses();
       const result = await detector.detect();
 
@@ -85,14 +73,9 @@ describe("AmdLinuxDetector", () => {
       expect(result[0].name).toBe("AMD Radeon RX 7900 XTX");
       expect(result[0].vendor).toBe("AMD");
       expect(result[0].brand).toBe("RADEON");
-      expect(result[0].temperature).toBe(45);
-      expect(result[0].usage).toBe(20);
       expect(result[0].vramTotal).toBeCloseTo(24, 1);
-      expect(result[0].vramUsed).toBeCloseTo(13.3, 1);
       expect(result[0].pciBusId).toBe("05:00.0");
       expect(result[1].pciBusId).toBe("08:00.0");
-      expect(result[1].temperature).toBe(48);
-      expect(result[1].usage).toBe(15);
     });
 
     it("returns empty array on empty product output", async () => {
@@ -107,7 +90,7 @@ describe("AmdLinuxDetector", () => {
       expect(result).toEqual([]);
     });
 
-    it("fills defaults when temp/usage/mem parse fails", async () => {
+    it("fills defaults when mem/bus parse fails", async () => {
       mockSafeExec.mockImplementation(async (cmd: string) => {
         if (cmd.includes("showproductname")) return { stdout: productJson, stderr: "" };
         return { stdout: "", stderr: "" };
@@ -117,19 +100,16 @@ describe("AmdLinuxDetector", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0].name).toBe("AMD Radeon RX 7900 XTX");
-      expect(result[0].temperature).toBe(0);
-      expect(result[0].usage).toBe(0);
       expect(result[0].vramTotal).toBe(0);
+      expect(result[0].pciBusId).toBe("");
     });
 
-    it("parses VRAM from bytes to GB", async () => {
+    it("parses VRAM total from bytes to GB", async () => {
       mockAllResponses();
       const result = await detector.detect();
 
       // 25753026560 bytes = 24 GB
       expect(result[0].vramTotal).toBeCloseTo(24, 1);
-      // 14252920832 bytes ≈ 13.3 GB
-      expect(result[0].vramUsed).toBeCloseTo(13.3, 1);
     });
 
     it("uppercases PCI bus ID", async () => {
