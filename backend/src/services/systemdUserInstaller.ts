@@ -63,12 +63,8 @@ WantedBy=default.target
       };
     }
 
-    // Reload systemd user daemon
-    const result = await ExecTools.safeExec("systemctl --user daemon-reload");
-    if (result.stderr) {
-      return { ok: false, error: `daemon-reload failed: ${result.stderr.trim()}` };
-    }
-
+    // Reload systemd user daemon (best-effort — config is already on disk)
+    await ExecTools.safeExec("systemctl --user daemon-reload");
     return { ok: true };
   }
 
@@ -89,11 +85,8 @@ WantedBy=default.target
       };
     }
 
-    const result = await ExecTools.safeExec("systemctl --user daemon-reload");
-    if (result.stderr) {
-      return { ok: false, error: `daemon-reload failed: ${result.stderr.trim()}` };
-    }
-
+    // Reload systemd user daemon (best-effort)
+    await ExecTools.safeExec("systemctl --user daemon-reload");
     return { ok: true };
   }
 

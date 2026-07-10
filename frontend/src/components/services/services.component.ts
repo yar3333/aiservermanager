@@ -1,9 +1,10 @@
-import { Component, inject } from "@angular/core";
+import { Component, signal, computed, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatButtonModule } from "@angular/material/button";
 import { MatChipsModule } from "@angular/material/chips";
 import { MatDialog } from "@angular/material/dialog";
+import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
@@ -15,48 +16,42 @@ import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/serv
   templateUrl: "./services.component.html",
   styleUrls: ["./services.component.scss"],
 })
-export class ServicesComponent {
+export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
   private dialog = inject(MatDialog);
 
-  services: ServiceStatus[] = [];
-  configs: ServiceConfig[] = [];
-  loading = true;
+  readonly services = signal<ServiceStatus[]>([]);
+  readonly configs = signal<ServiceConfig[]>([]);
+  readonly loading = signal(true);
+  readonly hasConfigs = computed(() => this.configs().length > 0);
 
-  constructor() {
+  ngOnInit(): void {
     this.load();
   }
 
-  load(): void {
-    this.loading = true;
-    this.serviceService.fetchServices().subscribe({
-      next: (services) => {
-        this.services = services;
-        this.loading = false;
-      },
-      error: (err) => {
-        console.error("[ServicesComponent] fetch error:", err);
-        this.loading = false;
-      },
-    });
-
-    this.serviceService.fetchConfigs().subscribe({
-      next: (configs) => {
-        this.configs = configs;
-      },
-      error: (err) => {
-        console.error("[ServicesComponent] fetch configs error:", err);
-      },
-    });
+  async load(): Promise<void> {
+    this.loading.set(true);
+    try {
+      const [services, configs] = await Promise.all([
+        firstValueFrom(this.serviceService.fetchServices()),
+        firstValueFrom(this.serviceService.fetchConfigs()),
+      ]);
+      this.services.set(services);
+      this.configs.set(configs);
+    } catch (err) {
+      console.error("[ServicesComponent] load error:", err);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  control(name: string, action: ServiceAction): void {
-    this.serviceService.control(name, action).subscribe({
-      next: () => this.load(),
-      error: (err) => {
-        console.error(`[ServicesComponent] control error (${name}/${action}):`, err);
-      },
-    });
+  async control(name: string, action: ServiceAction): Promise<void> {
+    try {
+      await firstValueFrom(this.serviceService.control(name, action));
+      await this.load();
+    } catch (err) {
+      console.error(`[ServicesComponent] control error (${name}/${action}):`, err);
+    }
   }
 
   addService(): void {
@@ -67,13 +62,13 @@ export class ServicesComponent {
     this.openDialog(cfg);
   }
 
-  deleteConfig(suffix: string): void {
-    this.serviceService.deleteConfig(suffix).subscribe({
-      next: () => this.load(),
-      error: (err) => {
-        console.error(`[ServicesComponent] delete error (${suffix}):`, err);
-      },
-    });
+  async deleteConfig(suffix: string): Promise<void> {
+    try {
+      await firstValueFrom(this.serviceService.deleteConfig(suffix));
+      await this.load();
+    } catch (err) {
+      console.error(`[ServicesComponent] delete error (${suffix}):`, err);
+    }
   }
 
   hasFlags(cfg: ServiceConfig): boolean {
@@ -84,14 +79,14 @@ export class ServicesComponent {
     const data: ServiceDialogData = { config };
     const ref = this.dialog.open(ServiceDialogComponent, { data, maxWidth: "600px" });
 
-    ref.afterClosed().subscribe((result: ServiceConfig | undefined) => {
+    ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (result) {
-        this.serviceService.saveConfig(result).subscribe({
-          next: () => this.load(),
-          error: (err) => {
-            console.error("[ServicesComponent] save error:", err);
-          },
-        });
+        try {
+          await firstValueFrom(this.serviceService.saveConfig(result));
+          await this.load();
+        } catch (err) {
+          console.error("[ServicesComponent] save error:", err);
+        }
       }
     });
   }

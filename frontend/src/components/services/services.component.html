@@ -6,7 +6,7 @@
     </div>
 
     <div class="services-grid">
-      @for (svc of services; track svc.name) {
+      @for (svc of services(); track svc.name) {
         <mat-card class="service-item">
           <mat-card-content>
             <div class="service-header">
@@ -61,9 +61,9 @@
       </button>
     </div>
 
-    @if (configs.length > 0) {
+    @if (hasConfigs()) {
       <div class="services-grid">
-        @for (cfg of configs; track cfg.suffix) {
+        @for (cfg of configs(); track cfg.suffix) {
           <mat-card class="service-item config-item">
             <mat-card-content>
               <div class="service-header">
