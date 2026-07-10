@@ -20,32 +20,15 @@
       }
     </mat-form-field>
 
-    <div class="flags-section">
-      <div class="flags-header">
-        <span class="flags-title">CLI Flags</span>
-        <button mat-icon-button type="button" color="primary" (click)="addFlag()" [disabled]="flagsArray.length >= 20">
-          <mat-icon>add_circle_outline</mat-icon>
-        </button>
-      </div>
-
-      <div formArrayName="flags" class="flags-list">
-        @for (_ of flagsArray.controls; track _; let i = $index) {
-          <div [formGroupName]="i" class="flag-row">
-            <input type="text" formControlName="key" placeholder="--flag-name" class="flag-key" />
-            <input type="text" formControlName="value" placeholder="value" class="flag-value" />
-            <button
-              mat-icon-button
-              type="button"
-              color="warn"
-              (click)="removeFlag(i)"
-              [disabled]="flagsArray.length <= 1"
-            >
-              <mat-icon>delete</mat-icon>
-            </button>
-          </div>
-        }
-      </div>
-    </div>
+    <mat-form-field appearance="outline" class="full-width">
+      <textarea
+        matInput
+        formControlName="flagsText"
+        rows="6"
+        placeholder="--model=/path/to/model.gguf&#10;--ctx-size=4096&#10;--verbose"
+      ></textarea>
+      <mat-label>CLI Flags (one per line: --flag=value)</mat-label>
+    </mat-form-field>
   </form>
 </mat-dialog-content>
 
