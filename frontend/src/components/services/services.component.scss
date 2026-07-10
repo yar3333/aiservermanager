@@ -19,29 +19,38 @@
   }
 }
 
-.services-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
+.services-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 8px 0;
 }
 
 .service-item {
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+
+  &.llama {
+    border-left: 3px solid #7c4dff;
+  }
 }
 
 .service-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .service-name {
   font-size: 1.1rem;
   font-weight: 600;
   text-transform: capitalize;
+}
+
+.service-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .service-badges {
@@ -93,6 +102,26 @@
   margin-bottom: 4px;
 }
 
+.config-cmd {
+  font-size: 0.8rem;
+  color: #555;
+  font-family: monospace;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.config-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.flag-chip {
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
 .service-error {
   font-size: 0.85rem;
   color: #c62828;
@@ -104,7 +133,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .service-actions button {
@@ -112,42 +141,13 @@
   min-width: 100px;
 }
 
-/* Config card styles */
-.config-item .service-header {
-  margin-bottom: 8px;
-}
-
-.config-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.config-cmd {
-  font-size: 0.8rem;
-  color: #555;
-  font-family: monospace;
-  margin-bottom: 8px;
-  word-break: break-all;
-}
-
-.config-flags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.flag-chip {
-  font-size: 0.75rem;
-  font-family: monospace;
-}
-
-.empty-configs {
+.empty {
   text-align: center;
   padding: 24px;
   color: #999;
   font-size: 0.9rem;
-}
 
-.empty-configs p {
-  margin: 0;
+  p {
+    margin: 0;
+  }
 }

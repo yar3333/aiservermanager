@@ -9,6 +9,23 @@ import { ServiceService } from "../../services/service.service";
 import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 
+const LLAMA_PREFIX = "aism-llama-";
+
+/** Merged service status + optional config for aism-llama- services. */
+export interface ServiceWithConfig {
+  name: string;
+  running: boolean;
+  enabled: boolean;
+  pid?: number;
+  error?: string;
+  /** Config for aism-llama- services, null for built-in. */
+  config: ServiceConfig | null;
+  /** True if this is a user-created llama service. */
+  isLlama: boolean;
+  /** Suffix extracted from name (e.g. "qwen3" from "aism-llama-qwen3"). */
+  suffix: string;
+}
+
 @Component({
   selector: "app-services",
   standalone: true,
@@ -23,7 +40,37 @@ export class ServicesComponent implements OnInit {
   readonly services = signal<ServiceStatus[]>([]);
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
-  readonly hasConfigs = computed(() => this.configs().length > 0);
+
+  /** Merged list: built-in services + user-created llama services with config. */
+  readonly unified = computed<ServiceWithConfig[]>(() => {
+    const svcList = this.services();
+    const cfgList = this.configs();
+    const cfgMap = new Map<string, ServiceConfig>();
+    for (const c of cfgList) cfgMap.set(c.suffix, c);
+
+    const llama: ServiceWithConfig[] = svcList
+      .filter((s) => s.name.startsWith(LLAMA_PREFIX))
+      .map((s) => {
+        const suffix = s.name.slice(LLAMA_PREFIX.length);
+        const config = cfgMap.get(suffix) ?? null;
+        return {
+          name: s.name,
+          running: s.running,
+          enabled: s.enabled,
+          pid: s.pid,
+          error: s.error,
+          config,
+          isLlama: true,
+          suffix,
+        };
+      });
+
+    const builtin: ServiceWithConfig[] = svcList
+      .filter((s) => !s.name.startsWith(LLAMA_PREFIX))
+      .map((s): ServiceWithConfig => ({ ...s, config: null, isLlama: false, suffix: "" }));
+
+    return [...llama, ...builtin];
+  });
 
   ngOnInit(): void {
     this.load();
@@ -58,11 +105,11 @@ export class ServicesComponent implements OnInit {
     this.openDialog(null);
   }
 
-  editConfig(cfg: ServiceConfig): void {
-    this.openDialog(cfg);
+  editService(svc: ServiceWithConfig): void {
+    this.openDialog(svc.config);
   }
 
-  async deleteConfig(suffix: string): Promise<void> {
+  async deleteService(suffix: string): Promise<void> {
     try {
       await firstValueFrom(this.serviceService.deleteConfig(suffix));
       await this.load();

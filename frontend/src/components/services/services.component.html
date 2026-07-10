@@ -1,99 +1,89 @@
 <mat-card class="services-card">
   <mat-card-content>
-    <!-- Built-in services section -->
     <div class="section-header">
       <h2>Services</h2>
-    </div>
-
-    <div class="services-grid">
-      @for (svc of services(); track svc.name) {
-        <mat-card class="service-item">
-          <mat-card-content>
-            <div class="service-header">
-              <span class="service-name">{{ svc.name }}</span>
-              <div class="service-badges">
-                <mat-chip class="status-chip" [class.running]="svc.running" [class.stopped]="!svc.running">
-                  {{ svc.running ? "Running" : "Stopped" }}
-                </mat-chip>
-                <mat-chip class="enabled-chip" [class.enabled]="svc.enabled" [class.disabled]="!svc.enabled">
-                  {{ svc.enabled ? "Enabled" : "Disabled" }}
-                </mat-chip>
-              </div>
-            </div>
-
-            @if (svc.pid) {
-              <div class="service-pid">PID: {{ svc.pid }}</div>
-            }
-
-            @if (svc.error) {
-              <div class="service-error">{{ svc.error }}</div>
-            } @else {
-              <div class="service-actions">
-                <button mat-raised-button color="primary" [disabled]="svc.running" (click)="control(svc.name, 'start')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
-                  Start
-                </button>
-                <button mat-raised-button color="warn" [disabled]="!svc.running" (click)="control(svc.name, 'stop')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
-                  Stop
-                </button>
-                <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
-                  Disable
-                </button>
-                <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
-                  Enable
-                </button>
-              </div>
-            }
-          </mat-card-content>
-        </mat-card>
-      }
-    </div>
-
-    <!-- User-created llama services section -->
-    <div class="section-header">
-      <h2>Llama Servers</h2>
       <button mat-raised-button color="primary" (click)="addService()">
         <span class="material-icons" style="font-size: 18px; margin-right: 4px">add</span>
-        Add
+        Add Llama
       </button>
     </div>
 
-    @if (hasConfigs()) {
-      <div class="services-grid">
-        @for (cfg of configs(); track cfg.suffix) {
-          <mat-card class="service-item config-item">
+    @if (unified().length > 0) {
+      <div class="services-list">
+        @for (svc of unified(); track svc.name) {
+          <mat-card class="service-item" [class.llama]="svc.isLlama">
             <mat-card-content>
               <div class="service-header">
-                <span class="service-name">aism-llama-{{ cfg.suffix }}</span>
-                <div class="config-actions">
-                  <button mat-icon-button color="primary" (click)="editConfig(cfg)">
-                    <span class="material-icons">edit</span>
-                  </button>
-                  <button mat-icon-button color="warn" (click)="deleteConfig(cfg.suffix)">
-                    <span class="material-icons">delete</span>
-                  </button>
+                <span class="service-name">{{ svc.name }}</span>
+                <div class="service-controls">
+                  @if (svc.isLlama) {
+                    <button mat-icon-button color="primary" (click)="editService(svc)">
+                      <span class="material-icons">edit</span>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deleteService(svc.suffix)">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  }
+                  <div class="service-badges">
+                    <mat-chip class="status-chip" [class.running]="svc.running" [class.stopped]="!svc.running">
+                      {{ svc.running ? "Running" : "Stopped" }}
+                    </mat-chip>
+                    <mat-chip class="enabled-chip" [class.enabled]="svc.enabled" [class.disabled]="!svc.enabled">
+                      {{ svc.enabled ? "Enabled" : "Disabled" }}
+                    </mat-chip>
+                  </div>
                 </div>
               </div>
 
-              <div class="config-cmd">{{ cfg.command }}</div>
+              @if (svc.pid) {
+                <div class="service-pid">PID: {{ svc.pid }}</div>
+              }
 
-              @if (hasFlags(cfg)) {
-                <div class="config-flags">
-                  @for (entry of cfg.flags | keyvalue; track entry.key) {
-                    <mat-chip class="flag-chip">{{ entry.key }}={{ entry.value }}</mat-chip>
-                  }
+              @if (svc.isLlama && svc.config) {
+                <div class="config-cmd">{{ svc.config.command }}</div>
+                @if (hasFlags(svc.config!)) {
+                  <div class="config-flags">
+                    @for (entry of svc.config!.flags | keyvalue; track entry.key) {
+                      <mat-chip class="flag-chip">{{ entry.key }}={{ entry.value }}</mat-chip>
+                    }
+                  </div>
+                }
+              }
+
+              @if (svc.error) {
+                <div class="service-error">{{ svc.error }}</div>
+              } @else {
+                <div class="service-actions">
+                  <button
+                    mat-raised-button
+                    color="primary"
+                    [disabled]="svc.running"
+                    (click)="control(svc.name, 'start')"
+                  >
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                    Start
+                  </button>
+                  <button mat-raised-button color="warn" [disabled]="!svc.running" (click)="control(svc.name, 'stop')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                    Stop
+                  </button>
+                  <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                    Disable
+                  </button>
+                  <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                    Enable
+                  </button>
                 </div>
               }
             </mat-card-content>
           </mat-card>
         }
       </div>
-    } @else {
-      <div class="empty-configs">
-        <p>No llama servers configured. Click "Add" to create one.</p>
+    } @else if (!loading()) {
+      <div class="empty">
+        <p>No services yet. Click "Add Llama" to create one.</p>
       </div>
     }
   </mat-card-content>
