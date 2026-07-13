@@ -3,6 +3,8 @@ export interface ServiceStatus {
   name: string;
   running: boolean;
   enabled: boolean;
+  /** Whether the service unit is registered in the OS (systemd / Windows Services). */
+  installed: boolean;
   pid?: number;
   error?: string;
 }

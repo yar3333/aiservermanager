@@ -10,4 +10,10 @@ export interface ServiceController {
 
   /** Execute start / stop / enable / disable. */
   perform(name: string, action: ServiceAction): Promise<ServiceStatus>;
+
+  /**
+   * Install an aism-llama service from its config, then enable it (auto-start).
+   * Returns the post-action status on success.
+   */
+  installAndEnable(name: string, execStart: string): Promise<ServiceStatus>;
 }

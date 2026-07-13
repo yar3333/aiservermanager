@@ -42,6 +42,25 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
+  /** Install an aism-llama service from config and enable it: { name: "aism-llama-qwen3" } */
+  router.post("/install", async (req: Request, res: Response) => {
+    try {
+      const { name } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "'name' is required" });
+      }
+
+      const sm = container.get<ServiceManager>(SERVICE_MANAGER);
+      const result = await sm.installAndEnable(name);
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      const status = msg.toLowerCase().includes("not found") ? 404 : 500;
+      res.status(status).json({ error: msg });
+    }
+  });
+
   /** List all user-created service configs. */
   router.get("/config", (_req, res) => {
     try {

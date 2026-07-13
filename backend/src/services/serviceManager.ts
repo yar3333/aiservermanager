@@ -2,13 +2,14 @@ import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
-import { computeServiceName } from "../models/ServiceConfig";
+import { ServiceConfig, computeServiceName } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
 interface ServiceDef {
   name: string;
 }
 
+const LLAMA_PREFIX = "aism-llama-";
 const BUILT_IN_SERVICES: ServiceDef[] = [{ name: "llama" }, { name: "comfyui" }];
 
 /** Resolve all service names: built-in + user-created llama configs. */
@@ -34,6 +35,20 @@ function resolveServiceDefs(configManager: ConfigManager): ServiceDef[] {
   }
 
   return defs;
+}
+
+/** Build the full ExecStart command from a service config. */
+function buildExecStart(cfg: ServiceConfig): string {
+  const args = Object.entries(cfg.flags)
+    .map(([key, value]) => {
+      if (value.includes(" ")) {
+        return `${key}='${value}'`;
+      }
+      return `${key}=${value}`;
+    })
+    .join(" ");
+
+  return args ? `${cfg.command} ${args}` : cfg.command;
 }
 
 export class ServiceManager {
@@ -64,6 +79,7 @@ export class ServiceManager {
         ...def,
         running: false,
         enabled: false,
+        installed: false,
         error: "No service controller available on this platform",
       }));
     }
@@ -78,6 +94,7 @@ export class ServiceManager {
             ...def,
             running: false,
             enabled: false,
+            installed: false,
             error: `Failed to query service "${def.name}"`,
           };
         }
@@ -101,5 +118,31 @@ export class ServiceManager {
 
     const status = await controller.perform(name, action);
     return { ...def, ...status };
+  }
+
+  /**
+   * Install an aism-llama service from its config, then enable it.
+   * Only works for user-created llama services that have a config but are not yet installed.
+   */
+  async installAndEnable(name: string): Promise<ServiceStatus> {
+    // Only aism-llama services can be installed this way
+    if (!name.startsWith(LLAMA_PREFIX)) {
+      throw new Error(`installAndEnable is only for aism-llama- services, got: ${name}`);
+    }
+
+    const suffix = name.slice(LLAMA_PREFIX.length);
+    const cfg = this.configManager.get(suffix);
+    if (!cfg) {
+      throw new Error(`Config "${suffix}" not found — cannot install without config`);
+    }
+
+    const controller = await this.getActiveController();
+    if (!controller) {
+      throw new Error("No service controller available on this platform");
+    }
+
+    const execStart = buildExecStart(cfg);
+    const status = await controller.installAndEnable(name, execStart);
+    return status;
   }
 }

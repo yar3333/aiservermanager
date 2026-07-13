@@ -17,10 +17,12 @@
                 <span class="service-name">{{ svc.name }}</span>
                 <div class="service-controls">
                   <div class="service-actions">
+                    <!-- Built-in: all buttons disabled if not installed -->
+                    <!-- aism-llama: Start/Stop/Disable disabled if not installed; Enable installs + enables -->
                     <button
                       mat-raised-button
                       color="primary"
-                      [disabled]="svc.running"
+                      [disabled]="!svc.installed || svc.running"
                       (click)="control(svc.name, 'start')"
                     >
                       <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
@@ -29,19 +31,27 @@
                     <button
                       mat-raised-button
                       color="warn"
-                      [disabled]="!svc.running"
+                      [disabled]="!svc.installed || !svc.running"
                       (click)="control(svc.name, 'stop')"
                     >
                       <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
                       Stop
                     </button>
-                    <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
+                    <button
+                      mat-stroked-button
+                      [disabled]="!svc.installed || !svc.enabled"
+                      (click)="control(svc.name, 'disable')"
+                    >
                       <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
                       Disable
                     </button>
-                    <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
+                    <button
+                      mat-stroked-button
+                      [disabled]="svc.installed && svc.enabled"
+                      (click)="svc.isLlama && !svc.installed ? installAndEnable(svc.name) : control(svc.name, 'enable')"
+                    >
                       <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
-                      Enable
+                      {{ svc.isLlama && !svc.installed ? "Install & Enable" : "Enable" }}
                     </button>
                   </div>
                   <div [style.visibility]="svc.isLlama ? 'display' : 'hidden'" class="service-actions">

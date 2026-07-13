@@ -37,4 +37,9 @@ export class ServiceService {
   deleteConfig(suffix: string): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.url}/config/${suffix}`);
   }
+
+  /** Install an aism-llama service from config and enable it. */
+  installAndEnable(name: string): Observable<ServiceStatus> {
+    return this.http.post<ServiceStatus>(`${this.url}/install`, { name });
+  }
 }

@@ -2,15 +2,17 @@ import { ExecTools } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
 import { ServiceController } from "../serviceController";
 
-/** Manage Windows services via PowerShell SC cmdlet. */
+/** Manage Windows services via sc.exe. */
 export class WindowsServiceController implements ServiceController {
+  private static readonly SC = "sc.exe";
+
   async isAvailable(): Promise<boolean> {
     return process.platform === "win32";
   }
 
   async getStatus(name: string): Promise<ServiceStatus> {
-    // SC query gives STATE (RUNNING/STOPPED), START (AUTO/DEMAND/DISABLED)
-    const { stdout, stderr } = await ExecTools.safeExec(`sc queryex "${name}"`);
+    // sc.exe queryex gives STATE (RUNNING/STOPPED), START (AUTO/DEMAND/DISABLED)
+    const { stdout, stderr } = await ExecTools.safeExec(`${WindowsServiceController.SC} queryex "${name}"`);
 
     const lines = stdout.split("\n");
     let running = false;
@@ -69,27 +71,28 @@ export class WindowsServiceController implements ServiceController {
 
     if (!foundState) {
       const errorMsg = stderr.trim() ? `Service "${name}" not found: ${stderr.trim()}` : `Service "${name}" not found`;
-      return { name, running: false, enabled: false, error: errorMsg };
+      return { name, running: false, enabled: false, installed: false, error: errorMsg };
     }
 
-    return { name, running, enabled, pid };
+    return { name, running, enabled, installed: true, pid };
   }
 
   async perform(name: string, action: ServiceAction): Promise<ServiceStatus> {
+    const SC = WindowsServiceController.SC;
     let cmd: string;
 
     switch (action) {
       case "start":
-        cmd = `sc start "${name}"`;
+        cmd = `${SC} start "${name}"`;
         break;
       case "stop":
-        cmd = `sc stop "${name}"`;
+        cmd = `${SC} stop "${name}"`;
         break;
       case "enable":
-        cmd = `sc config "${name}" start= auto`;
+        cmd = `${SC} config "${name}" start= auto`;
         break;
       case "disable":
-        cmd = `sc config "${name}" start= disabled`;
+        cmd = `${SC} config "${name}" start= disabled`;
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -102,13 +105,39 @@ export class WindowsServiceController implements ServiceController {
         name,
         running: false,
         enabled: false,
-        error: `sc ${action} failed: ${result.stderr.trim()}`,
+        installed: true,
+        error: `${SC} ${action} failed: ${result.stderr.trim()}`,
       };
     }
 
     // After start/stop, give the service a moment to transition
     if (action === "start" || action === "stop") {
       await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    return this.getStatus(name);
+  }
+
+  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
+    // sc.exe create with auto start installs and enables in one step
+    const cmd = `${WindowsServiceController.SC} create "${name}" binPath= "${execStart}" start= auto`;
+    const result = await ExecTools.safeExec(cmd);
+
+    if (result.stderr) {
+      // Service might already exist — try configuring it instead
+      const enableResult = await ExecTools.safeExec(
+        `${WindowsServiceController.SC} config "${name}" binPath= "${execStart}" start= auto`,
+      );
+      if (enableResult.stderr) {
+        return {
+          name,
+          running: false,
+          enabled: false,
+          installed: false,
+          error: `Failed to install service: ${enableResult.stderr.trim()}`,
+        };
+      }
+      return this.getStatus(name);
     }
 
     return this.getStatus(name);

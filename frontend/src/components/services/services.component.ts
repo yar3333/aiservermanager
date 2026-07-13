@@ -16,6 +16,8 @@ export interface ServiceWithConfig {
   name: string;
   running: boolean;
   enabled: boolean;
+  /** Whether the service unit is registered in the OS. */
+  installed: boolean;
   pid?: number;
   error?: string;
   /** Config for aism-llama- services, null for built-in. */
@@ -57,6 +59,7 @@ export class ServicesComponent implements OnInit {
           name: s.name,
           running: s.running,
           enabled: s.enabled,
+          installed: s.installed,
           pid: s.pid,
           error: s.error,
           config,
@@ -98,6 +101,15 @@ export class ServicesComponent implements OnInit {
       await this.load();
     } catch (err) {
       console.error(`[ServicesComponent] control error (${name}/${action}):`, err);
+    }
+  }
+
+  async installAndEnable(name: string): Promise<void> {
+    try {
+      await firstValueFrom(this.serviceService.installAndEnable(name));
+      await this.load();
+    } catch (err) {
+      console.error(`[ServicesComponent] installAndEnable error (${name}):`, err);
     }
   }
 
