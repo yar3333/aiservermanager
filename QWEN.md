@@ -119,11 +119,11 @@ aiservermanager/
 - `systemctl show --property=MainPID --value` — PID
 - `systemctl start|stop|enable|disable <name>` — управление
 
-**Windows** (`sc` + PowerShell fallback `Get-Service`):
+**Windows** (`sc.exe` + PowerShell fallback `Get-Service`):
 
-- `sc queryex <name>` — STATE, START_TYPE, PID
-- `sc start|stop <name>` — запуск/остановка
-- `sc config <name> start= auto|disabled` — включение/отключение
+- `sc.exe queryex <name>` — STATE, START_TYPE, PID
+- `sc.exe start|stop <name>` — запуск/остановка
+- `sc.exe config <name> start= auto|disabled` — включение/отключение
 
 ### `ExecTools`
 
