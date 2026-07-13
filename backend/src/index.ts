@@ -5,6 +5,8 @@ import path from "path";
 import { createContainer } from "./di/container";
 import gpuRoutes from "./routes/gpuRoutes";
 import serviceRoutes from "./routes/serviceRoutes";
+import { SERVICE_MANAGER } from "./di/types";
+import { ServiceManager } from "./services/serviceManager";
 
 const container = createContainer();
 const app = express();
@@ -30,6 +32,12 @@ app.use(express.static(publicPath));
 // SPA fallback — serve index.html for all non-API routes
 app.use((_req, res, next) => {
   res.sendFile(path.join(publicPath, "index.html"));
+});
+
+// Bootstrap: auto-install aism-llama services, cache install errors
+const sm = container.get<ServiceManager>(SERVICE_MANAGER);
+sm.bootstrap().catch((err) => {
+  console.error("[ServiceManager] bootstrap failed:", err);
 });
 
 app.listen(PORT, HOST, () => {

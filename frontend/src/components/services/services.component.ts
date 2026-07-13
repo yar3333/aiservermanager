@@ -43,6 +43,9 @@ export class ServicesComponent implements OnInit {
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
 
+  /** Transient error per service name — auto-cleared after display. */
+  readonly svcErrors = signal<Map<string, string>>(new Map());
+
   /** Merged list: built-in services + user-created llama services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
     const svcList = this.services();
@@ -97,20 +100,25 @@ export class ServicesComponent implements OnInit {
 
   async control(name: string, action: ServiceAction): Promise<void> {
     try {
-      await firstValueFrom(this.serviceService.control(name, action));
+      const result = await firstValueFrom(this.serviceService.control(name, action));
+      if (result.error) {
+        this.flashError(name, result.error);
+      }
       await this.load();
     } catch (err) {
-      console.error(`[ServicesComponent] control error (${name}/${action}):`, err);
+      this.flashError(name, String((err as { error?: string }).error || err));
     }
   }
 
-  async installAndEnable(name: string): Promise<void> {
-    try {
-      await firstValueFrom(this.serviceService.installAndEnable(name));
-      await this.load();
-    } catch (err) {
-      console.error(`[ServicesComponent] installAndEnable error (${name}):`, err);
-    }
+  private flashError(name: string, msg: string): void {
+    const errors = new Map(this.svcErrors());
+    errors.set(name, msg);
+    this.svcErrors.set(errors);
+    setTimeout(() => {
+      const next = new Map(this.svcErrors());
+      next.delete(name);
+      this.svcErrors.set(next);
+    }, 8000);
   }
 
   addService(): void {

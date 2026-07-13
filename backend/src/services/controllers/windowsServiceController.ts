@@ -1,17 +1,31 @@
-import { ExecTools } from "../../helpers/ExecTools";
+import { ExecTools, ExecResult, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
 import { ServiceController } from "../serviceController";
 
 /** Manage Windows services via sc.exe. */
 export class WindowsServiceController implements ServiceController {
   private static readonly SC = "sc.exe";
+  private _isAdmin: boolean | null = null;
 
   async isAvailable(): Promise<boolean> {
     return process.platform === "win32";
   }
 
+  /** Check if the current process is running as Administrator. */
+  private async checkIsAdmin(): Promise<boolean> {
+    if (this._isAdmin !== null) return this._isAdmin;
+
+    const { stdout } = await ExecTools.safeExec(
+      "[bool]([Security.Principal.WindowsPrincipal]" +
+        "[Security.Principal.WindowsIdentity]::GetCurrent())" +
+        ".IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
+    );
+    this._isAdmin = stdout.trim().toUpperCase() === "TRUE";
+    return this._isAdmin;
+  }
+
   async getStatus(name: string): Promise<ServiceStatus> {
-    // sc.exe queryex gives STATE (RUNNING/STOPPED), START (AUTO/DEMAND/DISABLED)
+    // sc.exe queryex gives STATE (RUNNING/STOPPED), START_TYPE (AUTO/DEMAND/DISABLED)
     const { stdout, stderr } = await ExecTools.safeExec(`${WindowsServiceController.SC} queryex "${name}"`);
 
     const lines = stdout.split("\n");
@@ -47,7 +61,7 @@ export class WindowsServiceController implements ServiceController {
       }
     }
 
-    // Fallback: if SC query failed (service not found), check with Get-Service
+    // Fallback: if sc.exe query failed (service not found), check with Get-Service
     if (!foundState) {
       const psResult = await ExecTools.safeExec(
         `Get-Service "${name}" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status`,
@@ -98,15 +112,15 @@ export class WindowsServiceController implements ServiceController {
         throw new Error(`Unknown action: ${action}`);
     }
 
-    const result = await ExecTools.safeExec(cmd);
+    const result: ExecResultWithCode = await ExecTools.safeExecWithCode(cmd);
 
-    if (result.stderr) {
+    if (result.exitCode !== 0) {
       return {
         name,
         running: false,
         enabled: false,
         installed: true,
-        error: `${SC} ${action} failed: ${result.stderr.trim()}`,
+        error: `${SC} ${action} failed (code ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`,
       };
     }
 
@@ -119,22 +133,38 @@ export class WindowsServiceController implements ServiceController {
   }
 
   async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
-    // sc.exe create with auto start installs and enables in one step
-    const cmd = `${WindowsServiceController.SC} create "${name}" binPath= "${execStart}" start= auto`;
-    const result = await ExecTools.safeExec(cmd);
+    const SC = WindowsServiceController.SC;
 
-    if (result.stderr) {
-      // Service might already exist — try configuring it instead
-      const enableResult = await ExecTools.safeExec(
-        `${WindowsServiceController.SC} config "${name}" binPath= "${execStart}" start= auto`,
+    // sc.exe create requires Administrator — check upfront
+    const isAdmin = await this.checkIsAdmin();
+    if (!isAdmin) {
+      return {
+        name,
+        running: false,
+        enabled: false,
+        installed: false,
+        error: "Server is not running as Administrator. Restart with elevated privileges to install system services.",
+      };
+    }
+
+    // sc.exe create with auto start — install + enable in one step
+    const createResult: ExecResultWithCode = await ExecTools.safeExecWithCode(
+      `${SC} create "${name}" binPath= "${execStart}" start= auto`,
+    );
+
+    if (createResult.exitCode !== 0) {
+      // Service may already exist — try sc.exe config to update and enable
+      const configResult: ExecResultWithCode = await ExecTools.safeExecWithCode(
+        `${SC} config "${name}" binPath= "${execStart}" start= auto`,
       );
-      if (enableResult.stderr) {
+
+      if (configResult.exitCode !== 0) {
         return {
           name,
           running: false,
           enabled: false,
           installed: false,
-          error: `Failed to install service: ${enableResult.stderr.trim()}`,
+          error: `Failed to install service: ${configResult.stderr.trim()}`,
         };
       }
       return this.getStatus(name);

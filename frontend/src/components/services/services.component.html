@@ -16,44 +16,55 @@
               <div class="service-header">
                 <span class="service-name">{{ svc.name }}</span>
                 <div class="service-controls">
-                  <div class="service-actions">
-                    <!-- Built-in: all buttons disabled if not installed -->
-                    <!-- aism-llama: Start/Stop/Disable disabled if not installed; Enable installs + enables -->
-                    <button
-                      mat-raised-button
-                      color="primary"
-                      [disabled]="!svc.installed || svc.running"
-                      (click)="control(svc.name, 'start')"
-                    >
-                      <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
-                      Start
-                    </button>
-                    <button
-                      mat-raised-button
-                      color="warn"
-                      [disabled]="!svc.installed || !svc.running"
-                      (click)="control(svc.name, 'stop')"
-                    >
-                      <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
-                      Stop
-                    </button>
-                    <button
-                      mat-stroked-button
-                      [disabled]="!svc.installed || !svc.enabled"
-                      (click)="control(svc.name, 'disable')"
-                    >
-                      <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
-                      Disable
-                    </button>
-                    <button
-                      mat-stroked-button
-                      [disabled]="svc.installed && svc.enabled"
-                      (click)="svc.isLlama && !svc.installed ? installAndEnable(svc.name) : control(svc.name, 'enable')"
-                    >
-                      <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
-                      {{ svc.isLlama && !svc.installed ? "Install & Enable" : "Enable" }}
-                    </button>
-                  </div>
+                  @if (svc.installed) {
+                    <div class="service-actions">
+                      <button
+                        mat-raised-button
+                        color="primary"
+                        [disabled]="svc.running"
+                        (click)="control(svc.name, 'start')"
+                      >
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                        Start
+                      </button>
+                      <button
+                        mat-raised-button
+                        color="warn"
+                        [disabled]="!svc.running"
+                        (click)="control(svc.name, 'stop')"
+                      >
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                        Stop
+                      </button>
+                      <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                        Disable
+                      </button>
+                      <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                        Enable
+                      </button>
+                    </div>
+                  } @else {
+                    <div class="service-actions">
+                      <button mat-raised-button color="primary" disabled>
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                        Start
+                      </button>
+                      <button mat-raised-button color="warn" disabled>
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                        Stop
+                      </button>
+                      <button mat-stroked-button disabled>
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                        Disable
+                      </button>
+                      <button mat-stroked-button disabled>
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                        Enable
+                      </button>
+                    </div>
+                  }
                   <div [style.visibility]="svc.isLlama ? 'display' : 'hidden'" class="service-actions">
                     <button mat-icon-button color="primary" (click)="editService(svc)">
                       <span class="material-icons">edit</span>
@@ -67,6 +78,10 @@
 
               @if (svc.error) {
                 <div class="service-error">{{ svc.error }}</div>
+              }
+              @let transErr = svcErrors().get(svc.name);
+              @if (transErr) {
+                <div class="service-error">{{ transErr }}</div>
               }
             </mat-card-content>
           </mat-card>

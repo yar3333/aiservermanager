@@ -1,20 +1,60 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ExecTools } from "../../helpers/ExecTools";
+import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
 import { ServiceController } from "../serviceController";
 
+const LLAMA_PREFIX = "aism-llama-";
+const SYSTEM_UNIT_DIR = "/etc/systemd/system";
+
 /** Manage services via systemctl (Linux with systemd). */
 export class SystemctlController implements ServiceController {
+  private _hasSudo: boolean | null = null;
+
   async isAvailable(): Promise<boolean> {
     if (process.platform !== "linux") return false;
     const { stdout } = await ExecTools.safeExec("systemctl --version");
     return stdout.trim().length > 0;
   }
 
+  /**
+   * Check if the process can execute privileged commands (root or passwordless sudo).
+   */
+  private async checkSudo(): Promise<boolean> {
+    if (this._hasSudo !== null) return this._hasSudo;
+
+    // Check if running as root (UID 0)
+    const { stdout: uidOut } = await ExecTools.safeExec("id -u");
+    if (uidOut.trim() === "0") {
+      this._hasSudo = true;
+      return true;
+    }
+
+    // Check if sudo works non-interactively (-n = no tty prompt)
+    const sudoResult = await ExecTools.safeExecWithCode("sudo -n true");
+    this._hasSudo = sudoResult.exitCode === 0;
+    return this._hasSudo;
+  }
+
+  /** Return "sudo " if aism-llama service; "" otherwise. */
+  private async sudoPrefix(name: string): Promise<string> {
+    if (name.startsWith(LLAMA_PREFIX)) {
+      const hasSudo = await this.checkSudo();
+      if (!hasSudo) {
+        throw new Error(
+          "Cannot manage system-level service. Run server as root or configure passwordless sudo for 'systemctl'.",
+        );
+      }
+      return "sudo ";
+    }
+    return "";
+  }
+
   async getStatus(name: string): Promise<ServiceStatus> {
-    // Check if unit file exists at all
-    const listResult = await ExecTools.safeExec(`systemctl list-unit-files ${name} --no-legend`);
+    const sudo = name.startsWith(LLAMA_PREFIX) ? "sudo " : "";
+
+    // Check if unit file exists
+    const listResult = await ExecTools.safeExec(`${sudo}systemctl list-unit-files ${name} --no-legend`);
     const installed = listResult.stdout.includes(name);
 
     if (!installed) {
@@ -28,8 +68,8 @@ export class SystemctlController implements ServiceController {
     }
 
     const [activeResult, enableResult] = await Promise.all([
-      ExecTools.safeExec(`systemctl is-active ${name}`),
-      ExecTools.safeExec(`systemctl is-enabled ${name}`),
+      ExecTools.safeExec(`${sudo}systemctl is-active ${name}`),
+      ExecTools.safeExec(`${sudo}systemctl is-enabled ${name}`),
     ]);
 
     const activeStdout = activeResult.stdout.trim();
@@ -40,7 +80,7 @@ export class SystemctlController implements ServiceController {
 
     // Try to get PID
     let pid: number | undefined;
-    const pidResult = await ExecTools.safeExec(`systemctl show ${name} --property=MainPID --value`);
+    const pidResult = await ExecTools.safeExec(`${sudo}systemctl show ${name} --property=MainPID --value`);
     const pidStr = pidResult.stdout.trim();
     if (pidStr && pidStr !== "0") {
       pid = parseInt(pidStr, 10);
@@ -50,35 +90,29 @@ export class SystemctlController implements ServiceController {
   }
 
   async perform(name: string, action: ServiceAction): Promise<ServiceStatus> {
-    const cmd = `systemctl ${action} ${name}`;
-    const result = await ExecTools.safeExec(cmd);
+    const sudo = await this.sudoPrefix(name);
+    const cmd = `${sudo}systemctl ${action} ${name}`;
+    const result: ExecResultWithCode = await ExecTools.safeExecWithCode(cmd);
 
-    if (result.stderr) {
+    if (result.exitCode !== 0) {
       return {
         name,
         running: false,
         enabled: false,
         installed: true,
-        error: `systemctl ${action} failed: ${result.stderr.trim()}`,
+        error: `systemctl ${action} failed (code ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`,
       };
     }
 
     return this.getStatus(name);
   }
 
-  async installService(name: string): Promise<{ ok: boolean; error?: string }> {
-    // On Linux, aism-llama services are installed via systemdUserInstaller (unit file on disk).
-    // This controller method is a no-op because the installer handles unit creation.
-    // We delegate to SystemdUserInstaller from the manager layer.
-    return { ok: false, error: "Use SystemdUserInstaller to install aism-llama services" };
-  }
-
   async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
-    const systemdUserDir = path.join(process.env.HOME ?? "", ".config", "systemd", "user");
+    // Verify privileges first
+    const sudo = await this.sudoPrefix(name);
 
-    if (!fs.existsSync(systemdUserDir)) {
-      fs.mkdirSync(systemdUserDir, { recursive: true });
-    }
+    // Write unit file to /etc/systemd/system/
+    const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
 
     const unitContent = `[Unit]
 Description=aism-llama service (${name})
@@ -91,13 +125,27 @@ Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 `;
 
-    const unitPath = path.join(systemdUserDir, `${name}.service`);
-
     try {
-      fs.writeFileSync(unitPath, unitContent, "utf-8");
+      if (name.startsWith(LLAMA_PREFIX)) {
+        // Need sudo to write to /etc/systemd/system/
+        const writeResult = await ExecTools.safeExecWithCode(
+          `echo '${unitContent.replace(/'/g, "'\"'\"'")}' | sudo tee ${unitPath} > /dev/null`,
+        );
+        if (writeResult.exitCode !== 0) {
+          return {
+            name,
+            running: false,
+            enabled: false,
+            installed: false,
+            error: `Failed to write unit file: ${writeResult.stderr.trim()}`,
+          };
+        }
+      } else {
+        fs.writeFileSync(unitPath, unitContent, "utf-8");
+      }
     } catch (err) {
       return {
         name,
@@ -108,12 +156,21 @@ WantedBy=default.target
       };
     }
 
-    // Reload systemd user daemon
-    await ExecTools.safeExec("systemctl --user daemon-reload");
+    // Reload systemd daemon
+    const reloadResult = await ExecTools.safeExecWithCode(`${sudo}systemctl daemon-reload`);
+    if (reloadResult.exitCode !== 0) {
+      return {
+        name,
+        running: false,
+        enabled: false,
+        installed: true,
+        error: `systemctl daemon-reload failed: ${reloadResult.stderr.trim()}`,
+      };
+    }
 
     // Enable the service (auto-start)
-    const enableResult = await ExecTools.safeExec(`systemctl --user enable ${name}`);
-    if (enableResult.stderr) {
+    const enableResult = await ExecTools.safeExecWithCode(`${sudo}systemctl enable ${name}`);
+    if (enableResult.exitCode !== 0) {
       return {
         name,
         running: false,

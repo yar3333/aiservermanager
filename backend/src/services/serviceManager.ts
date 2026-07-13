@@ -53,6 +53,8 @@ function buildExecStart(cfg: ServiceConfig): string {
 
 export class ServiceManager {
   private readonly configManager = new ConfigManager();
+  /** Errors from initial aism-llama install attempts — served on every getStatusList without re-checking. */
+  private readonly installErrors = new Map<string, string>();
 
   constructor(
     @multiInject("SERVICE_CONTROLLER")
@@ -68,6 +70,42 @@ export class ServiceManager {
 
   private getServiceDefs(): ServiceDef[] {
     return resolveServiceDefs(this.configManager);
+  }
+
+  /**
+   * Called once at server startup. Attempts to install every aism-llama service
+   * that has a config but is not yet registered in the OS. Installation errors
+   * are cached so that getStatusList can return them without re-checking.
+   */
+  async bootstrap(): Promise<void> {
+    const controller = await this.getActiveController();
+    if (!controller) return;
+
+    const defs = this.getServiceDefs();
+
+    // Check which aism-llama services are not installed yet
+    const statuses = await Promise.all(
+      defs.filter((d) => d.name.startsWith(LLAMA_PREFIX)).map((d) => controller.getStatus(d.name)),
+    );
+
+    // Attempt install in parallel for all missing ones
+    await Promise.all(
+      statuses.map(async (status) => {
+        if (status.installed) return;
+
+        const suffix = status.name.slice(LLAMA_PREFIX.length);
+        const cfg = this.configManager.get(suffix);
+        if (!cfg) return;
+
+        const execStart = buildExecStart(cfg);
+        const result = await controller.installAndEnable(status.name, execStart);
+
+        // If install failed, cache the error
+        if (result.error) {
+          this.installErrors.set(status.name, result.error);
+        }
+      }),
+    );
   }
 
   async getStatusList(): Promise<ServiceStatus[]> {
@@ -100,6 +138,14 @@ export class ServiceManager {
         }
       }),
     );
+
+    // Override "not found" with cached install error if available
+    for (const status of results) {
+      const cached = this.installErrors.get(status.name);
+      if (cached && !status.installed) {
+        status.error = cached;
+      }
+    }
 
     return results;
   }
