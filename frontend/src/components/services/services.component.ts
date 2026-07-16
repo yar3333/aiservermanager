@@ -51,7 +51,7 @@ export class ServicesComponent implements OnInit {
     const cfgMap = new Map<string, ServiceConfig>();
     for (const c of cfgList) cfgMap.set(c.name, c);
 
-    const custom: ServiceWithConfig[] = svcList
+    const customServices: ServiceWithConfig[] = svcList
       .filter((s) => cfgMap.has(s.name))
       .map((s) => {
         const config = cfgMap.get(s.name) ?? null;
@@ -67,11 +67,11 @@ export class ServicesComponent implements OnInit {
         };
       });
 
-    const lightManaged: ServiceWithConfig[] = svcList
+    const managedServices: ServiceWithConfig[] = svcList
       .filter((s) => !cfgMap.has(s.name))
       .map((s): ServiceWithConfig => ({ ...s, config: null, hasConfig: false }));
 
-    return [...custom, ...lightManaged];
+    return [...customServices, ...managedServices];
   });
 
   ngOnInit(): void {
@@ -110,8 +110,8 @@ export class ServicesComponent implements OnInit {
   private showError(message: string): void {
     this.snackBar.open(message, "Dismiss", {
       duration: 8000,
-      horizontalPosition: "end",
-      verticalPosition: "bottom",
+      horizontalPosition: "center",
+      verticalPosition: "top",
     });
   }
 
