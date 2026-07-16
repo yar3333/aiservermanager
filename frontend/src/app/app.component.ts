@@ -9,8 +9,8 @@ import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
 import { ServicesComponent } from "../components/services/services.component";
 import { JournalPanelComponent } from "../components/journal-panel/journal-panel.component";
 
-const SPLITTER_MIN = 280;
-const SPLITTER_MAX = 900;
+const SPLITTER_MIN = 100;
+const SPLITTER_MAX = 1600;
 
 @Component({
   selector: "app-root",

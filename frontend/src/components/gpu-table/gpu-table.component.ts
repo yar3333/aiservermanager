@@ -15,7 +15,7 @@ import { GpuWithUsage } from "../../models/gpu";
 export class GpuTableComponent {
   readonly gpus = input.required<GpuWithUsage[]>();
 
-  displayedColumns: string[] = ["index", "name", "engineNames", "vram", "usage", "temperature", "pciBusId"];
+  displayedColumns: string[] = ["index", "name", "vram", "usage", "temperature", "pciBusId", "engineNames"];
 
   getVendorCssClass(gpu: GpuWithUsage) {
     return {
@@ -49,5 +49,10 @@ export class GpuTableComponent {
     if (gpu.engineRocmName) parts.push(gpu.engineRocmName);
     if (gpu.engineVulkanName) parts.push(gpu.engineVulkanName);
     return parts.length > 0 ? parts.join(", ") : "—";
+  }
+
+  makeGpuNameShort(name: string): string {
+    name = name.replace(/^AMD Radeon RX /, "RX ");
+    return name;
   }
 }

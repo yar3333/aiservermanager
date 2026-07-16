@@ -21,39 +21,28 @@
             <td class="service-name">{{ svc.name }}</td>
             <td class="service-actions-cell">
               @if (svc.installed) {
-                <button mat-raised-button color="primary" [disabled]="svc.running" (click)="control(svc.name, 'start')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
-                  Start
-                </button>
-                <button mat-raised-button color="warn" [disabled]="!svc.running" (click)="control(svc.name, 'stop')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
-                  Stop
-                </button>
-                <button mat-stroked-button [disabled]="!svc.enabled" (click)="control(svc.name, 'disable')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
-                  Disable
-                </button>
-                <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
-                  Enable
-                </button>
-              } @else {
-                <button mat-raised-button color="primary" disabled>
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
-                  Start
-                </button>
-                <button mat-raised-button color="warn" disabled>
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
-                  Stop
-                </button>
-                <button mat-stroked-button disabled>
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
-                  Disable
-                </button>
-                <button mat-stroked-button disabled>
-                  <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
-                  Enable
-                </button>
+                @if (!svc.running) {
+                  <button mat-raised-button color="primary" (click)="control(svc.name, 'start')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                    Start
+                  </button>
+                } @else {
+                  <button mat-raised-button color="warn" (click)="control(svc.name, 'stop')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                    Stop
+                  </button>
+                }
+                @if (svc.enabled) {
+                  <button mat-stroked-button (click)="control(svc.name, 'disable')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                    Disable
+                  </button>
+                } @else {
+                  <button mat-stroked-button [disabled]="svc.enabled" (click)="control(svc.name, 'enable')">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                    Enable
+                  </button>
+                }
               }
             </td>
             <td class="service-actions-cell">

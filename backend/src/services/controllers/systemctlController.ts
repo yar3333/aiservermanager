@@ -42,20 +42,6 @@ export class SystemctlController implements ServiceController {
     return this._hasSudo;
   }
 
-  /** Return "sudo " if custom service; "" otherwise. */
-  private async sudoPrefix(name: string): Promise<string> {
-    if (this.hasCustomConfig(name)) {
-      const hasSudo = await this.checkSudo();
-      if (!hasSudo) {
-        throw new Error(
-          "Cannot manage system-level service. Run server as root or configure passwordless sudo for 'systemctl'.",
-        );
-      }
-      return "sudo ";
-    }
-    return "";
-  }
-
   async getStatus(name: string): Promise<ServiceStatus> {
     const sudo = this.hasCustomConfig(name) ? "sudo " : "";
 
@@ -102,18 +88,7 @@ export class SystemctlController implements ServiceController {
   }
 
   async perform(name: string, action: ServiceAction): Promise<ServiceStatus> {
-    let sudo: string;
-    try {
-      sudo = await this.sudoPrefix(name);
-    } catch (err) {
-      return {
-        name,
-        running: false,
-        enabled: false,
-        installed: true,
-        error: `Privilege check failed: ${err instanceof Error ? err.message : String(err)}`,
-      };
-    }
+    const sudo = "sudo ";
 
     const cmd = `${sudo}systemctl ${action} ${name}`;
     const result: ExecResultWithCode = await ExecTools.safeExecWithCode(cmd);
@@ -140,7 +115,7 @@ export class SystemctlController implements ServiceController {
 
   async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
     // Verify privileges first
-    const sudo = await this.sudoPrefix(name);
+    const sudo = "sudo ";
 
     // Write unit file to /etc/systemd/system/
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
