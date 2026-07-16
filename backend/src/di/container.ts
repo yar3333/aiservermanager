@@ -8,6 +8,7 @@ import {
   SERVICE_MANAGER,
   SERVICE_CONTROLLER,
   SERVICE_CONFIG_CONTROLLER,
+  MANAGED_SERVICES_CONTROLLER,
 } from "./types";
 import { GpuService } from "../services/gpuService";
 import { GpuDetector } from "../services/detectors/gpuDetector";
@@ -25,6 +26,7 @@ import { ServiceController } from "../services/serviceController";
 import { SystemctlController } from "../services/controllers/systemctlController";
 import { WindowsServiceController } from "../services/controllers/windowsServiceController";
 import { ServiceConfigController } from "../services/serviceConfigController";
+import { ManagedServicesController } from "../services/managedServicesController";
 
 const isWindows = process.platform === "win32";
 
@@ -63,6 +65,12 @@ export function createContainer(): Container {
 
   // Service config controller — CRUD for user-created llama service configs
   container.bind<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER).to(ServiceConfigController).inSingletonScope();
+
+  // Managed services controller — discover available services + manage user selection
+  container
+    .bind<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER)
+    .to(ManagedServicesController)
+    .inSingletonScope();
 
   return container;
 }

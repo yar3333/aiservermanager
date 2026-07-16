@@ -1,0 +1,55 @@
+<div class="dialog-container">
+  <h2 mat-dialog-title>Manage Services</h2>
+
+  <mat-dialog-content>
+    <p class="dialog-description">
+      Select which system services to control from this dashboard. Changes take effect immediately.
+    </p>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <input
+        matInput
+        placeholder="Filter services..."
+        [value]="filter()"
+        (input)="filter.set($any($event.target).value)"
+      />
+    </mat-form-field>
+
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    } @else {
+      <div class="services-list">
+        @if (filteredServices.length > 0) {
+          <mat-list>
+            @for (name of filteredServices; track name) {
+              <mat-list-item>
+                <div class="service-row">
+                  <span class="service-name">{{ name }}</span>
+                  <button mat-icon-button [attr.aria-label]="'Toggle ' + name" (click)="toggle(name)">
+                    @if (isManaged(name)) {
+                      <span class="material-icons">check_box</span>
+                    } @else {
+                      <span class="material-icons">check_box_outline_blank</span>
+                    }
+                  </button>
+                </div>
+              </mat-list-item>
+            }
+          </mat-list>
+        } @else {
+          <p class="no-services">
+            @if (filter()) {
+              No services match "{{ filter() }}"
+            } @else {
+              No installed services found
+            }
+          </p>
+        }
+      </div>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-raised-button color="primary" (click)="close()">Done</button>
+  </mat-dialog-actions>
+</div>

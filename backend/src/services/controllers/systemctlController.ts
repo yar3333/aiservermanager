@@ -260,4 +260,30 @@ WantedBy=multi-user.target
 
     return { ok: true };
   }
+
+  async listAvailable(): Promise<string[]> {
+    const { stdout } = await ExecTools.safeExec(
+      "systemctl list-unit-files --type=service --no-legend --no-pager --all",
+    );
+
+    const names: string[] = [];
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("UNIT") || trimmed.startsWith("Hint")) continue;
+
+      const parts = trimmed.split(/\s+/);
+      const unitFile = parts[0];
+      if (!unitFile) continue;
+
+      // Strip .service suffix
+      const name = unitFile.replace(/\.service$/, "");
+
+      // Skip aism-llama-* (managed via configs)
+      if (name.startsWith(LLAMA_PREFIX)) continue;
+
+      names.push(name);
+    }
+
+    return names.sort();
+  }
 }

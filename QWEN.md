@@ -15,20 +15,25 @@ aiservermanager/
 │       │   └── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │       ├── models/
 │       │   ├── GpuInfo.ts            # GpuInfo (static), GpuUsage, GpuState
-│       │   └── ServiceStatus.ts      # ServiceStatus, ServiceAction
+│       │   ├── ServiceStatus.ts      # ServiceStatus, ServiceAction
+│       │   └── ServiceConfig.ts      # ServiceConfig (user-created llama configs)
 │       ├── di/
 │       │   ├── types.ts              # InversifyJS injection tokens
 │       │   └── container.ts          # Platform-aware DI container
 │       ├── routes/
 │       │   ├── gpuRoutes.ts          # GET / /usage /state
-│       │   ├── serviceRoutes.ts      # GET / POST /control
+│       │   ├── serviceRoutes.ts      # Services API + managed services CRUD
 │       │   └── __tests__/
 │       ├── helpers/
 │       │   └── ExecTools.ts          # safeExec (platform-aware shell), safeExecPs1 (.ps1 files)
 │       └── services/
 │           ├── gpuService.ts         # Bootstrap (once) + usage polling (every req)
 │           ├── serviceController.ts  # ServiceController стратегия
-│           ├── serviceManager.ts     # Multi-injects controllers, dispatches actions
+│           ├── serviceManager.ts     # Resolves managed + llama services, dispatches actions
+│           ├── serviceConfigController.ts # CRUD for user-created llama configs
+│           ├── managedServicesManager.ts  # Persist user-selected service names (JSON file)
+│           ├── managedServicesController.ts # Discover available + manage selection
+│           ├── configManager.ts      # File I/O for ~/.config/aiservermanager/services/*.conf
 │           ├── controllers/          # Platform-aware service control
 │           │   ├── systemctlController.ts    # systemctl (Linux)
 │           │   └── windowsServiceController.ts # SC cmdlet (Windows)
@@ -52,20 +57,23 @@ aiservermanager/
 │           │   └── amdLinuxUsageProbe.ts
 │           └── __tests__/
 └── frontend/
-    └── src/app/
-        ├── app.config.ts             # Zone.js eventCoalescing, HttpClient, Animations
-        ├── app.component.ts          # Сигналы, 2-поточный polling GPU
-        ├── app.component.html        # @if/@else шаблон, compose layout
-        ├── app.component.scss        # container layout styles
+    └── src/
+        ├── app/
+        │   ├── app.config.ts         # Zone.js eventCoalescing, HttpClient, Animations
+        │   ├── app.component.ts      # Сигналы, 2-поточный polling GPU
+        │   ├── app.component.html    # @if/@else шаблон, compose layout
+        │   └── app.component.scss    # container layout styles
         ├── components/
         │   ├── gpu-table/            # Таблица GPU (вынесен из AppComponent)
         │   └── services/             # Карточки управления сервисами
+        │       ├── service-dialog/   # Диалог создания/редактирования llama-конфигов
+        │       └── managed-services-dialog/ # Диалог выбора системных сервисов
         ├── models/
         │   ├── gpu.ts                # Gpu, GpuUsage, GpuState
-        │   └── service.ts            # ServiceStatus, ServiceAction
+        │   └── service.ts            # ServiceStatus, ServiceAction, ServiceConfig
         └── services/
             ├── gpu.service.ts        # fetchGpus() + watchUsage()
-            └── service.service.ts    # fetchServices() + control()
+            └── service.service.ts    # Services API + managed services
 ```
 
 ## Backend
@@ -118,12 +126,14 @@ aiservermanager/
 - `systemctl is-enabled <name>` — автозагрузка
 - `systemctl show --property=MainPID --value` — PID
 - `systemctl start|stop|enable|disable <name>` — управление
+- `systemctl list-unit-files --type=service` — discover всех сервисов (исключает `aism-llama-*`)
 
 **Windows** (`sc.exe` + PowerShell fallback `Get-Service`):
 
 - `sc.exe queryex <name>` — STATE, START_TYPE, PID
 - `sc.exe start|stop <name>` — запуск/остановка
 - `sc.exe config <name> start= auto|disabled` — включение/отключение
+- `Get-Service` — discover всех Windows-сервисов
 
 ### `ExecTools`
 
@@ -133,15 +143,22 @@ aiservermanager/
 
 ### API
 
-| Endpoint                | Method | Описание                                                         |
-| ----------------------- | ------ | ---------------------------------------------------------------- |
-| `/api/gpus`             | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)   |
-| `/api/gpus/usage`       | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)          |
-| `/api/services`         | GET    | `ServiceStatus[]` — статус llama + comfyui                       |
-| `/api/services/control` | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable |
-| `/health`               | GET    | `{ status: "ok", uptime: number }`                               |
+| Endpoint                          | Method | Описание                                                               |
+| --------------------------------- | ------ | ---------------------------------------------------------------------- |
+| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)         |
+| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)                |
+| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                        |
+| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable       |
+| `/api/services/config`            | GET    | `ServiceConfig[]` — user-created llama configs                         |
+| `/api/services/config`            | POST   | `{ suffix, command, flags }` → создаёт/обновляет config                |
+| `/api/services/config/:suffix`    | DELETE | Удаляет config + systemd-юнит                                          |
+| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме aism-llama-\*) |
+| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов             |
+| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                                 |
+| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                                 |
+| `/health`                         | GET    | `{ status: "ok", uptime: number }`                                     |
 
-Управляемые сервисы: `llama`, `comfyui`. Сервисы должны быть зарегистрированы как systemd-юниты (Linux) или Windows-сервисы (`sc create`).
+**Управляемые сервисы** — пользовательская выборка через **"Manage"** кнопку в дашборде. Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Дополнительно: `aism-llama-*` сервисы из конфигов (`~/.config/aiservermanager/services/*.conf`). Hardcoded `llama` и `comfyui` больше не используются.
 
 ### Модели
 
@@ -167,11 +184,12 @@ interface GpuUsage {
   vramUsed: number; // GB
 }
 
-// Сервисы — статус llama.cpp / ComfyUI
+// Сервисы — статус управляемых сервисов
 interface ServiceStatus {
   name: string;
   running: boolean;
   enabled: boolean;
+  installed: boolean; // зарегистрирован ли в ОС
   pid?: number;
   error?: string;
 }
@@ -197,7 +215,9 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (вк�
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block
 - `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
-- `ServicesComponent` — карточки для `llama` и `comfyui` с бейджами статуса и кнопками Start/Stop/Enable/Disable
+- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор системных сервисов) + **Add Llama** (создание aism-llama-\* конфигов). `ServiceWithConfig` объединяет статус + config для llama-сервисов
+- `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора управляемых системных сервисов
+- `ServiceDialogComponent` — диалог создания/редактирования llama.cpp конфигов (suffix, command, flags)
 
 ### Состояние компонента
 

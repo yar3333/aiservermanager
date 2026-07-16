@@ -206,4 +206,17 @@ export class WindowsServiceController implements ServiceController {
 
     return { ok: true };
   }
+
+  async listAvailable(): Promise<string[]> {
+    const { stdout } = await ExecTools.safeExec("Get-Service | Select-Object -ExpandProperty Name");
+
+    const names: string[] = [];
+    for (const line of stdout.split("\n")) {
+      const name = line.trim();
+      if (!name) continue;
+      names.push(name);
+    }
+
+    return names.sort();
+  }
 }

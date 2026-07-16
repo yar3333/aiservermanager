@@ -1,0 +1,46 @@
+.dialog-container {
+  min-width: 400px;
+  max-width: 500px;
+}
+
+mat-dialog-title {
+  margin-bottom: 8px;
+}
+
+.dialog-description {
+  margin: 0 0 12px;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.filter-field {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.services-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.service-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.service-name {
+  font-family: monospace;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-services {
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+  padding: 16px 0;
+}

@@ -1,8 +1,9 @@
 import { Request, Response, Router } from "express";
 import { Container } from "inversify";
-import { SERVICE_MANAGER, SERVICE_CONFIG_CONTROLLER } from "../di/types";
+import { SERVICE_MANAGER, SERVICE_CONFIG_CONTROLLER, MANAGED_SERVICES_CONTROLLER } from "../di/types";
 import { ServiceManager } from "../services/serviceManager";
 import { ServiceConfigController } from "../services/serviceConfigController";
+import { ManagedServicesController } from "../services/managedServicesController";
 import { ServiceAction } from "../models/ServiceStatus";
 import { ServiceConfig } from "../models/ServiceConfig";
 
@@ -120,6 +121,69 @@ export default function serviceRoutes(container: Container) {
       const suffix = Array.isArray(req.params.suffix) ? req.params.suffix[0] : req.params.suffix;
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
       const result = await scc.deleteService(suffix);
+
+      if (!result.ok) {
+        return res.status(404).json({ error: result.error });
+      }
+
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** List all installed services on the system (excludes aism-llama-*). */
+  router.get("/managed/available", async (_req, res) => {
+    try {
+      const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);
+      const available = await msc.listAvailable();
+      res.json(available);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** List the user-selected managed service names. */
+  router.get("/managed", (_req, res) => {
+    try {
+      const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);
+      res.json(msc.listManaged());
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Add a service to the managed list: { name: "docker" } */
+  router.post("/managed", async (req: Request, res: Response) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "'name' is required" });
+      }
+
+      const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);
+      const result = msc.addManaged(name);
+
+      if (!result.ok) {
+        return res.status(409).json({ error: result.error });
+      }
+
+      res.status(201).json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Remove a service from the managed list: { name: "docker" } */
+  router.delete("/managed", async (req: Request, res: Response) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "'name' is required" });
+      }
+
+      const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);
+      const result = msc.removeManaged(name);
 
       if (!result.ok) {
         return res.status(404).json({ error: result.error });

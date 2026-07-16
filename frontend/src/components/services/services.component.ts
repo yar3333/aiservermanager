@@ -8,6 +8,7 @@ import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
+import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 
 const LLAMA_PREFIX = "aism-llama-";
 
@@ -119,6 +120,15 @@ export class ServicesComponent implements OnInit {
       next.delete(name);
       this.svcErrors.set(next);
     }, 8000);
+  }
+
+  manageServices(): void {
+    const ref = this.dialog.open(ManagedServicesDialogComponent, { maxWidth: "600px" });
+    ref.afterClosed().subscribe((result) => {
+      if (result) {
+        this.load();
+      }
+    });
   }
 
   addService(): void {

@@ -37,4 +37,24 @@ export class ServiceService {
   deleteConfig(suffix: string): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.url}/config/${suffix}`);
   }
+
+  /** List all installed services on the system (excludes aism-llama-*). */
+  listAvailableServices(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.url}/managed/available`);
+  }
+
+  /** List the user-selected managed service names. */
+  listManagedServices(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.url}/managed`);
+  }
+
+  /** Add a service to the managed list. */
+  addManagedService(name: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.url}/managed`, { name });
+  }
+
+  /** Remove a service from the managed list. */
+  removeManagedService(name: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.url}/managed`, { body: { name } });
+  }
 }

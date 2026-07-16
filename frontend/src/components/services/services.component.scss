@@ -17,6 +17,11 @@
     font-weight: 600;
     color: #333;
   }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
 }
 
 .services-list {

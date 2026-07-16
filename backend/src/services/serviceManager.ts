@@ -2,6 +2,7 @@ import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
+import { ManagedServicesManager } from "./managedServicesManager";
 import { ServiceConfig, buildExecStart, computeServiceName } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
@@ -10,18 +11,17 @@ interface ServiceDef {
 }
 
 const LLAMA_PREFIX = "aism-llama-";
-const BUILT_IN_SERVICES: ServiceDef[] = [{ name: "llama" }, { name: "comfyui" }];
 
-/** Resolve all service names: built-in + user-created llama configs. */
-function resolveServiceDefs(configManager: ConfigManager): ServiceDef[] {
+/** Resolve all service names: user-managed + user-created llama configs. */
+function resolveServiceDefs(configManager: ConfigManager, managedServices: ManagedServicesManager): ServiceDef[] {
   const seen = new Set<string>();
   const defs: ServiceDef[] = [];
 
-  // Built-in services first
-  for (const def of BUILT_IN_SERVICES) {
-    if (!seen.has(def.name)) {
-      seen.add(def.name);
-      defs.push(def);
+  // User-managed services from persistent selection
+  for (const name of managedServices.list()) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      defs.push({ name });
     }
   }
 
@@ -39,6 +39,7 @@ function resolveServiceDefs(configManager: ConfigManager): ServiceDef[] {
 
 export class ServiceManager {
   private readonly configManager = new ConfigManager();
+  private readonly managedServices = new ManagedServicesManager();
   /** Errors from initial aism-llama install attempts — served on every getStatusList without re-checking. */
   private readonly installErrors = new Map<string, string>();
 
@@ -55,7 +56,7 @@ export class ServiceManager {
   }
 
   private getServiceDefs(): ServiceDef[] {
-    return resolveServiceDefs(this.configManager);
+    return resolveServiceDefs(this.configManager, this.managedServices);
   }
 
   /**

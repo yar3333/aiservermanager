@@ -22,4 +22,10 @@ export interface ServiceController {
    * Returns { ok: true } on success, or { ok: false, error } on failure.
    */
   uninstall(name: string): Promise<{ ok: boolean; error?: string }>;
+
+  /**
+   * List all installed service names on the system.
+   * Excludes aism-llama-* services and transient/internal units.
+   */
+  listAvailable(): Promise<string[]>;
 }
