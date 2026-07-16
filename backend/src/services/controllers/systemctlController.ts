@@ -78,6 +78,18 @@ export class SystemctlController implements ServiceController {
     const running = activeStdout === "active";
     const enabled = ["enabled", "static"].includes(enableStdout);
 
+    // Capture systemd "failed" state as an error the user can see
+    let error: string | undefined;
+    if (activeStdout === "failed") {
+      // Get the last journal error for this unit
+      const journalResult = await ExecTools.safeExec(
+        `journalctl -u ${name} --no-pager -n 3 --quiet 2>/dev/null || true`,
+      );
+      const journalLines = journalResult.stdout.trim().split("\n").filter(Boolean);
+      const journalHint = journalLines.length > 0 ? `\n${journalLines.join("\n")}` : "";
+      error = `Service "${name}" is in failed state.${journalHint}`;
+    }
+
     // Try to get PID
     let pid: number | undefined;
     const pidResult = await ExecTools.safeExec(`${sudo}systemctl show ${name} --property=MainPID --value`);
@@ -86,11 +98,23 @@ export class SystemctlController implements ServiceController {
       pid = parseInt(pidStr, 10);
     }
 
-    return { name, running, enabled, installed, pid };
+    return { name, running, enabled, installed, pid, error };
   }
 
   async perform(name: string, action: ServiceAction): Promise<ServiceStatus> {
-    const sudo = await this.sudoPrefix(name);
+    let sudo: string;
+    try {
+      sudo = await this.sudoPrefix(name);
+    } catch (err) {
+      return {
+        name,
+        running: false,
+        enabled: false,
+        installed: true,
+        error: `Privilege check failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
     const cmd = `${sudo}systemctl ${action} ${name}`;
     const result: ExecResultWithCode = await ExecTools.safeExecWithCode(cmd);
 
@@ -104,7 +128,26 @@ export class SystemctlController implements ServiceController {
       };
     }
 
-    return this.getStatus(name);
+    const status = await this.getStatus(name);
+
+    // After "start", verify the service is actually running
+    if (action === "start" && !status.running && !status.error) {
+      // Try to get the real reason from journalctl
+      const journalResult = await ExecTools.safeExec(
+        `journalctl -u ${name}.service --no-pager -n 10 --quiet 2>/dev/null || true`,
+      );
+      const lines = journalResult.stdout.trim().split("\n").filter(Boolean);
+      // Prefer lines that explain the failure (EXEC, spawning, No such file...)
+      const relevant = lines.filter((l) => l.includes("EXEC") || l.includes("spawning") || l.includes("No such file"));
+      const detail = relevant.length > 0 ? relevant.join("\n") : lines.slice(-3).join("\n");
+      if (detail) {
+        status.error = `Service "${name}" failed to start.\n${detail}`;
+      } else {
+        status.error = `systemctl start returned success, but "${name}" is not running`;
+      }
+    }
+
+    return status;
   }
 
   async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {

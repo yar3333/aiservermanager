@@ -129,7 +129,14 @@ export class WindowsServiceController implements ServiceController {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    return this.getStatus(name);
+    const status = await this.getStatus(name);
+
+    // After "start", verify the service is actually running
+    if (action === "start" && !status.running && !status.error) {
+      status.error = `sc.exe start returned success, but "${name}" is not running`;
+    }
+
+    return status;
   }
 
   async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
