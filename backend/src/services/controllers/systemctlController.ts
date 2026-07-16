@@ -53,9 +53,9 @@ export class SystemctlController implements ServiceController {
   async getStatus(name: string): Promise<ServiceStatus> {
     const sudo = name.startsWith(LLAMA_PREFIX) ? "sudo " : "";
 
-    // Check if unit file exists
-    const listResult = await ExecTools.safeExec(`${sudo}systemctl list-unit-files ${name} --no-legend`);
-    const installed = listResult.stdout.includes(name);
+    // Check if unit file exists — append .service suffix for reliable matching
+    const listResult = await ExecTools.safeExec(`${sudo}systemctl list-unit-files ${name}.service --no-legend`);
+    const installed = listResult.stdout.includes(`${name}.service`);
 
     if (!installed) {
       return {

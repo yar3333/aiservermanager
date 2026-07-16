@@ -110,6 +110,18 @@ export class ServiceManager {
 
     const results = await Promise.all(
       defs.map(async (def) => {
+        // Skip getStatus if we already know install failed — return cached error directly
+        const cached = this.installErrors.get(def.name);
+        if (cached) {
+          return {
+            ...def,
+            running: false,
+            enabled: false,
+            installed: false,
+            error: cached,
+          };
+        }
+
         try {
           const status = await controller.getStatus(def.name);
           return { ...def, ...status };
@@ -124,14 +136,6 @@ export class ServiceManager {
         }
       }),
     );
-
-    // Override "not found" with cached install error if available
-    for (const status of results) {
-      const cached = this.installErrors.get(status.name);
-      if (cached && !status.installed) {
-        status.error = cached;
-      }
-    }
 
     return results;
   }
