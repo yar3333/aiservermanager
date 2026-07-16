@@ -87,13 +87,7 @@ export class SystemctlController implements ServiceController {
     // Capture systemd "failed" state as an error the user can see
     let error: string | undefined;
     if (activeStdout === "failed") {
-      // Get the last journal error for this unit
-      const journalResult = await ExecTools.safeExec(
-        `journalctl -u ${name} --no-pager -n 3 --quiet 2>/dev/null || true`,
-      );
-      const journalLines = journalResult.stdout.trim().split("\n").filter(Boolean);
-      const journalHint = journalLines.length > 0 ? `\n${journalLines.join("\n")}` : "";
-      error = `Service "${name}" is in failed state.${journalHint}`;
+      error = `Service "${name}" is in failed state — check the Journal panel for details.`;
     }
 
     // Try to get PID
@@ -138,19 +132,7 @@ export class SystemctlController implements ServiceController {
 
     // After "start", verify the service is actually running
     if (action === "start" && !status.running && !status.error) {
-      // Try to get the real reason from journalctl
-      const journalResult = await ExecTools.safeExec(
-        `journalctl -u ${name}.service --no-pager -n 10 --quiet 2>/dev/null || true`,
-      );
-      const lines = journalResult.stdout.trim().split("\n").filter(Boolean);
-      // Prefer lines that explain the failure (EXEC, spawning, No such file...)
-      const relevant = lines.filter((l) => l.includes("EXEC") || l.includes("spawning") || l.includes("No such file"));
-      const detail = relevant.length > 0 ? relevant.join("\n") : lines.slice(-3).join("\n");
-      if (detail) {
-        status.error = `Service "${name}" failed to start.\n${detail}`;
-      } else {
-        status.error = `systemctl start returned success, but "${name}" is not running`;
-      }
+      status.error = `Service "${name}" failed to start — check the Journal panel for details.`;
     }
 
     return status;
