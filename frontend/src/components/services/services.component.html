@@ -17,7 +17,7 @@
     @if (unified().length > 0) {
       <div class="services-list">
         @for (svc of unified(); track svc.name) {
-          <mat-card class="service-item" [class.deep]="svc.hasConfig">
+          <mat-card class="service-item" [class.custom]="svc.hasConfig">
             <mat-card-content>
               <div class="service-header">
                 <span class="service-name">{{ svc.name }}</span>

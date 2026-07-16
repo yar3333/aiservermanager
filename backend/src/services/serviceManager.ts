@@ -10,7 +10,7 @@ interface ServiceDef {
   name: string;
 }
 
-/** Resolve all service names: user-managed + deep-managed configs. */
+/** Resolve all service names: managed + custom configs. */
 function resolveServiceDefs(configManager: ConfigManager, managedServices: ManagedServicesManager): ServiceDef[] {
   const seen = new Set<string>();
   const defs: ServiceDef[] = [];
@@ -23,7 +23,7 @@ function resolveServiceDefs(configManager: ConfigManager, managedServices: Manag
     }
   }
 
-  // Deep-managed services from configs
+  // Custom services from configs
   for (const cfg of configManager.list()) {
     if (!seen.has(cfg.name)) {
       seen.add(cfg.name);
@@ -37,7 +37,7 @@ function resolveServiceDefs(configManager: ConfigManager, managedServices: Manag
 export class ServiceManager {
   private readonly configManager = new ConfigManager();
   private readonly managedServices = new ManagedServicesManager();
-  /** Errors from initial deep-managed install attempts — served on every getStatusList without re-checking. */
+  /** Errors from initial custom install attempts — served on every getStatusList without re-checking. */
   private readonly installErrors = new Map<string, string>();
 
   constructor(
@@ -57,7 +57,7 @@ export class ServiceManager {
   }
 
   /**
-   * Called once at server startup. Attempts to install every deep-managed service
+   * Called once at server startup. Attempts to install every custom service
    * that has a config but is not yet registered in the OS. Installation errors
    * are cached so that getStatusList can return them without re-checking.
    */
@@ -65,9 +65,9 @@ export class ServiceManager {
     const controller = await this.getActiveController();
     if (!controller) return;
 
-    // Check which deep-managed services are not installed yet
-    const deepManagedNames = this.configManager.list().map((c) => c.name);
-    const statuses = await Promise.all(deepManagedNames.map((name) => controller.getStatus(name)));
+    // Check which custom services are not installed yet
+    const customNames = this.configManager.list().map((c) => c.name);
+    const statuses = await Promise.all(customNames.map((name) => controller.getStatus(name)));
 
     // Attempt install in parallel for all missing ones
     await Promise.all(
@@ -151,7 +151,7 @@ export class ServiceManager {
   }
 
   /**
-   * Install a deep-managed service from its config, then enable it.
+   * Install a custom service from its config, then enable it.
    * Only works for services that have a config but are not yet installed.
    */
   async installAndEnable(name: string): Promise<ServiceStatus> {

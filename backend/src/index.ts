@@ -34,7 +34,7 @@ app.use((_req, res, next) => {
   res.sendFile(path.join(publicPath, "index.html"));
 });
 
-// Bootstrap: auto-install deep-managed services, cache install errors
+// Bootstrap: auto-install custom services, cache install errors
 const sm = container.get<ServiceManager>(SERVICE_MANAGER);
 sm.bootstrap().catch((err) => {
   console.error("[ServiceManager] bootstrap failed:", err);

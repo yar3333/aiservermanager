@@ -43,7 +43,7 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** Install a deep-managed service from config and enable it: { name: "llama-server" } */
+  /** Install a custom service from config and enable it: { name: "llama-server" } */
   router.post("/install", async (req: Request, res: Response) => {
     try {
       const { name } = req.body;
@@ -132,7 +132,7 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** List all installed services on the system (excludes deep-managed). */
+  /** List all installed services on the system (excludes custom). */
   router.get("/managed/available", async (_req, res) => {
     try {
       const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);

@@ -5,7 +5,7 @@ import { ConfigManager } from "./configManager";
 
 /**
  * API layer for discovering available system services and managing the user's selection.
- * Excludes deep-managed services (those with a config) from the available list.
+ * Excludes custom services (those with a config) from the available list.
  */
 export class ManagedServicesController {
   private readonly manager = new ManagedServicesManager();
@@ -23,7 +23,7 @@ export class ManagedServicesController {
     return null;
   }
 
-  /** List all installed services on the system (excludes deep-managed). */
+  /** List all installed services on the system (excludes custom). */
   async listAvailable(): Promise<string[]> {
     const controller = await this.getActiveController();
     if (!controller) return [];
@@ -37,9 +37,9 @@ export class ManagedServicesController {
 
   /** Add a service name to the managed list. */
   addManaged(name: string): { ok: boolean; error?: string } {
-    // Reject deep-managed — those are managed via configs
+    // Reject custom — those are managed via configs
     if (this.configManager.get(name) !== null) {
-      return { ok: false, error: `"${name}" is a deep-managed service — manage it via the service config dialog` };
+      return { ok: false, error: `"${name}" is a custom service — manage it via the service config dialog` };
     }
     const added = this.manager.add(name);
     if (!added) return { ok: false, error: `"${name}" is already in the managed list` };

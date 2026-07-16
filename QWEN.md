@@ -4,8 +4,8 @@
 
 Два типа сервисов:
 
-- **Deep-managed** — полный контроль: имя, команда, CLI flags. Конфиг в `~/.config/aiservermanager/services/<name>.conf`
-- **Light-managed** — выбор из установленных systemd-сервисов. Только start/stop/enable/disable
+- **Custom** — полный контроль: имя, команда, CLI flags. Конфиг в `~/.config/aiservermanager/services/<name>.conf`
+- **Managed** — выбор из установленных systemd-сервисов. Только start/stop/enable/disable
 
 ## Архитектура
 
@@ -131,7 +131,7 @@ aiservermanager/
 - `systemctl is-enabled <name>` — автозагрузка
 - `systemctl show --property=MainPID --value` — PID
 - `systemctl start|stop|enable|disable <name>` — управление
-- `systemctl list-unit-files --type=service` — discover всех сервисов (исключает deep-managed)
+- `systemctl list-unit-files --type=service` — discover всех сервисов (исключает custom)
 
 **Windows** (`sc.exe` + PowerShell fallback `Get-Service`):
 
@@ -148,24 +148,24 @@ aiservermanager/
 
 ### API
 
-| Endpoint                          | Method | Описание                                                              |
-| --------------------------------- | ------ | --------------------------------------------------------------------- |
-| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)        |
-| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)               |
-| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                       |
-| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable      |
-| `/api/services/config`            | GET    | `ServiceConfig[]` — deep-managed configs                              |
-| `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config                 |
-| `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                         |
-| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме deep-managed) |
-| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов            |
-| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                                |
-| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                                |
-| `/health`                         | GET    | `{ status: "ok", uptime: number }`                                    |
+| Endpoint                          | Method | Описание                                                         |
+| --------------------------------- | ------ | ---------------------------------------------------------------- |
+| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)   |
+| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)          |
+| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                  |
+| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable |
+| `/api/services/config`            | GET    | `ServiceConfig[]` — custom configs                               |
+| `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config            |
+| `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                    |
+| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме custom)  |
+| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов       |
+| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                           |
+| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                           |
+| `/health`                         | GET    | `{ status: "ok", uptime: number }`                               |
 
-**Deep-managed** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
+**Custom** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
 
-**Light-managed** — выбор пользователя из всех установленных systemd-сервисов (кнопка **"Manage"**). Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Только start/stop/enable/disable.
+**Managed** — выбор пользователя из всех установленных systemd-сервисов (кнопка **"Manage"**). Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Только start/stop/enable/disable.
 
 ### Модели
 
@@ -222,9 +222,9 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (вк�
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block
 - `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
-- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор light-managed) + **Add Service** (создание deep-managed). `ServiceWithConfig` объединяет статус + config
-- `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора light-managed сервисов
-- `ServiceDialogComponent` — диалог создания/редактирования deep-managed конфигов (name, command, flags)
+- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор managed) + **Add Service** (создание custom). `ServiceWithConfig` объединяет статус + config
+- `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора managed сервисов
+- `ServiceDialogComponent` — диалог создания/редактирования custom конфигов (name, command, flags)
 
 ### Состояние компонента
 

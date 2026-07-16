@@ -12,7 +12,7 @@ export interface ServiceStatus {
 /** Actions the client can perform. */
 export type ServiceAction = "start" | "stop" | "enable" | "disable";
 
-/** Deep-managed service config (full name + command + flags). */
+/** Custom service config (full name + command + flags). */
 export interface ServiceConfig {
   /** Full service name (e.g. "llama-server", "my-ai-worker") */
   name: string;

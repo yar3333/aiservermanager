@@ -10,7 +10,7 @@ import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/servic
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 
-/** Merged service status + optional config for deep-managed services. */
+/** Merged service status + optional config for custom services. */
 export interface ServiceWithConfig {
   name: string;
   running: boolean;
@@ -19,9 +19,9 @@ export interface ServiceWithConfig {
   installed: boolean;
   pid?: number;
   error?: string;
-  /** Config for deep-managed services, null for light-managed. */
+  /** Config for custom services, null for managed. */
   config: ServiceConfig | null;
-  /** True if this is a deep-managed service (has config). */
+  /** True if this is a custom service (has config). */
   hasConfig: boolean;
 }
 
@@ -43,14 +43,14 @@ export class ServicesComponent implements OnInit {
   /** Transient error per service name — auto-cleared after display. */
   readonly svcErrors = signal<Map<string, string>>(new Map());
 
-  /** Merged list: deep-managed services + light-managed services with config. */
+  /** Merged list: custom services + managed services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
     const svcList = this.services();
     const cfgList = this.configs();
     const cfgMap = new Map<string, ServiceConfig>();
     for (const c of cfgList) cfgMap.set(c.name, c);
 
-    const deepManaged: ServiceWithConfig[] = svcList
+    const custom: ServiceWithConfig[] = svcList
       .filter((s) => cfgMap.has(s.name))
       .map((s) => {
         const config = cfgMap.get(s.name) ?? null;
@@ -70,7 +70,7 @@ export class ServicesComponent implements OnInit {
       .filter((s) => !cfgMap.has(s.name))
       .map((s): ServiceWithConfig => ({ ...s, config: null, hasConfig: false }));
 
-    return [...deepManaged, ...lightManaged];
+    return [...custom, ...lightManaged];
   });
 
   ngOnInit(): void {

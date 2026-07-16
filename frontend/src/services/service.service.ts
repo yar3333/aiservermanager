@@ -38,7 +38,7 @@ export class ServiceService {
     return this.http.delete<{ ok: boolean }>(`${this.url}/config/${name}`);
   }
 
-  /** List all installed services on the system (excludes deep-managed). */
+  /** List all installed services on the system (excludes custom). */
   listAvailableServices(): Observable<string[]> {
     return this.http.get<string[]>(`${this.url}/managed/available`);
   }

@@ -12,7 +12,7 @@ export interface ServiceController {
   perform(name: string, action: ServiceAction): Promise<ServiceStatus>;
 
   /**
-   * Install an deep-managed service from its config, then enable it (auto-start).
+   * Install a custom service from its config, then enable it (auto-start).
    * Returns the post-action status on success.
    */
   installAndEnable(name: string, execStart: string): Promise<ServiceStatus>;
@@ -25,7 +25,7 @@ export interface ServiceController {
 
   /**
    * List all installed service names on the system.
-   * Excludes deep-managed services and transient/internal units.
+   * Excludes custom services and transient/internal units.
    */
   listAvailable(): Promise<string[]>;
 }
