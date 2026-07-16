@@ -11,7 +11,7 @@ export interface ServiceDialogData {
   config: ServiceConfig | null;
 }
 
-const SUFFIX_REGEX = "^[a-z0-9][a-z0-9-]{0,30}$";
+const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
 
 @Component({
   selector: "app-service-dialog",
@@ -28,13 +28,13 @@ export class ServiceDialogComponent {
   readonly isEdit = this.data.config !== null;
 
   form = this.fb.group({
-    suffix: [this.data.config?.suffix ?? "", { validators: [Validators.required, Validators.pattern(SUFFIX_REGEX)] }],
+    name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
     command: [this.data.config?.command ?? "", Validators.required],
     flagsText: [""],
   });
 
-  get suffixControl() {
-    return this.form.get("suffix")!;
+  get nameControl() {
+    return this.form.get("name")!;
   }
   get commandControl() {
     return this.form.get("command")!;
@@ -66,7 +66,7 @@ export class ServiceDialogComponent {
     }
 
     const cfg: ServiceConfig = {
-      suffix: (this.suffixControl.value as string).trim(),
+      name: (this.nameControl.value as string).trim(),
       command: (this.commandControl.value as string).trim(),
       flags,
     };

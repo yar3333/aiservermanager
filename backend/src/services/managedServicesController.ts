@@ -1,14 +1,15 @@
 import { multiInject } from "inversify";
 import { ServiceController } from "./serviceController";
 import { ManagedServicesManager } from "./managedServicesManager";
-
-const LLAMA_PREFIX = "aism-llama-";
+import { ConfigManager } from "./configManager";
 
 /**
  * API layer for discovering available system services and managing the user's selection.
+ * Excludes deep-managed services (those with a config) from the available list.
  */
 export class ManagedServicesController {
   private readonly manager = new ManagedServicesManager();
+  private readonly configManager = new ConfigManager();
 
   constructor(
     @multiInject("SERVICE_CONTROLLER")
@@ -22,7 +23,7 @@ export class ManagedServicesController {
     return null;
   }
 
-  /** List all installed services on the system (excludes aism-llama-*). */
+  /** List all installed services on the system (excludes deep-managed). */
   async listAvailable(): Promise<string[]> {
     const controller = await this.getActiveController();
     if (!controller) return [];
@@ -36,9 +37,9 @@ export class ManagedServicesController {
 
   /** Add a service name to the managed list. */
   addManaged(name: string): { ok: boolean; error?: string } {
-    // Reject aism-llama-* — those are managed via configs
-    if (name.startsWith(LLAMA_PREFIX)) {
-      return { ok: false, error: `${LLAMA_PREFIX}* services cannot be added manually — use the config system` };
+    // Reject deep-managed — those are managed via configs
+    if (this.configManager.get(name) !== null) {
+      return { ok: false, error: `"${name}" is a deep-managed service — manage it via the service config dialog` };
     }
     const added = this.manager.add(name);
     if (!added) return { ok: false, error: `"${name}" is already in the managed list` };

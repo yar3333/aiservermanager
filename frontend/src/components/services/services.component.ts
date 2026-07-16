@@ -10,9 +10,7 @@ import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/servic
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 
-const LLAMA_PREFIX = "aism-llama-";
-
-/** Merged service status + optional config for aism-llama- services. */
+/** Merged service status + optional config for deep-managed services. */
 export interface ServiceWithConfig {
   name: string;
   running: boolean;
@@ -21,12 +19,10 @@ export interface ServiceWithConfig {
   installed: boolean;
   pid?: number;
   error?: string;
-  /** Config for aism-llama- services, null for built-in. */
+  /** Config for deep-managed services, null for light-managed. */
   config: ServiceConfig | null;
-  /** True if this is a user-created llama service. */
-  isLlama: boolean;
-  /** Suffix extracted from name (e.g. "qwen3" from "aism-llama-qwen3"). */
-  suffix: string;
+  /** True if this is a deep-managed service (has config). */
+  hasConfig: boolean;
 }
 
 @Component({
@@ -47,18 +43,17 @@ export class ServicesComponent implements OnInit {
   /** Transient error per service name — auto-cleared after display. */
   readonly svcErrors = signal<Map<string, string>>(new Map());
 
-  /** Merged list: built-in services + user-created llama services with config. */
+  /** Merged list: deep-managed services + light-managed services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
     const svcList = this.services();
     const cfgList = this.configs();
     const cfgMap = new Map<string, ServiceConfig>();
-    for (const c of cfgList) cfgMap.set(c.suffix, c);
+    for (const c of cfgList) cfgMap.set(c.name, c);
 
-    const llama: ServiceWithConfig[] = svcList
-      .filter((s) => s.name.startsWith(LLAMA_PREFIX))
+    const deepManaged: ServiceWithConfig[] = svcList
+      .filter((s) => cfgMap.has(s.name))
       .map((s) => {
-        const suffix = s.name.slice(LLAMA_PREFIX.length);
-        const config = cfgMap.get(suffix) ?? null;
+        const config = cfgMap.get(s.name) ?? null;
         return {
           name: s.name,
           running: s.running,
@@ -67,16 +62,15 @@ export class ServicesComponent implements OnInit {
           pid: s.pid,
           error: s.error,
           config,
-          isLlama: true,
-          suffix,
+          hasConfig: true,
         };
       });
 
-    const builtin: ServiceWithConfig[] = svcList
-      .filter((s) => !s.name.startsWith(LLAMA_PREFIX))
-      .map((s): ServiceWithConfig => ({ ...s, config: null, isLlama: false, suffix: "" }));
+    const lightManaged: ServiceWithConfig[] = svcList
+      .filter((s) => !cfgMap.has(s.name))
+      .map((s): ServiceWithConfig => ({ ...s, config: null, hasConfig: false }));
 
-    return [...llama, ...builtin];
+    return [...deepManaged, ...lightManaged];
   });
 
   ngOnInit(): void {
@@ -139,12 +133,12 @@ export class ServicesComponent implements OnInit {
     this.openDialog(svc.config);
   }
 
-  async deleteService(suffix: string): Promise<void> {
+  async deleteService(name: string): Promise<void> {
     try {
-      await firstValueFrom(this.serviceService.deleteConfig(suffix));
+      await firstValueFrom(this.serviceService.deleteConfig(name));
       await this.load();
     } catch (err) {
-      console.error(`[ServicesComponent] delete error (${suffix}):`, err);
+      console.error(`[ServicesComponent] delete error (${name}):`, err);
     }
   }
 
@@ -159,28 +153,27 @@ export class ServicesComponent implements OnInit {
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (!result) return;
 
-      const oldSuffix = config?.suffix ?? null;
-      const isSuffixChange = oldSuffix !== null && oldSuffix !== result.suffix;
+      const oldName = config?.name ?? null;
+      const isNameChange = oldName !== null && oldName !== result.name;
 
       try {
-        if (isSuffixChange) {
+        if (isNameChange) {
           // Capture old service state before destruction
-          const oldService = this.unified().find((s) => s.suffix === oldSuffix);
+          const oldService = this.unified().find((s) => s.name === oldName);
           const wasRunning = oldService?.running ?? false;
 
           // Delete old service (stops + uninstalls + removes config)
-          await firstValueFrom(this.serviceService.deleteConfig(oldSuffix!));
+          await firstValueFrom(this.serviceService.deleteConfig(oldName!));
 
-          // Create new service with new suffix
+          // Create new service with new name
           await firstValueFrom(this.serviceService.saveConfig(result));
 
           // Restore running state
           if (wasRunning) {
-            const newName = `aism-llama-${result.suffix}`;
-            await firstValueFrom(this.serviceService.control(newName, "start"));
+            await firstValueFrom(this.serviceService.control(result.name, "start"));
           }
         } else {
-          // Create or update (no suffix change)
+          // Create or update (no name change)
           await firstValueFrom(this.serviceService.saveConfig(result));
         }
 

@@ -6,6 +6,7 @@ const CONFIG_DIR = path.join(process.env.HOME ?? "", ".config", "aiservermanager
 
 /**
  * Manages service config files in ~/.config/aiservermanager/services/*.conf
+ * Each file is named <service-name>.conf and stores command + flags.
  */
 export class ConfigManager {
   /** Ensure the config directory exists. */
@@ -15,9 +16,9 @@ export class ConfigManager {
     }
   }
 
-  /** Get the absolute path for a suffix's config file. */
-  private configPath(suffix: string): string {
-    return path.join(CONFIG_DIR, `${suffix}.conf`);
+  /** Get the absolute path for a service name's config file. */
+  private configPath(name: string): string {
+    return path.join(CONFIG_DIR, `${name}.conf`);
   }
 
   /** List all service configs. */
@@ -27,33 +28,33 @@ export class ConfigManager {
 
     const configs: ServiceConfig[] = [];
     for (const entry of entries) {
-      const suffix = entry.replace(/\.conf$/, "");
-      const raw = fs.readFileSync(this.configPath(suffix), "utf-8");
+      const name = entry.replace(/\.conf$/, "");
+      const raw = fs.readFileSync(this.configPath(name), "utf-8");
       try {
-        configs.push(parseConfigFile(suffix, raw));
+        configs.push(parseConfigFile(name, raw));
       } catch {
         // Skip unparseable configs
       }
     }
-    return configs.sort((a, b) => a.suffix.localeCompare(b.suffix));
+    return configs.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Get a single service config by suffix. */
-  get(suffix: string): ServiceConfig | null {
-    const p = this.configPath(suffix);
+  /** Get a single service config by name. */
+  get(name: string): ServiceConfig | null {
+    const p = this.configPath(name);
     if (!fs.existsSync(p)) return null;
-    return parseConfigFile(suffix, fs.readFileSync(p, "utf-8"));
+    return parseConfigFile(name, fs.readFileSync(p, "utf-8"));
   }
 
   /** Save (create or update) a service config. */
   save(cfg: ServiceConfig): void {
     this.ensureDir();
-    fs.writeFileSync(this.configPath(cfg.suffix), serializeConfig(cfg), "utf-8");
+    fs.writeFileSync(this.configPath(cfg.name), serializeConfig(cfg), "utf-8");
   }
 
   /** Delete a service config file. Returns true if the file existed. */
-  delete(suffix: string): boolean {
-    const p = this.configPath(suffix);
+  delete(name: string): boolean {
+    const p = this.configPath(name);
     if (fs.existsSync(p)) {
       fs.unlinkSync(p);
       return true;

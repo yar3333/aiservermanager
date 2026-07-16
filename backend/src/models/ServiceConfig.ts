@@ -1,20 +1,15 @@
-/** Service config loaded from ~/.config/aiservermanager/services/<suffix>.conf */
+/** Service config loaded from ~/.config/aiservermanager/services/<name>.conf */
 export interface ServiceConfig {
-  /** Suffix used in service name: aism-llama-{suffix}.service */
-  suffix: string;
+  /** Full systemd service name (e.g. "llama-server", "my-ai-worker") */
+  name: string;
   /** Absolute path to the executable (e.g. /home/yar/WinProg/llama-vulkan/llama-server) */
   command: string;
   /** CLI flags as key→value pairs (e.g. { "--model": "/path/to/model.gguf" }) */
   flags: Record<string, string>;
 }
 
-/** Computed systemd service name from a suffix. */
-export function computeServiceName(suffix: string): string {
-  return `aism-llama-${suffix}`;
-}
-
 /** Parse a flat key=value config file into a ServiceConfig. */
-export function parseConfigFile(suffix: string, raw: string): ServiceConfig {
+export function parseConfigFile(name: string, raw: string): ServiceConfig {
   const flags: Record<string, string> = {};
   let command = "";
 
@@ -35,7 +30,7 @@ export function parseConfigFile(suffix: string, raw: string): ServiceConfig {
     }
   }
 
-  return { suffix, command, flags };
+  return { name, command, flags };
 }
 
 /** Serialize a ServiceConfig back to a flat key=value string. */

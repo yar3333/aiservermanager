@@ -3,16 +3,14 @@ import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
 import { ManagedServicesManager } from "./managedServicesManager";
-import { ServiceConfig, buildExecStart, computeServiceName } from "../models/ServiceConfig";
+import { buildExecStart } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
 interface ServiceDef {
   name: string;
 }
 
-const LLAMA_PREFIX = "aism-llama-";
-
-/** Resolve all service names: user-managed + user-created llama configs. */
+/** Resolve all service names: user-managed + deep-managed configs. */
 function resolveServiceDefs(configManager: ConfigManager, managedServices: ManagedServicesManager): ServiceDef[] {
   const seen = new Set<string>();
   const defs: ServiceDef[] = [];
@@ -25,12 +23,11 @@ function resolveServiceDefs(configManager: ConfigManager, managedServices: Manag
     }
   }
 
-  // User-created llama services from configs
+  // Deep-managed services from configs
   for (const cfg of configManager.list()) {
-    const name = computeServiceName(cfg.suffix);
-    if (!seen.has(name)) {
-      seen.add(name);
-      defs.push({ name });
+    if (!seen.has(cfg.name)) {
+      seen.add(cfg.name);
+      defs.push({ name: cfg.name });
     }
   }
 
@@ -40,7 +37,7 @@ function resolveServiceDefs(configManager: ConfigManager, managedServices: Manag
 export class ServiceManager {
   private readonly configManager = new ConfigManager();
   private readonly managedServices = new ManagedServicesManager();
-  /** Errors from initial aism-llama install attempts — served on every getStatusList without re-checking. */
+  /** Errors from initial deep-managed install attempts — served on every getStatusList without re-checking. */
   private readonly installErrors = new Map<string, string>();
 
   constructor(
@@ -60,7 +57,7 @@ export class ServiceManager {
   }
 
   /**
-   * Called once at server startup. Attempts to install every aism-llama service
+   * Called once at server startup. Attempts to install every deep-managed service
    * that has a config but is not yet registered in the OS. Installation errors
    * are cached so that getStatusList can return them without re-checking.
    */
@@ -68,20 +65,16 @@ export class ServiceManager {
     const controller = await this.getActiveController();
     if (!controller) return;
 
-    const defs = this.getServiceDefs();
-
-    // Check which aism-llama services are not installed yet
-    const statuses = await Promise.all(
-      defs.filter((d) => d.name.startsWith(LLAMA_PREFIX)).map((d) => controller.getStatus(d.name)),
-    );
+    // Check which deep-managed services are not installed yet
+    const deepManagedNames = this.configManager.list().map((c) => c.name);
+    const statuses = await Promise.all(deepManagedNames.map((name) => controller.getStatus(name)));
 
     // Attempt install in parallel for all missing ones
     await Promise.all(
       statuses.map(async (status) => {
         if (status.installed) return;
 
-        const suffix = status.name.slice(LLAMA_PREFIX.length);
-        const cfg = this.configManager.get(suffix);
+        const cfg = this.configManager.get(status.name);
         if (!cfg) return;
 
         const execStart = buildExecStart(cfg);
@@ -158,19 +151,13 @@ export class ServiceManager {
   }
 
   /**
-   * Install an aism-llama service from its config, then enable it.
-   * Only works for user-created llama services that have a config but are not yet installed.
+   * Install a deep-managed service from its config, then enable it.
+   * Only works for services that have a config but are not yet installed.
    */
   async installAndEnable(name: string): Promise<ServiceStatus> {
-    // Only aism-llama services can be installed this way
-    if (!name.startsWith(LLAMA_PREFIX)) {
-      throw new Error(`installAndEnable is only for aism-llama- services, got: ${name}`);
-    }
-
-    const suffix = name.slice(LLAMA_PREFIX.length);
-    const cfg = this.configManager.get(suffix);
+    const cfg = this.configManager.get(name);
     if (!cfg) {
-      throw new Error(`Config "${suffix}" not found — cannot install without config`);
+      throw new Error(`Config "${name}" not found — cannot install without config`);
     }
 
     const controller = await this.getActiveController();

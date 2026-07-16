@@ -23,9 +23,9 @@ export class ServiceService {
     return this.http.get<ServiceConfig[]>(`${this.url}/config`);
   }
 
-  /** Get a single service config by suffix. */
-  getConfig(suffix: string): Observable<ServiceConfig> {
-    return this.http.get<ServiceConfig>(`${this.url}/config/${suffix}`);
+  /** Get a single service config by name. */
+  getConfig(name: string): Observable<ServiceConfig> {
+    return this.http.get<ServiceConfig>(`${this.url}/config/${name}`);
   }
 
   /** Create or update a service config. */
@@ -34,11 +34,11 @@ export class ServiceService {
   }
 
   /** Delete a service config and its systemd unit. */
-  deleteConfig(suffix: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.url}/config/${suffix}`);
+  deleteConfig(name: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.url}/config/${name}`);
   }
 
-  /** List all installed services on the system (excludes aism-llama-*). */
+  /** List all installed services on the system (excludes deep-managed). */
   listAvailableServices(): Observable<string[]> {
     return this.http.get<string[]>(`${this.url}/managed/available`);
   }

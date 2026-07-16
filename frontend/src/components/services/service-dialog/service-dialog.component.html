@@ -1,14 +1,14 @@
-<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} Llama Server</h2>
+<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} Service</h2>
 
 <mat-dialog-content>
   <form [formGroup]="form" class="dialog-form">
     <mat-form-field appearance="outline" class="full-width">
-      <input matInput formControlName="suffix" placeholder="e.g. qwen3" [disabled]="isEdit" />
-      <mat-label>Suffix (e.g. qwen3 → aism-llama-qwen3)</mat-label>
-      @if (suffixControl.errors?.["required"]) {
+      <input matInput formControlName="name" placeholder="e.g. llama-server" [disabled]="isEdit" />
+      <mat-label>Service Name</mat-label>
+      @if (nameControl.errors?.["required"]) {
         <mat-error>Required</mat-error>
-      } @else if (suffixControl.errors?.["pattern"]) {
-        <mat-error>Lowercase alphanumeric + hyphens, max 31 chars</mat-error>
+      } @else if (nameControl.errors?.["pattern"]) {
+        <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
       }
     </mat-form-field>
 

@@ -43,7 +43,7 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** Install an aism-llama service from config and enable it: { name: "aism-llama-qwen3" } */
+  /** Install a deep-managed service from config and enable it: { name: "llama-server" } */
   router.post("/install", async (req: Request, res: Response) => {
     try {
       const { name } = req.body;
@@ -72,14 +72,14 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** Get a single service config by suffix. */
-  router.get("/config/:suffix", (req: Request, res: Response) => {
+  /** Get a single service config by name. */
+  router.get("/config/:name", (req: Request, res: Response) => {
     try {
-      const suffix = Array.isArray(req.params.suffix) ? req.params.suffix[0] : req.params.suffix;
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
-      const cfg = scc.getConfig(suffix);
+      const cfg = scc.getConfig(name);
       if (!cfg) {
-        return res.status(404).json({ error: `Config "${suffix}" not found` });
+        return res.status(404).json({ error: `Config "${name}" not found` });
       }
       res.json(cfg);
     } catch (err) {
@@ -92,12 +92,12 @@ export default function serviceRoutes(container: Container) {
     try {
       const body: Partial<ServiceConfig> = req.body;
 
-      if (!body.suffix || !body.command) {
-        return res.status(400).json({ error: "Both 'suffix' and 'command' are required" });
+      if (!body.name || !body.command) {
+        return res.status(400).json({ error: "Both 'name' and 'command' are required" });
       }
 
       const cfg: ServiceConfig = {
-        suffix: body.suffix,
+        name: body.name,
         command: body.command,
         flags: body.flags ?? {},
       };
@@ -116,11 +116,11 @@ export default function serviceRoutes(container: Container) {
   });
 
   /** Delete a service config and its systemd unit. */
-  router.delete("/config/:suffix", async (req: Request, res: Response) => {
+  router.delete("/config/:name", async (req: Request, res: Response) => {
     try {
-      const suffix = Array.isArray(req.params.suffix) ? req.params.suffix[0] : req.params.suffix;
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
-      const result = await scc.deleteService(suffix);
+      const result = await scc.deleteService(name);
 
       if (!result.ok) {
         return res.status(404).json({ error: result.error });
@@ -132,7 +132,7 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** List all installed services on the system (excludes aism-llama-*). */
+  /** List all installed services on the system (excludes deep-managed). */
   router.get("/managed/available", async (_req, res) => {
     try {
       const msc = container.get<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER);

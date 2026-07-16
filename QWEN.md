@@ -1,6 +1,11 @@
 # AI Server Manager
 
-Мониторинг GPU-серверов и управление AI-сервисами (llama.cpp, ComfyUI) через веб-дашборд.
+Мониторинг GPU-серверов и управление AI-сервисами через веб-дашборд.
+
+Два типа сервисов:
+
+- **Deep-managed** — полный контроль: имя, команда, CLI flags. Конфиг в `~/.config/aiservermanager/services/<name>.conf`
+- **Light-managed** — выбор из установленных systemd-сервисов. Только start/stop/enable/disable
 
 ## Архитектура
 
@@ -126,7 +131,7 @@ aiservermanager/
 - `systemctl is-enabled <name>` — автозагрузка
 - `systemctl show --property=MainPID --value` — PID
 - `systemctl start|stop|enable|disable <name>` — управление
-- `systemctl list-unit-files --type=service` — discover всех сервисов (исключает `aism-llama-*`)
+- `systemctl list-unit-files --type=service` — discover всех сервисов (исключает deep-managed)
 
 **Windows** (`sc.exe` + PowerShell fallback `Get-Service`):
 
@@ -143,22 +148,24 @@ aiservermanager/
 
 ### API
 
-| Endpoint                          | Method | Описание                                                               |
-| --------------------------------- | ------ | ---------------------------------------------------------------------- |
-| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)         |
-| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)                |
-| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                        |
-| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable       |
-| `/api/services/config`            | GET    | `ServiceConfig[]` — user-created llama configs                         |
-| `/api/services/config`            | POST   | `{ suffix, command, flags }` → создаёт/обновляет config                |
-| `/api/services/config/:suffix`    | DELETE | Удаляет config + systemd-юнит                                          |
-| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме aism-llama-\*) |
-| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов             |
-| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                                 |
-| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                                 |
-| `/health`                         | GET    | `{ status: "ok", uptime: number }`                                     |
+| Endpoint                          | Method | Описание                                                              |
+| --------------------------------- | ------ | --------------------------------------------------------------------- |
+| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)        |
+| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)               |
+| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                       |
+| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable      |
+| `/api/services/config`            | GET    | `ServiceConfig[]` — deep-managed configs                              |
+| `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config                 |
+| `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                         |
+| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме deep-managed) |
+| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов            |
+| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                                |
+| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                                |
+| `/health`                         | GET    | `{ status: "ok", uptime: number }`                                    |
 
-**Управляемые сервисы** — пользовательская выборка через **"Manage"** кнопку в дашборде. Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Дополнительно: `aism-llama-*` сервисы из конфигов (`~/.config/aiservermanager/services/*.conf`). Hardcoded `llama` и `comfyui` больше не используются.
+**Deep-managed** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
+
+**Light-managed** — выбор пользователя из всех установленных systemd-сервисов (кнопка **"Manage"**). Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Только start/stop/enable/disable.
 
 ### Модели
 
@@ -215,9 +222,9 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (вк�
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block
 - `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
-- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор системных сервисов) + **Add Llama** (создание aism-llama-\* конфигов). `ServiceWithConfig` объединяет статус + config для llama-сервисов
-- `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора управляемых системных сервисов
-- `ServiceDialogComponent` — диалог создания/редактирования llama.cpp конфигов (suffix, command, flags)
+- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор light-managed) + **Add Service** (создание deep-managed). `ServiceWithConfig` объединяет статус + config
+- `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора light-managed сервисов
+- `ServiceDialogComponent` — диалог создания/редактирования deep-managed конфигов (name, command, flags)
 
 ### Состояние компонента
 

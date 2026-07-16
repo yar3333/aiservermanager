@@ -9,7 +9,7 @@
         </button>
         <button mat-raised-button color="primary" (click)="addService()">
           <span class="material-icons" style="font-size: 18px; margin-right: 4px">add</span>
-          Add Llama
+          Add Service
         </button>
       </div>
     </div>
@@ -17,7 +17,7 @@
     @if (unified().length > 0) {
       <div class="services-list">
         @for (svc of unified(); track svc.name) {
-          <mat-card class="service-item" [class.llama]="svc.isLlama">
+          <mat-card class="service-item" [class.deep]="svc.hasConfig">
             <mat-card-content>
               <div class="service-header">
                 <span class="service-name">{{ svc.name }}</span>
@@ -71,11 +71,11 @@
                       </button>
                     </div>
                   }
-                  <div [style.visibility]="svc.isLlama ? 'display' : 'hidden'" class="service-actions">
+                  <div [style.visibility]="svc.hasConfig ? 'display' : 'hidden'" class="service-actions">
                     <button mat-icon-button color="primary" (click)="editService(svc)">
                       <span class="material-icons">edit</span>
                     </button>
-                    <button mat-icon-button color="warn" (click)="deleteService(svc.suffix)">
+                    <button mat-icon-button color="warn" (click)="deleteService(svc.name)">
                       <span class="material-icons">delete</span>
                     </button>
                   </div>
@@ -95,7 +95,7 @@
       </div>
     } @else if (!loading()) {
       <div class="empty">
-        <p>No services configured. Click "Manage" to select system services or "Add Llama" to create one.</p>
+        <p>No services configured. Click "Manage" to select system services or "Add Service" to create one.</p>
       </div>
     }
   </mat-card-content>

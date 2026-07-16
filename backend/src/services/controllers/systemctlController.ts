@@ -3,13 +3,19 @@ import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
 import { ServiceController } from "../serviceController";
+import { ConfigManager } from "../configManager";
 
-const LLAMA_PREFIX = "aism-llama-";
 const SYSTEM_UNIT_DIR = "/etc/systemd/system";
 
 /** Manage services via systemctl (Linux with systemd). */
 export class SystemctlController implements ServiceController {
+  private readonly configManager = new ConfigManager();
   private _hasSudo: boolean | null = null;
+
+  /** Check if a service name has a deep-managed config. */
+  private isDeepManaged(name: string): boolean {
+    return this.configManager.get(name) !== null;
+  }
 
   async isAvailable(): Promise<boolean> {
     if (process.platform !== "linux") return false;
@@ -36,9 +42,9 @@ export class SystemctlController implements ServiceController {
     return this._hasSudo;
   }
 
-  /** Return "sudo " if aism-llama service; "" otherwise. */
+  /** Return "sudo " if deep-managed service; "" otherwise. */
   private async sudoPrefix(name: string): Promise<string> {
-    if (name.startsWith(LLAMA_PREFIX)) {
+    if (this.isDeepManaged(name)) {
       const hasSudo = await this.checkSudo();
       if (!hasSudo) {
         throw new Error(
@@ -51,7 +57,7 @@ export class SystemctlController implements ServiceController {
   }
 
   async getStatus(name: string): Promise<ServiceStatus> {
-    const sudo = name.startsWith(LLAMA_PREFIX) ? "sudo " : "";
+    const sudo = this.isDeepManaged(name) ? "sudo " : "";
 
     // Check if unit file exists — append .service suffix for reliable matching
     const listResult = await ExecTools.safeExec(`${sudo}systemctl list-unit-files ${name}.service --no-legend`);
@@ -158,7 +164,7 @@ export class SystemctlController implements ServiceController {
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
 
     const unitContent = `[Unit]
-Description=aism-llama service (${name})
+Description=ai server manager service (${name})
 After=network.target
 
 [Service]
@@ -172,7 +178,7 @@ WantedBy=multi-user.target
 `;
 
     try {
-      if (name.startsWith(LLAMA_PREFIX)) {
+      if (this.isDeepManaged(name)) {
         // Need sudo to write to /etc/systemd/system/
         const writeResult = await ExecTools.safeExecWithCode(
           `echo '${unitContent.replace(/'/g, "'\"'\"'")}' | sudo tee ${unitPath} > /dev/null`,
@@ -227,7 +233,7 @@ WantedBy=multi-user.target
   }
 
   async uninstall(name: string): Promise<{ ok: boolean; error?: string }> {
-    const sudo = name.startsWith(LLAMA_PREFIX) ? "sudo " : "";
+    const sudo = this.isDeepManaged(name) ? "sudo " : "";
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
 
     // Stop the service first (best-effort)
@@ -238,7 +244,7 @@ WantedBy=multi-user.target
 
     // Remove unit file
     try {
-      if (name.startsWith(LLAMA_PREFIX)) {
+      if (this.isDeepManaged(name)) {
         const rmResult = await ExecTools.safeExecWithCode(`sudo rm -f ${unitPath}`);
         if (rmResult.exitCode !== 0) {
           return { ok: false, error: `Failed to remove unit file: ${rmResult.stderr.trim()}` };
@@ -266,6 +272,7 @@ WantedBy=multi-user.target
       "systemctl list-unit-files --type=service --no-legend --no-pager --all",
     );
 
+    const deepManaged = new Set(this.configManager.list().map((c) => c.name));
     const names: string[] = [];
     for (const line of stdout.split("\n")) {
       const trimmed = line.trim();
@@ -278,8 +285,8 @@ WantedBy=multi-user.target
       // Strip .service suffix
       const name = unitFile.replace(/\.service$/, "");
 
-      // Skip aism-llama-* (managed via configs)
-      if (name.startsWith(LLAMA_PREFIX)) continue;
+      // Skip deep-managed services (have a config)
+      if (deepManaged.has(name)) continue;
 
       names.push(name);
     }
