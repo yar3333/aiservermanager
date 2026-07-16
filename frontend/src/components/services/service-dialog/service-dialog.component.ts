@@ -28,13 +28,7 @@ export class ServiceDialogComponent {
   readonly isEdit = this.data.config !== null;
 
   form = this.fb.group({
-    suffix: [
-      this.data.config?.suffix ?? "",
-      {
-        validators: [Validators.required, Validators.pattern(SUFFIX_REGEX)],
-        disabled: this.isEdit ? true : null,
-      },
-    ],
+    suffix: [this.data.config?.suffix ?? "", { validators: [Validators.required, Validators.pattern(SUFFIX_REGEX)] }],
     command: [this.data.config?.command ?? "", Validators.required],
     flagsText: [""],
   });

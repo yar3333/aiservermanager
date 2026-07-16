@@ -2,7 +2,7 @@ import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
-import { ServiceConfig, computeServiceName } from "../models/ServiceConfig";
+import { ServiceConfig, buildExecStart, computeServiceName } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
 interface ServiceDef {
@@ -35,20 +35,6 @@ function resolveServiceDefs(configManager: ConfigManager): ServiceDef[] {
   }
 
   return defs;
-}
-
-/** Build the full ExecStart command from a service config. */
-function buildExecStart(cfg: ServiceConfig): string {
-  const args = Object.entries(cfg.flags)
-    .map(([key, value]) => {
-      if (value.includes(" ")) {
-        return `${key}='${value}'`;
-      }
-      return `${key}=${value}`;
-    })
-    .join(" ");
-
-  return args ? `${cfg.command} ${args}` : cfg.command;
 }
 
 export class ServiceManager {

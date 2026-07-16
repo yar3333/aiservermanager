@@ -172,4 +172,31 @@ export class WindowsServiceController implements ServiceController {
 
     return this.getStatus(name);
   }
+
+  async uninstall(name: string): Promise<{ ok: boolean; error?: string }> {
+    const SC = WindowsServiceController.SC;
+
+    // Stop the service (best-effort)
+    const stopResult: ExecResultWithCode = await ExecTools.safeExecWithCode(`${SC} stop "${name}"`);
+    if (stopResult.exitCode === 0) {
+      // Wait until the service is actually stopped (sc.exe stop is async)
+      for (let i = 0; i < 10; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const status = await this.getStatus(name);
+        if (!status.running) break;
+      }
+    }
+
+    // Delete the service
+    const deleteResult: ExecResultWithCode = await ExecTools.safeExecWithCode(`${SC} delete "${name}"`);
+
+    if (deleteResult.exitCode !== 0) {
+      return {
+        ok: false,
+        error: `sc.exe delete failed (code ${deleteResult.exitCode}): ${deleteResult.stderr.trim() || deleteResult.stdout.trim()}`,
+      };
+    }
+
+    return { ok: true };
+  }
 }

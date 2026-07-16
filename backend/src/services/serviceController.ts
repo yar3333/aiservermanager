@@ -16,4 +16,10 @@ export interface ServiceController {
    * Returns the post-action status on success.
    */
   installAndEnable(name: string, execStart: string): Promise<ServiceStatus>;
+
+  /**
+   * Uninstall a service: stop if running, then remove from the OS.
+   * Returns { ok: true } on success, or { ok: false, error } on failure.
+   */
+  uninstall(name: string): Promise<{ ok: boolean; error?: string }>;
 }

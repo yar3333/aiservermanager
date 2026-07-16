@@ -182,4 +182,39 @@ WantedBy=multi-user.target
 
     return this.getStatus(name);
   }
+
+  async uninstall(name: string): Promise<{ ok: boolean; error?: string }> {
+    const sudo = name.startsWith(LLAMA_PREFIX) ? "sudo " : "";
+    const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
+
+    // Stop the service first (best-effort)
+    await ExecTools.safeExec(`${sudo}systemctl stop ${name}`);
+
+    // Disable the service (best-effort)
+    await ExecTools.safeExec(`${sudo}systemctl disable ${name}`);
+
+    // Remove unit file
+    try {
+      if (name.startsWith(LLAMA_PREFIX)) {
+        const rmResult = await ExecTools.safeExecWithCode(`sudo rm -f ${unitPath}`);
+        if (rmResult.exitCode !== 0) {
+          return { ok: false, error: `Failed to remove unit file: ${rmResult.stderr.trim()}` };
+        }
+      } else {
+        if (fs.existsSync(unitPath)) {
+          fs.unlinkSync(unitPath);
+        }
+      }
+    } catch (err) {
+      return { ok: false, error: `Failed to remove unit file: ${err instanceof Error ? err.message : String(err)}` };
+    }
+
+    // Reload systemd daemon
+    const reloadResult = await ExecTools.safeExecWithCode(`${sudo}systemctl daemon-reload`);
+    if (reloadResult.exitCode !== 0) {
+      return { ok: false, error: `systemctl daemon-reload failed: ${reloadResult.stderr.trim()}` };
+    }
+
+    return { ok: true };
+  }
 }

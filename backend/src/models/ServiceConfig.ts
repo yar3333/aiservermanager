@@ -46,3 +46,17 @@ export function serializeConfig(cfg: ServiceConfig): string {
   }
   return lines.join("\n") + "\n";
 }
+
+/** Build the full ExecStart command from a service config. */
+export function buildExecStart(cfg: ServiceConfig): string {
+  const args = Object.entries(cfg.flags)
+    .map(([key, value]) => {
+      if (value.includes(" ")) {
+        return `${key}='${value}'`;
+      }
+      return `${key}=${value}`;
+    })
+    .join(" ");
+
+  return args ? `${cfg.command} ${args}` : cfg.command;
+}

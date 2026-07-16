@@ -147,13 +147,36 @@ export class ServicesComponent implements OnInit {
     const ref = this.dialog.open(ServiceDialogComponent, { data, maxWidth: "600px" });
 
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
-      if (result) {
-        try {
+      if (!result) return;
+
+      const oldSuffix = config?.suffix ?? null;
+      const isSuffixChange = oldSuffix !== null && oldSuffix !== result.suffix;
+
+      try {
+        if (isSuffixChange) {
+          // Capture old service state before destruction
+          const oldService = this.unified().find((s) => s.suffix === oldSuffix);
+          const wasRunning = oldService?.running ?? false;
+
+          // Delete old service (stops + uninstalls + removes config)
+          await firstValueFrom(this.serviceService.deleteConfig(oldSuffix!));
+
+          // Create new service with new suffix
           await firstValueFrom(this.serviceService.saveConfig(result));
-          await this.load();
-        } catch (err) {
-          console.error("[ServicesComponent] save error:", err);
+
+          // Restore running state
+          if (wasRunning) {
+            const newName = `aism-llama-${result.suffix}`;
+            await firstValueFrom(this.serviceService.control(newName, "start"));
+          }
+        } else {
+          // Create or update (no suffix change)
+          await firstValueFrom(this.serviceService.saveConfig(result));
         }
+
+        await this.load();
+      } catch (err) {
+        console.error("[ServicesComponent] save error:", err);
       }
     });
   }
