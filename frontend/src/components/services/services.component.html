@@ -81,14 +81,6 @@
                   </div>
                 </div>
               </div>
-
-              @if (svc.error) {
-                <div class="service-error">{{ svc.error }}</div>
-              }
-              @let transErr = svcErrors().get(svc.name);
-              @if (transErr) {
-                <div class="service-error">{{ transErr }}</div>
-              }
             </mat-card-content>
           </mat-card>
         }

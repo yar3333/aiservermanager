@@ -4,6 +4,7 @@ import { MatCardModule } from "@angular/material/card";
 import { MatButtonModule } from "@angular/material/button";
 import { MatChipsModule } from "@angular/material/chips";
 import { MatDialog } from "@angular/material/dialog";
+import { MatSnackBar } from "@angular/material/snack-bar";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { SelectedServiceService } from "../../services/selected-service.service";
@@ -37,13 +38,11 @@ export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
   private selectedServiceService = inject(SelectedServiceService);
   private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
 
   readonly services = signal<ServiceStatus[]>([]);
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
-
-  /** Transient error per service name — auto-cleared after display. */
-  readonly svcErrors = signal<Map<string, string>>(new Map());
 
   /** Merged list: custom services + managed services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
@@ -100,23 +99,20 @@ export class ServicesComponent implements OnInit {
     try {
       const result = await firstValueFrom(this.serviceService.control(name, action));
       if (result.error) {
-        this.flashError(name, result.error);
+        this.showError(`${name}: ${result.error}`);
       }
       await this.load();
     } catch (err) {
-      this.flashError(name, String((err as { error?: string }).error || err));
+      this.showError(`${name}: ${String((err as { error?: string }).error || err)}`);
     }
   }
 
-  private flashError(name: string, msg: string): void {
-    const errors = new Map(this.svcErrors());
-    errors.set(name, msg);
-    this.svcErrors.set(errors);
-    setTimeout(() => {
-      const next = new Map(this.svcErrors());
-      next.delete(name);
-      this.svcErrors.set(next);
-    }, 8000);
+  private showError(message: string): void {
+    this.snackBar.open(message, "Dismiss", {
+      duration: 8000,
+      horizontalPosition: "end",
+      verticalPosition: "bottom",
+    });
   }
 
   manageServices(): void {
@@ -143,7 +139,7 @@ export class ServicesComponent implements OnInit {
       await firstValueFrom(this.serviceService.deleteConfig(name));
       await this.load();
     } catch (err) {
-      console.error(`[ServicesComponent] delete error (${name}):`, err);
+      this.showError(`Delete "${name}": ${String(err)}`);
     }
   }
 
@@ -184,7 +180,7 @@ export class ServicesComponent implements OnInit {
 
         await this.load();
       } catch (err) {
-        console.error("[ServicesComponent] save error:", err);
+        this.showError(`Save: ${String(err)}`);
       }
     });
   }
