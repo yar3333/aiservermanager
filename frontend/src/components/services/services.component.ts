@@ -35,7 +35,7 @@ export interface ServiceWithConfig {
 })
 export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
-  private selectedServiceService = inject(SelectedServiceService);
+  protected selectedServiceService = inject(SelectedServiceService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
 
