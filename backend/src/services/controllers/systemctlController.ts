@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
-import { ServiceController } from "../serviceController";
+import { JournalLine, ServiceController } from "../serviceController";
 import { ConfigManager } from "../configManager";
 
 const SYSTEM_UNIT_DIR = "/etc/systemd/system";
@@ -292,5 +292,36 @@ WantedBy=multi-user.target
     }
 
     return names.sort();
+  }
+
+  async getJournal(name: string, count: number = 100): Promise<JournalLine[] | { error: string }> {
+    const sudo = this.hasCustomConfig(name) ? "sudo " : "";
+
+    // journalctl with verbose ISO timestamp for parsing
+    const result = await ExecTools.safeExec(
+      `${sudo}journalctl -u ${name} --no-pager -n ${count} --output=short-iso 2>/dev/null || true`,
+    );
+
+    if (result.stderr && !result.stdout.trim()) {
+      return { error: result.stderr.trim() || `No journal found for "${name}"` };
+    }
+
+    const lines: JournalLine[] = [];
+    for (const raw of result.stdout.trim().split("\n")) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+
+      // Parse "2026-07-16 12:34:56.789 +0300 hostname service[pid]: message"
+      // The timestamp is the first two token parts (date + time+offset)
+      const match = trimmed.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+\S+\s+\S+:\s*(.*)$/);
+      if (match) {
+        lines.push({ timestamp: match[1], message: match[2] });
+      } else {
+        // Fallback: treat entire line as message with empty timestamp
+        lines.push({ timestamp: "", message: trimmed });
+      }
+    }
+
+    return lines;
   }
 }

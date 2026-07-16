@@ -1,6 +1,6 @@
 import { multiInject } from "inversify";
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
-import { ServiceController } from "./serviceController";
+import { JournalLine, ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
 import { ManagedServicesManager } from "./managedServicesManager";
 import { buildExecStart } from "../models/ServiceConfig";
@@ -168,5 +168,20 @@ export class ServiceManager {
     const execStart = buildExecStart(cfg);
     const status = await controller.installAndEnable(name, execStart);
     return status;
+  }
+
+  async getJournal(name: string, count: number = 100): Promise<JournalLine[] | { error: string }> {
+    const defs = this.getServiceDefs();
+    const def = defs.find((s) => s.name === name);
+    if (!def) {
+      return { error: `Unknown service: ${name}` };
+    }
+
+    const controller = await this.getActiveController();
+    if (!controller) {
+      return { error: "No service controller available on this platform" };
+    }
+
+    return controller.getJournal(name, count);
   }
 }

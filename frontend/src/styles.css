@@ -3,8 +3,15 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   font-family: Roboto, "Helvetica Neue", sans-serif;
   background-color: #f5f5f5;
 }

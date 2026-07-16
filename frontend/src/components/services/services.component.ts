@@ -6,6 +6,7 @@ import { MatChipsModule } from "@angular/material/chips";
 import { MatDialog } from "@angular/material/dialog";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
+import { SelectedServiceService } from "../../services/selected-service.service";
 import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
@@ -34,6 +35,7 @@ export interface ServiceWithConfig {
 })
 export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
+  private selectedServiceService = inject(SelectedServiceService);
   private dialog = inject(MatDialog);
 
   readonly services = signal<ServiceStatus[]>([]);
@@ -94,6 +96,7 @@ export class ServicesComponent implements OnInit {
   }
 
   async control(name: string, action: ServiceAction): Promise<void> {
+    this.selectedServiceService.select(name);
     try {
       const result = await firstValueFrom(this.serviceService.control(name, action));
       if (result.error) {
@@ -130,10 +133,12 @@ export class ServicesComponent implements OnInit {
   }
 
   editService(svc: ServiceWithConfig): void {
+    this.selectedServiceService.select(svc.name);
     this.openDialog(svc.config);
   }
 
   async deleteService(name: string): Promise<void> {
+    this.selectedServiceService.select(name);
     try {
       await firstValueFrom(this.serviceService.deleteConfig(name));
       await this.load();

@@ -9,29 +9,39 @@
   <mat-progress-bar mode="query" color="primary"></mat-progress-bar>
 }
 
-<div class="container">
-  @if (error()) {
-    <mat-card class="error-card">
-      <mat-card-content>
-        <span class="material-icons" style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
-          error_outline
-        </span>
-        <p>{{ error() }}</p>
-        <p class="mat-body-2" style="color: #999">Make sure the backend is running on port 4242.</p>
-      </mat-card-content>
-    </mat-card>
-  } @else {
-    @if (!hasGpus()) {
-      <mat-card class="empty-card">
+<div class="layout" [class.dragging]="isDragging()">
+  <div class="main-content">
+    @if (error()) {
+      <mat-card class="error-card">
         <mat-card-content>
-          <p>No GPUs detected.</p>
-          <p class="mat-body-2" style="color: #999">Ensure nvidia-smi or rocm-smi is available on this system.</p>
+          <span class="material-icons" style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
+            error_outline
+          </span>
+          <p>{{ error() }}</p>
+          <p class="mat-body-2" style="color: #999">Make sure the backend is running on port 4242.</p>
         </mat-card-content>
       </mat-card>
     } @else {
-      <app-gpu-table [gpus]="gpus()" />
-    }
+      @if (!hasGpus()) {
+        <mat-card class="empty-card">
+          <mat-card-content>
+            <p>No GPUs detected.</p>
+            <p class="mat-body-2" style="color: #999">Ensure nvidia-smi or rocm-smi is available on this system.</p>
+          </mat-card-content>
+        </mat-card>
+      } @else {
+        <app-gpu-table [gpus]="gpus()" />
+      }
 
-    <app-services />
-  }
+      <app-services />
+    }
+  </div>
+
+  <div class="splitter" (mousedown)="startDrag($event)">
+    <span class="splitter-line"></span>
+  </div>
+
+  <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
+    <app-journal-panel />
+  </div>
 </div>

@@ -1,5 +1,13 @@
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 
+/** A single journal log line. */
+export interface JournalLine {
+  /** ISO timestamp of the log entry. */
+  timestamp: string;
+  /** Log message text. */
+  message: string;
+}
+
 /** Platform-aware strategy for managing a named service. */
 export interface ServiceController {
   /** Whether this controller can run on the current OS. */
@@ -28,4 +36,10 @@ export interface ServiceController {
    * Excludes custom services and transient/internal units.
    */
   listAvailable(): Promise<string[]>;
+
+  /**
+   * Fetch recent journal lines for a service.
+   * Returns array of lines (newest last) or { error } if unavailable.
+   */
+  getJournal(name: string, count?: number): Promise<JournalLine[] | { error: string }>;
 }

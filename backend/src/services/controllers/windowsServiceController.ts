@@ -1,6 +1,6 @@
 import { ExecTools, ExecResult, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
-import { ServiceController } from "../serviceController";
+import { JournalLine, ServiceController } from "../serviceController";
 
 /** Manage Windows services via sc.exe. */
 export class WindowsServiceController implements ServiceController {
@@ -218,5 +218,9 @@ export class WindowsServiceController implements ServiceController {
     }
 
     return names.sort();
+  }
+
+  async getJournal(_name: string, _count: number = 100): Promise<JournalLine[] | { error: string }> {
+    return { error: "Journal retrieval is not supported on Windows. Use Linux with systemd." };
   }
 }

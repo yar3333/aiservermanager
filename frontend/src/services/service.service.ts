@@ -1,7 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Observable } from "rxjs";
-import { ServiceAction, ServiceConfig, ServiceStatus } from "../models/service";
+import { JournalLine, ServiceAction, ServiceConfig, ServiceStatus } from "../models/service";
 
 @Injectable({ providedIn: "root" })
 export class ServiceService {
@@ -56,5 +56,10 @@ export class ServiceService {
   /** Remove a service from the managed list. */
   removeManagedService(name: string): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.url}/managed`, { body: { name } });
+  }
+
+  /** Fetch recent journal lines for a service. */
+  fetchJournal(name: string, lines: number = 100): Observable<JournalLine[]> {
+    return this.http.get<JournalLine[]>(`${this.url}/journal/${name}`, { params: { lines } });
   }
 }

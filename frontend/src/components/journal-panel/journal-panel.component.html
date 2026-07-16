@@ -1,0 +1,27 @@
+<mat-card class="journal-card">
+  <mat-card-content>
+    <div class="journal-header">
+      <h2>Journal</h2>
+      @if (!loading() && services().length > 0) {
+        <mat-select
+          [ngModel]="selectedService()"
+          (ngModelChange)="onServiceChange($event)"
+          class="service-select"
+          disableOptionCentering
+        >
+          @for (svc of services(); track svc.name) {
+            <mat-option [value]="svc.name">{{ svc.name }}</mat-option>
+          }
+        </mat-select>
+      }
+    </div>
+
+    @if (error()) {
+      <div class="journal-error">{{ error() }}</div>
+    }
+
+    <div #journalBody class="journal-body">
+      <pre>{{ journalText() }}</pre>
+    </div>
+  </mat-card-content>
+</mat-card>

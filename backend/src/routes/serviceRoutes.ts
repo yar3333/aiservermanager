@@ -195,5 +195,24 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
+  /** Get recent journal lines for a service: GET /journal/:name?lines=100 */
+  router.get("/journal/:name", async (req: Request, res: Response) => {
+    try {
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const lines = parseInt(req.query.lines as string, 10) || 100;
+
+      const sm = container.get<ServiceManager>(SERVICE_MANAGER);
+      const result = await sm.getJournal(name, lines);
+
+      if ("error" in result) {
+        return res.status(404).json(result);
+      }
+
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
   return router;
 }

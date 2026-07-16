@@ -21,3 +21,9 @@ export interface ServiceConfig {
   /** CLI flags as key→value pairs */
   flags: Record<string, string>;
 }
+
+/** A single journal log line from the backend. */
+export interface JournalLine {
+  timestamp: string;
+  message: string;
+}

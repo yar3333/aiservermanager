@@ -1,0 +1,81 @@
+.journal-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.journal-card mat-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+.journal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+
+  h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 500;
+  }
+}
+
+.service-select {
+  flex: 1;
+  min-width: 150px;
+}
+
+.journal-error {
+  color: #f44336;
+  font-size: 13px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.journal-body {
+  flex: 1;
+  overflow-y: auto;
+  background: #1e1e1e;
+  border-radius: 4px;
+  padding: 8px;
+  min-height: 0; /* flex child needs this to constrain scrolling */
+
+  /* Thin dark scrollbar inside panel */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #2d2d2d;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+
+    &:hover {
+      background: #777;
+    }
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2d2d2d;
+
+  pre {
+    margin: 0;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #d4d4d4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
