@@ -18,9 +18,11 @@
       <tbody>
         @for (svc of unified(); track svc.name) {
           <tr [class.custom]="svc.hasConfig" (click)="selectedServiceService.select(svc.name)">
-            <td class="service-name">
-              <span class="status-dot" [class.running]="svc.running"></span>
-              <span class="name-text" [class.disabled]="!svc.enabled">{{ svc.name }}</span>
+            <td>
+              <div class="service-name">
+                <span class="status-dot" [class.running]="svc.running"></span>
+                <span class="name-text" [class.disabled]="!svc.enabled">{{ svc.name }}</span>
+              </div>
             </td>
             <td class="service-actions-cell">
               @if (svc.installed) {
