@@ -42,6 +42,8 @@ export class ServicesComponent implements OnInit {
   readonly services = signal<ServiceStatus[]>([]);
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
+  /** Name + action currently being processed — prevents double-click. */
+  readonly busy = signal<{ name: string; action: ServiceAction } | null>(null);
 
   /** Merged list: custom services + managed services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
@@ -94,7 +96,10 @@ export class ServicesComponent implements OnInit {
   }
 
   async control(name: string, action: ServiceAction): Promise<void> {
+    const current = this.busy();
+    if (current && current.name === name && current.action === action) return;
     this.selectedServiceService.select(name);
+    this.busy.set({ name, action });
     try {
       const result = await firstValueFrom(this.serviceService.control(name, action));
       if (result.error) {
@@ -103,6 +108,8 @@ export class ServicesComponent implements OnInit {
       await this.load();
     } catch (err) {
       this.showError(`${name}: ${String((err as { error?: string }).error || err)}`);
+    } finally {
+      this.busy.set(null);
     }
   }
 
