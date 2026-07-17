@@ -12,7 +12,7 @@ import { ServiceManager } from "./services/serviceManager";
 
 const container = createContainer();
 const app = express();
-const PORT = parseInt(process.env.PORT ?? "4242", 10);
+const PORT = parseInt(process.env.PORT ?? "4243", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 app.use(cors());

@@ -23,7 +23,7 @@ Monorepo с двумя пакетами: **backend** (Node.js + Express + Invers
 aiservermanager/
 ├── backend/
 │   └── src/
-│       ├── index.ts                  # Express entry, port 4242, SPA fallback
+│       ├── index.ts                  # Express entry, port 4243, SPA fallback
 │       ├── files/                    # Raw files copied to dist/files/ at build (for ts-node-dev)
 │       │   └── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │       ├── models/
