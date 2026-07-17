@@ -3,8 +3,12 @@ import { CommonModule } from "@angular/common";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatCardModule } from "@angular/material/card";
+import { MatInputModule } from "@angular/material/input";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatButtonModule } from "@angular/material/button";
 import { Gpu, GpuWithUsage, GpuUsage } from "../models/gpu";
 import { GpuService } from "../services/gpu.service";
+import { AuthService } from "../services/auth.service";
 import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
 import { ServicesComponent } from "../components/services/services.component";
 import { JournalPanelComponent } from "../components/journal-panel/journal-panel.component";
@@ -20,6 +24,9 @@ const SPLITTER_MAX = 1600;
     MatToolbarModule,
     MatProgressBarModule,
     MatCardModule,
+    MatInputModule,
+    MatFormFieldModule,
+    MatButtonModule,
     GpuTableComponent,
     ServicesComponent,
     JournalPanelComponent,
@@ -29,11 +36,17 @@ const SPLITTER_MAX = 1600;
 })
 export class AppComponent implements OnInit, OnDestroy {
   private gpuService = inject(GpuService);
+  private authService = inject(AuthService);
 
   readonly gpus = signal<GpuWithUsage[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly hasGpus = computed(() => this.gpus().length > 0);
+
+  // Auth state
+  readonly isAuthenticated = signal(this.authService.isAuthenticated());
+  readonly loginPassword = signal("");
+  readonly loginError = signal<string | null>(null);
 
   // Draggable splitter state
   readonly sidebarWidth = signal<number>(420);
@@ -42,6 +55,15 @@ export class AppComponent implements OnInit, OnDestroy {
   private dragStartWidth = 420;
 
   ngOnInit(): void {
+    // Listen for auth state changes (401 → logout)
+    this.authService.authState.subscribe((authenticated) => {
+      this.isAuthenticated.set(authenticated);
+      if (authenticated) {
+        this.loginError.set(null);
+        this.loginPassword.set("");
+      }
+    });
+
     // Restore persisted width
     const saved = localStorage.getItem("journal-sidebar-width");
     if (saved) {
@@ -53,6 +75,17 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {}
+
+  async onLogin(): Promise<void> {
+    this.loginError.set(null);
+    const ok = await this.authService.login(this.loginPassword());
+    if (!ok) {
+      this.loginError.set("Invalid password");
+    } else {
+      this.loading.set(true);
+      this.initGpus();
+    }
+  }
 
   // ── Splitter drag handlers ──
 
@@ -81,6 +114,13 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   constructor() {
+    // If already authenticated (token in localStorage), initialize GPU data
+    if (this.isAuthenticated()) {
+      this.initGpus();
+    }
+  }
+
+  private initGpus(): void {
     // 1. Fetch static GPU info once
     this.gpuService.fetchGpus().subscribe({
       next: (staticGpus) => {

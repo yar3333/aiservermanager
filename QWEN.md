@@ -7,6 +7,14 @@
 - **Custom** — полный контроль: имя, команда, CLI flags. Конфиг в `~/.config/aiservermanager/services/<name>.conf`
 - **Managed** — выбор из установленных systemd-сервисов. Только start/stop/enable/disable
 
+## Установка
+
+На linux нужно поставить пакет PAM:
+
+```bash
+sudo apt install libpam0g-dev
+```
+
 ## Архитектура
 
 Monorepo с двумя пакетами: **backend** (Node.js + Express + InversifyJS) и **frontend** (Angular 22 standalone).

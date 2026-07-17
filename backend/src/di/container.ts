@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { Container } from "inversify";
 import {
+  AUTH_SERVICE,
   GPU_SERVICE,
   GPU_DETECTOR,
   GPU_ENRICHER,
@@ -10,6 +11,7 @@ import {
   SERVICE_CONFIG_CONTROLLER,
   MANAGED_SERVICES_CONTROLLER,
 } from "./types";
+import { AuthService } from "../services/authService";
 import { GpuService } from "../services/gpuService";
 import { GpuDetector } from "../services/detectors/gpuDetector";
 import { NvidiaSmiDetector } from "../services/detectors/nvidiaSmiDetector";
@@ -32,6 +34,9 @@ const isWindows = process.platform === "win32";
 
 export function createContainer(): Container {
   const container = new Container();
+
+  // Auth service — JWT generation + password verification
+  container.bind<AuthService>(AUTH_SERVICE).to(AuthService).inSingletonScope();
 
   // GpuService — singleton for the lifetime of the app
   container.bind<GpuService>(GPU_SERVICE).to(GpuService).inSingletonScope();

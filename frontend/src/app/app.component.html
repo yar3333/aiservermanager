@@ -2,46 +2,84 @@
   <span class="material-icons" style="margin-right: 8px">monitoring</span>
   <span>AI Server Manager</span>
   <span class="spacer"></span>
-  <span class="mat-body-2">GPU Dashboard</span>
+  @if (isAuthenticated()) {
+    <span class="mat-body-2">GPU Dashboard</span>
+  }
 </mat-toolbar>
 
-@if (loading()) {
-  <mat-progress-bar mode="query" color="primary"></mat-progress-bar>
-}
+@if (!isAuthenticated()) {
+  <div class="login-container">
+    <mat-card class="login-card">
+      <mat-card-content>
+        <div class="login-header">
+          <span class="material-icons login-icon">lock</span>
+          <h2>Authentication Required</h2>
+          <p class="mat-body-2" style="color: #999">Enter your system password to continue</p>
+        </div>
 
-<div class="layout" [class.dragging]="isDragging()">
-  <div class="main-content">
-    @if (error()) {
-      <mat-card class="error-card">
-        <mat-card-content>
-          <span class="material-icons" style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
-            error_outline
-          </span>
-          <p>{{ error() }}</p>
-          <p class="mat-body-2" style="color: #999">Make sure the backend is running on port 4242.</p>
-        </mat-card-content>
-      </mat-card>
-    } @else {
-      @if (!hasGpus()) {
-        <mat-card class="empty-card">
+        <form (submit)="onLogin(); $event.preventDefault()" class="login-form">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input
+              matInput
+              type="password"
+              [value]="loginPassword()"
+              (input)="loginPassword.set($any($event.target).value)"
+              autofocus
+            />
+          </mat-form-field>
+
+          @if (loginError()) {
+            <div class="login-error">
+              <span class="material-icons" style="font-size: 20px; vertical-align: middle">warning</span>
+              {{ loginError() }}
+            </div>
+          }
+
+          <button mat-raised-button color="primary" type="submit" class="login-btn">Sign In</button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  </div>
+} @else {
+  @if (loading()) {
+    <mat-progress-bar mode="query" color="primary"></mat-progress-bar>
+  }
+
+  <div class="layout" [class.dragging]="isDragging()">
+    <div class="main-content">
+      @if (error()) {
+        <mat-card class="error-card">
           <mat-card-content>
-            <p>No GPUs detected.</p>
-            <p class="mat-body-2" style="color: #999">Ensure nvidia-smi or rocm-smi is available on this system.</p>
+            <span class="material-icons" style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
+              error_outline
+            </span>
+            <p>{{ error() }}</p>
+            <p class="mat-body-2" style="color: #999">Make sure the backend is running on port 4242.</p>
           </mat-card-content>
         </mat-card>
       } @else {
-        <app-gpu-table [gpus]="gpus()" />
+        @if (!hasGpus()) {
+          <mat-card class="empty-card">
+            <mat-card-content>
+              <p>No GPUs detected.</p>
+              <p class="mat-body-2" style="color: #999">Ensure nvidia-smi or rocm-smi is available on this system.</p>
+            </mat-card-content>
+          </mat-card>
+        } @else {
+          <app-gpu-table [gpus]="gpus()" />
+        }
+
+        <app-services />
       }
+    </div>
 
-      <app-services />
-    }
-  </div>
+    <div class="splitter" (mousedown)="startDrag($event)">
+      <span class="splitter-line"></span>
+    </div>
 
-  <div class="splitter" (mousedown)="startDrag($event)">
-    <span class="splitter-line"></span>
+    <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
+      <app-journal-panel />
+    </div>
   </div>
-
-  <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
-    <app-journal-panel />
-  </div>
-</div>
+}
