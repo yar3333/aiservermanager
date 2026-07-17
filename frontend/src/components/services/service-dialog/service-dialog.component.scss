@@ -9,6 +9,10 @@
   width: 100%;
 }
 
+.flags-textarea {
+  overflow-x: auto;
+}
+
 mat-dialog-content {
   padding-top: 10px !important;
 }

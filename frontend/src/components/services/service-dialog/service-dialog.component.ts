@@ -41,8 +41,8 @@ export class ServiceDialogComponent {
   }
 
   ngOnInit(): void {
-    if (this.data.config?.flags) {
-      this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n"));
+    if (this.data.config?.flags?.length) {
+      this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n") + "\n");
     }
   }
 

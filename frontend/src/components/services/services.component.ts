@@ -148,7 +148,7 @@ export class ServicesComponent implements OnInit {
 
   private openDialog(config: ServiceConfig | null): void {
     const data: ServiceDialogData = { config };
-    const ref = this.dialog.open(ServiceDialogComponent, { data, maxWidth: "600px" });
+    const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
 
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (!result) return;
