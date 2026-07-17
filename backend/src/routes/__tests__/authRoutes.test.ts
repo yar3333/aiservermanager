@@ -13,6 +13,7 @@ describe("Auth routes", () => {
   beforeEach(() => {
     mockAuthService = {
       login: jest.fn(),
+      checkRateLimit: jest.fn(() => null),
       verifyToken: jest.fn(),
     } as unknown as AuthService;
 
@@ -43,6 +44,31 @@ describe("Auth routes", () => {
       const res = await request(app).post("/api/auth/login").send({ password: "correct" });
       expect(res.status).toBe(200);
       expect(res.body.token).toBe("fake-jwt-token");
+    });
+
+    it("returns 429 when rate limited", async () => {
+      (mockAuthService as any).checkRateLimit.mockReturnValue({ retryAfter: 42 });
+      const res = await request(app).post("/api/auth/login").send({ password: "anything" });
+      expect(res.status).toBe(429);
+      expect(res.body.error).toContain("Too many attempts");
+      expect(res.body.retryAfter).toBe(42);
+      // login must NOT be called when rate limited (timing-safe)
+      expect((mockAuthService as any).login).not.toHaveBeenCalled();
+    });
+
+    it("passes client IP to login", async () => {
+      (mockAuthService as any).login.mockResolvedValue("token");
+      await request(app).post("/api/auth/login").set("X-Forwarded-For", "1.2.3.4, 5.6.7.8").send({ password: "test" });
+      expect((mockAuthService as any).login).toHaveBeenCalledWith("1.2.3.4", "test");
+    });
+
+    it("uses req.ip when no X-Forwarded-For", async () => {
+      (mockAuthService as any).login.mockResolvedValue("token");
+      await request(app).post("/api/auth/login").send({ password: "test" });
+      // req.ip from supertest is "::1" or "127.0.0.1"
+      const [ip] = (mockAuthService as any).login.mock.calls[0];
+      expect(typeof ip).toBe("string");
+      expect(ip.length).toBeGreaterThan(0);
     });
   });
 });
