@@ -11,11 +11,13 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "authenticate-pam": "^1.0.5",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "inversify": "^8.1.1",
     "reflect-metadata": "^0.2.2"
+  },
+  "optionalDependencies": {
+    "authenticate-pam": "^1.0.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

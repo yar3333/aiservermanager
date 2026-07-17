@@ -34,25 +34,25 @@ jest.mock("os", () => {
   };
 });
 
-// Mock authenticate-pam
-jest.mock("authenticate-pam", () => ({
-  authenticate: jest.fn(),
-}));
+import { AuthService } from "../authService";
+import { PasswordVerifier } from "../auth/passwordVerifier";
 
-const mockPam = require("authenticate-pam") as {
-  authenticate: jest.Mock;
-};
+// ── Helpers ──
 
-let AuthService: typeof import("../authService").AuthService;
+function createMockVerifier(resolveWith: boolean): PasswordVerifier {
+  return {
+    verify: jest.fn(() => Promise.resolve(resolveWith)),
+  };
+}
 
-beforeAll(() => {
-  delete require.cache[require.resolve("../authService")];
-  ({ AuthService } = require("../authService"));
-});
+function createAuthService(verifier?: PasswordVerifier): AuthService {
+  return new AuthService(verifier ?? createMockVerifier(false));
+}
+
+// ── Tests ──
 
 beforeEach(() => {
   jest.useFakeTimers();
-  mockPam.authenticate.mockClear();
   mockWriteFileSync.calls.length = 0;
   mockReadFileSync.calls.length = 0;
   mockReadFileSync.values.clear();
@@ -64,16 +64,14 @@ afterEach(() => {
 });
 
 describe("AuthService brute-force protection", () => {
-  let authService: InstanceType<typeof AuthService>;
-
-  function createAuthService() {
-    delete require.cache[require.resolve("../authService")];
-    const mod = require("../authService");
-    return new mod.AuthService();
-  }
+  let authService: AuthService;
+  let mockVerifier: PasswordVerifier & { verify: jest.Mock };
 
   beforeEach(() => {
-    authService = createAuthService();
+    mockVerifier = {
+      verify: jest.fn(() => Promise.resolve(false)),
+    } as unknown as PasswordVerifier & { verify: jest.Mock };
+    authService = createAuthService(mockVerifier);
   });
 
   describe("checkRateLimit", () => {
@@ -84,10 +82,6 @@ describe("AuthService brute-force protection", () => {
 
   describe("login with rate limiting", () => {
     it("records failed attempts per IP", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
       for (let i = 0; i < 5; i++) {
         expect(await authService.login("192.168.1.1", "wrong")).toBeNull();
       }
@@ -99,46 +93,31 @@ describe("AuthService brute-force protection", () => {
     });
 
     it("resets consecutive failures on success", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
       for (let i = 0; i < 4; i++) {
         await authService.login("192.168.1.1", "wrong");
       }
 
       // 5th succeeds — reset
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(null, { user: "testuser" });
-      });
-
+      mockVerifier.verify.mockResolvedValue(true);
       const token = await authService.login("192.168.1.1", "correct");
       expect(token).not.toBeNull();
     });
 
-    it("returns null during lockout without calling PAM", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
+    it("returns null during lockout without calling verifier", async () => {
       // Trigger lockout with 5 failures
       for (let i = 0; i < 5; i++) {
         await authService.login("10.0.0.1", "wrong");
       }
 
-      // Clear PAM mock to verify it's NOT called during lockout
-      mockPam.authenticate.mockClear();
+      // Clear mock to verify it's NOT called during lockout
+      mockVerifier.verify.mockClear();
 
       const result = await authService.login("10.0.0.1", "anything");
       expect(result).toBeNull();
-      expect(mockPam.authenticate).not.toHaveBeenCalled();
+      expect(mockVerifier.verify).not.toHaveBeenCalled();
     });
 
     it("per-IP rate limit is independent per IP", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
       // Fill up IP A's rate limit (10 attempts)
       for (let i = 0; i < 10; i++) {
         await authService.login("10.0.0.1", "wrong");
@@ -152,10 +131,6 @@ describe("AuthService brute-force protection", () => {
 
   describe("lockout persistence", () => {
     it("persists lockout state to file after failure", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
       for (let i = 0; i < 5; i++) {
         await authService.login("10.0.0.1", "wrong");
       }
@@ -168,17 +143,11 @@ describe("AuthService brute-force protection", () => {
     });
 
     it("resets lockout state on successful login", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(new Error("auth failed"), null);
-      });
-
       for (let i = 0; i < 3; i++) {
         await authService.login("10.0.0.1", "wrong");
       }
 
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(null, { user: "testuser" });
-      });
+      mockVerifier.verify.mockResolvedValue(true);
       await authService.login("10.0.0.1", "correct");
 
       const lastData = JSON.parse(mockWriteFileSync.calls[mockWriteFileSync.calls.length - 1][1] as string);
@@ -189,9 +158,7 @@ describe("AuthService brute-force protection", () => {
 
   describe("JWT token", () => {
     it("generates valid JWT on successful login", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(null, { user: "testuser" });
-      });
+      mockVerifier.verify.mockResolvedValue(true);
 
       const token = await authService.login("1.2.3.4", "correct");
       expect(token).not.toBeNull();
@@ -200,9 +167,7 @@ describe("AuthService brute-force protection", () => {
     });
 
     it("verifies valid token", async () => {
-      mockPam.authenticate.mockImplementation((_u: string, _p: string, cb: any) => {
-        cb(null, { user: "testuser" });
-      });
+      mockVerifier.verify.mockResolvedValue(true);
 
       const token = await authService.login("1.2.3.4", "correct");
       const payload = authService.verifyToken(token!);
@@ -212,6 +177,19 @@ describe("AuthService brute-force protection", () => {
 
     it("rejects tampered token", () => {
       expect(authService.verifyToken("header.tampered.sig")).toBeNull();
+    });
+  });
+
+  describe("verifier delegation", () => {
+    it("calls verifier.verify with the password", async () => {
+      await authService.login("1.2.3.4", "secret");
+      expect(mockVerifier.verify).toHaveBeenCalledWith("secret");
+    });
+
+    it("returns null on empty password without calling verifier", async () => {
+      const result = await authService.login("1.2.3.4", "");
+      expect(result).toBeNull();
+      expect(mockVerifier.verify).not.toHaveBeenCalled();
     });
   });
 });

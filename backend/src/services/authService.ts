@@ -2,26 +2,17 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-
-interface PamModule {
-  authenticate(
-    username: string,
-    password: string,
-    callback: (err: Error | null, userInfo: any) => void,
-    options?: { serviceName?: string },
-  ): void;
-}
-
-const pam: PamModule = require("authenticate-pam");
+import { inject, injectable } from "inversify";
+import { PASSWORD_VERIFIER } from "../di/types";
+import { PasswordVerifier } from "./auth/passwordVerifier";
 
 const CONFIG_DIR = path.join(os.homedir(), ".config", "aiservermanager");
 const SECRET_FILE = path.join(CONFIG_DIR, "auth-secret");
 
 /**
- * Authentication service: password verification via PAM + JWT token generation.
+ * Authentication service: password verification + JWT token generation.
  *
- * Uses `authenticate-pam` to verify the system password through the PAM stack
- * (the standard Linux authentication mechanism).
+ * Delegates password verification to an injected PasswordVerifier (platform-specific).
  * JWT secret is persisted to ~/.config/aiservermanager/auth-secret so that
  * tokens remain valid across server restarts.
  *
@@ -29,9 +20,10 @@ const SECRET_FILE = path.join(CONFIG_DIR, "auth-secret");
  * - Per-IP rate limit: max 10 login attempts per minute
  * - Account lockout: after 5 consecutive failures → locked for 15 minutes
  */
+@injectable()
 export class AuthService {
   private jwtSecret: string;
-  private username: string;
+  private readonly username: string;
 
   // Brute-force protection state
   private readonly failedByIp = new Map<string, number[]>(); // IP → sorted timestamps
@@ -43,7 +35,7 @@ export class AuthService {
   private _consecutiveFails = 0;
   private _lockoutUntil = 0;
 
-  constructor() {
+  constructor(@inject(PASSWORD_VERIFIER) private readonly verifier: PasswordVerifier) {
     this.jwtSecret = this.loadOrCreateSecret();
     this.username = os.userInfo().username;
     this.loadLockoutState();
@@ -81,14 +73,14 @@ export class AuthService {
   async login(ip: string, password: string): Promise<string | null> {
     if (!password) return null;
 
-    // Timing-safe: verify lockout BEFORE touching PAM
+    // Timing-safe: verify lockout BEFORE touching the verifier
     // (route already checks rateLimit, but this is belt-and-suspenders)
     if (Date.now() < this._lockoutUntil) {
       this.recordAttempt(ip);
       return null;
     }
 
-    const valid = await this.verifyPassword(password);
+    const valid = await this.verifier.verify(password);
 
     if (valid) {
       // Success — reset lockout state
@@ -117,31 +109,6 @@ export class AuthService {
     } catch {
       return null;
     }
-  }
-
-  // ── Password verification ──
-
-  /**
-   * Verify password through PAM using the 'login' service.
-   * This uses the same authentication stack as system login.
-   */
-  private verifyPassword(password: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      pam.authenticate(
-        this.username,
-        password,
-        (err: Error | null, _userInfo: any) => {
-          if (err) {
-            console.error(`[AuthService] PAM auth failed for ${this.username}: ${err.message}`);
-            resolve(false);
-            return;
-          }
-          console.log(`[AuthService] PAM auth successful for ${this.username}`);
-          resolve(true);
-        },
-        { serviceName: "login" },
-      );
-    });
   }
 
   // ── Brute-force tracking ──

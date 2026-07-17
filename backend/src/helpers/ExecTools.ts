@@ -5,6 +5,7 @@ const exec = promisify(execCallback);
 
 export interface ExecOptions {
   timeout?: number;
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface ExecResult {
@@ -22,10 +23,12 @@ export class ExecTools {
    * On Windows the shell is PowerShell; on Linux it is /bin/sh.
    */
   public static async safeExec(command: string, opts?: ExecOptions): Promise<ExecResult> {
+    const baseEnv = opts?.env ? { ...process.env, ...opts.env } : undefined;
     return exec(command, {
       timeout: opts?.timeout ?? 10_000,
       maxBuffer: 1024 * 1024,
       shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
+      env: baseEnv,
     }).catch((err) => ({
       stdout: (err as { stdout?: string }).stdout ?? "",
       stderr: (err as { stderr?: string }).stderr ?? err.message,
@@ -81,8 +84,11 @@ export class ExecTools {
    */
   public static async safeExecPs1(scriptPath: string, opts?: ExecOptions): Promise<ExecResult> {
     const timeout = opts?.timeout ?? 10_000;
+    const baseEnv = opts?.env ? { ...process.env, ...opts.env } : undefined;
     return new Promise((resolve) => {
-      const child = spawn("powershell.exe", ["-ExecutionPolicy", "Bypass", "-File", scriptPath]);
+      const child = spawn("powershell.exe", ["-ExecutionPolicy", "Bypass", "-File", scriptPath], {
+        env: baseEnv,
+      });
 
       let stdout = "";
       let stderr = "";
