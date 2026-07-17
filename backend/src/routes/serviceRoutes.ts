@@ -99,7 +99,7 @@ export default function serviceRoutes(container: Container) {
       const cfg: ServiceConfig = {
         name: body.name,
         command: body.command,
-        flags: body.flags ?? {},
+        flags: body.flags ?? [],
       };
 
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);

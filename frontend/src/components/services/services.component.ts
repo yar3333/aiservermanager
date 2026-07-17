@@ -143,7 +143,7 @@ export class ServicesComponent implements OnInit {
   }
 
   hasFlags(cfg: ServiceConfig): boolean {
-    return Object.keys(cfg.flags).length > 0;
+    return cfg.flags.length > 0;
   }
 
   private openDialog(config: ServiceConfig | null): void {

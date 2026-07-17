@@ -4,54 +4,39 @@ export interface ServiceConfig {
   name: string;
   /** Absolute path to the executable (e.g. /home/yar/WinProg/llama-vulkan/llama-server) */
   command: string;
-  /** CLI flags as key→value pairs (e.g. { "--model": "/path/to/model.gguf" }) */
-  flags: Record<string, string>;
+  /** CLI arguments as a list of raw strings (e.g. ["--model", "/path/to/model.gguf"]) */
+  flags: string[];
 }
 
-/** Parse a flat key=value config file into a ServiceConfig. */
+/** Parse a config file into a ServiceConfig. First non-comment line with "command=" is the command; every other non-empty line is a raw CLI argument. */
 export function parseConfigFile(name: string, raw: string): ServiceConfig {
-  const flags: Record<string, string> = {};
+  const flags: string[] = [];
   let command = "";
 
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    const eqIndex = trimmed.indexOf("=");
-    if (eqIndex < 0) continue;
-
-    const key = trimmed.slice(0, eqIndex).trim();
-    const value = trimmed.slice(eqIndex + 1).trim();
-
-    if (key === "command") {
-      command = value;
+    if (trimmed.startsWith("command=")) {
+      command = trimmed.slice("command=".length).trim();
     } else {
-      flags[key] = value;
+      flags.push(trimmed);
     }
   }
 
   return { name, command, flags };
 }
 
-/** Serialize a ServiceConfig back to a flat key=value string. */
+/** Serialize a ServiceConfig back to a config file string. */
 export function serializeConfig(cfg: ServiceConfig): string {
   const lines: string[] = [`command=${cfg.command}`];
-  for (const [key, value] of Object.entries(cfg.flags)) {
-    lines.push(`${key}=${value}`);
+  for (const flag of cfg.flags) {
+    lines.push(flag);
   }
   return lines.join("\n") + "\n";
 }
 
 /** Build the full ExecStart command from a service config. */
 export function buildExecStart(cfg: ServiceConfig): string {
-  const args = Object.entries(cfg.flags)
-    .map(([key, value]) => {
-      if (value.includes(" ")) {
-        return `${key}='${value}'`;
-      }
-      return `${key}=${value}`;
-    })
-    .join(" ");
-
-  return args ? `${cfg.command} ${args}` : cfg.command;
+  return cfg.flags.length ? `${cfg.command} ${cfg.flags.join(" ")}` : cfg.command;
 }

@@ -42,26 +42,18 @@ export class ServiceDialogComponent {
 
   ngOnInit(): void {
     if (this.data.config?.flags) {
-      const lines = Object.entries(this.data.config.flags).map(([key, value]) => (value ? `${key}=${value}` : key));
-      this.form.get("flagsText")!.setValue(lines.join("\n"));
+      this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n"));
     }
   }
 
   save(): void {
     if (this.form.invalid) return;
 
-    const flags: Record<string, string> = {};
+    const flags: string[] = [];
     for (const line of (this.form.get("flagsText")!.value as string).split("\n")) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-
-      const eqIndex = trimmed.indexOf("=");
-      if (eqIndex >= 0) {
-        const key = trimmed.slice(0, eqIndex).trim();
-        const value = trimmed.slice(eqIndex + 1).trim();
-        if (key) flags[key] = value;
-      } else {
-        if (trimmed) flags[trimmed] = "";
+      if (trimmed && !trimmed.startsWith("#")) {
+        flags.push(trimmed);
       }
     }
 

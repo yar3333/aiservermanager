@@ -18,8 +18,8 @@ export interface ServiceConfig {
   name: string;
   /** Absolute path to the executable */
   command: string;
-  /** CLI flags as key→value pairs */
-  flags: Record<string, string>;
+  /** CLI arguments as raw strings */
+  flags: string[];
 }
 
 /** A single journal log line from the backend. */
