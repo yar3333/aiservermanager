@@ -6,10 +6,20 @@
         <span class="material-icons" style="font-size: 18px; margin-right: 4px">tune</span>
         Select services to manage...
       </button>
-      <button mat-raised-button color="primary" (click)="addService()" title="Install your own service.">
+      <button mat-raised-button color="primary" [matMenuTriggerFor]="addMenu" title="Install your own service.">
         <span class="material-icons" style="font-size: 18px; margin-right: 4px">add</span>
         Add custom service...
       </button>
+      <mat-menu #addMenu>
+        <button mat-menu-item (click)="addService('generic')">
+          <span class="material-icons">settings</span>
+          Generic service
+        </button>
+        <button mat-menu-item (click)="addService('llama-server')">
+          <span class="material-icons">smart_toy</span>
+          llama-server
+        </button>
+      </mat-menu>
     </div>
   </div>
 

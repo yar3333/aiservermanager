@@ -3,6 +3,13 @@ import { HttpClient } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { JournalLine, ServiceAction, ServiceConfig, ServiceStatus } from "../models/service";
 
+export interface AutocompleteSuggestion {
+  path: string;
+  source: string;
+}
+
+export type AutocompleteType = "binary" | "model" | "mmproj" | "apikey" | "host" | "device";
+
 @Injectable({ providedIn: "root" })
 export class ServiceService {
   private http = inject(HttpClient);
@@ -61,5 +68,12 @@ export class ServiceService {
   /** Fetch recent journal lines for a service. */
   fetchJournal(name: string, lines: number = 100): Observable<JournalLine[]> {
     return this.http.get<JournalLine[]>(`${this.url}/journal/${name}`, { params: { lines } });
+  }
+
+  /** Get autocomplete suggestions for llama-server dialog fields. */
+  getLlamaAutocomplete(type: AutocompleteType, query: string): Observable<AutocompleteSuggestion[]> {
+    return this.http.get<AutocompleteSuggestion[]>(`${this.url}/llama/autocomplete`, {
+      params: { type, query },
+    });
   }
 }

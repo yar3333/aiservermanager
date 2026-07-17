@@ -1,35 +1,50 @@
+/** Service type: generic (arbitrary) or llama-server (structured config). */
+export type ServiceType = "generic" | "llama-server";
+
 /** Service config loaded from ~/.config/aiservermanager/services/<name>.conf */
 export interface ServiceConfig {
   /** Full systemd service name (e.g. "llama-server", "my-ai-worker") */
   name: string;
+  /** Service type. Defaults to "generic" for backward compatibility. */
+  type?: ServiceType;
   /** Absolute path to the executable (e.g. /home/yar/WinProg/llama-vulkan/llama-server) */
   command: string;
   /** CLI arguments as a list of raw strings (e.g. ["--model", "/path/to/model.gguf"]) */
   flags: string[];
 }
 
-/** Parse a config file into a ServiceConfig. First non-comment line with "command=" is the command; every other non-empty line is a raw CLI argument. */
+/** Parse a config file into a ServiceConfig. Lines with "type=" or "command=" are metadata; every other non-empty line is a raw CLI argument. */
 export function parseConfigFile(name: string, raw: string): ServiceConfig {
   const flags: string[] = [];
   let command = "";
+  let type: ServiceType | undefined;
 
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    if (trimmed.startsWith("command=")) {
+    if (trimmed.startsWith("type=")) {
+      const val = trimmed.slice("type=".length).trim();
+      if (val === "generic" || val === "llama-server") {
+        type = val;
+      }
+    } else if (trimmed.startsWith("command=")) {
       command = trimmed.slice("command=".length).trim();
     } else {
       flags.push(trimmed);
     }
   }
 
-  return { name, command, flags };
+  return { name, type, command, flags };
 }
 
 /** Serialize a ServiceConfig back to a config file string. */
 export function serializeConfig(cfg: ServiceConfig): string {
-  const lines: string[] = [`command=${cfg.command}`];
+  const lines: string[] = [];
+  if (cfg.type) {
+    lines.push(`type=${cfg.type}`);
+  }
+  lines.push(`command=${cfg.command}`);
   for (const flag of cfg.flags) {
     lines.push(flag);
   }

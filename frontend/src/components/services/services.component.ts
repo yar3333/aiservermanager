@@ -2,14 +2,16 @@ import { Component, signal, computed, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatButtonModule } from "@angular/material/button";
 import { MatChipsModule } from "@angular/material/chips";
-import { MatDialog } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatMenuModule } from "@angular/material/menu";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { SelectedServiceService } from "../../services/selected-service.service";
-import { ServiceAction, ServiceConfig, ServiceStatus } from "../../models/service";
+import { ServiceAction, ServiceConfig, ServiceStatus, ServiceType } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
+import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
 
 /** Merged service status + optional config for custom services. */
 export interface ServiceWithConfig {
@@ -29,7 +31,7 @@ export interface ServiceWithConfig {
 @Component({
   selector: "app-services",
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatChipsModule],
+  imports: [CommonModule, MatButtonModule, MatChipsModule, MatMenuModule],
   templateUrl: "./services.component.html",
   styleUrls: ["./services.component.scss"],
 })
@@ -130,8 +132,8 @@ export class ServicesComponent implements OnInit {
     });
   }
 
-  addService(): void {
-    this.openDialog(null);
+  addService(type: ServiceType): void {
+    this.openDialog(null, type);
   }
 
   editService(svc: ServiceWithConfig): void {
@@ -153,10 +155,24 @@ export class ServicesComponent implements OnInit {
     return cfg.flags.length > 0;
   }
 
-  private openDialog(config: ServiceConfig | null): void {
-    const data: ServiceDialogData = { config, allConfigs: this.configs() };
-    const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
+  private openDialog(config: ServiceConfig | null, forceType?: ServiceType): void {
+    const type = forceType ?? config?.type ?? "generic";
 
+    if (type === "llama-server") {
+      const data: LlamaServerDialogData = { config, allConfigs: this.configs() };
+      const ref = this.dialog.open(LlamaServerDialogComponent, { data, minWidth: "800px" });
+      this.handleDialogResult(ref, config);
+    } else {
+      const data: ServiceDialogData = { config, allConfigs: this.configs() };
+      const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
+      this.handleDialogResult(ref, config);
+    }
+  }
+
+  private handleDialogResult(
+    ref: MatDialogRef<ServiceDialogComponent | LlamaServerDialogComponent>,
+    config: ServiceConfig | null,
+  ): void {
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (!result) return;
 

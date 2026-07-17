@@ -1,9 +1,17 @@
 import { Request, Response, Router } from "express";
 import { Container } from "inversify";
-import { SERVICE_MANAGER, SERVICE_CONFIG_CONTROLLER, MANAGED_SERVICES_CONTROLLER } from "../di/types";
+import {
+  SERVICE_MANAGER,
+  SERVICE_CONFIG_CONTROLLER,
+  MANAGED_SERVICES_CONTROLLER,
+  LLAMA_AUTOCOMPLETE_SERVICE,
+  GPU_SERVICE,
+} from "../di/types";
 import { ServiceManager } from "../services/serviceManager";
 import { ServiceConfigController } from "../services/serviceConfigController";
 import { ManagedServicesController } from "../services/managedServicesController";
+import { LlamaAutocompleteService, AutocompleteType } from "../services/llamaAutocompleteService";
+import { GpuService } from "../services/gpuService";
 import { ServiceAction } from "../models/ServiceStatus";
 import { ServiceConfig } from "../models/ServiceConfig";
 
@@ -190,6 +198,38 @@ export default function serviceRoutes(container: Container) {
       }
 
       res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Llama autocomplete suggestions: GET /llama/autocomplete?type=binary&query=xxx */
+  router.get("/llama/autocomplete", async (req: Request, res: Response) => {
+    try {
+      const type = req.query.type as string;
+      const query = (req.query.query as string) ?? "";
+
+      const validTypes = ["binary", "model", "mmproj", "apikey", "host", "device"];
+      if (!type || !validTypes.includes(type)) {
+        return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      }
+
+      const acas = container.get<LlamaAutocompleteService>(LLAMA_AUTOCOMPLETE_SERVICE);
+
+      // Pass all existing configs for cross-service suggestions
+      const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
+      const allConfigs = scc.listConfigs();
+
+      // Wire GPU service for device suggestions (lazy, avoids circular dep)
+      try {
+        const gpuService = container.get<GpuService>(GPU_SERVICE);
+        acas.setGpuService(gpuService);
+      } catch {
+        // GPU service not available — device suggestions will be empty
+      }
+
+      const suggestions = await acas.getSuggestions(type as AutocompleteType, query, allConfigs);
+      res.json(suggestions);
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
     }

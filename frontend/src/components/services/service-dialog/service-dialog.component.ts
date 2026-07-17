@@ -5,7 +5,7 @@ import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { MatButtonModule } from "@angular/material/button";
 import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
-import { ServiceConfig } from "../../../models/service";
+import { ServiceConfig, ServiceType } from "../../../models/service";
 
 export interface ServiceDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -99,6 +99,7 @@ export class ServiceDialogComponent {
 
     const cfg: ServiceConfig = {
       name: (this.nameControl.value as string).trim(),
+      type: "generic" as ServiceType,
       command: (this.commandControl.value as string).trim(),
       flags,
     };

@@ -1,0 +1,233 @@
+<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} llama-server service</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="llama-form">
+    <!-- Service identity -->
+    <mat-form-field appearance="outline" class="full-width">
+      <input matInput formControlName="name" placeholder="e.g. qwen3-vulkan" [disabled]="isEdit" />
+      <mat-label>Service Name</mat-label>
+      @if (nameControl.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      } @else if (nameControl.errors?.["pattern"]) {
+        <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/llama-server" />
+      <mat-label>Binary Path</mat-label>
+      @if (commandControl.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-autocomplete #commandAuto="matAutocomplete">
+      @for (ec of filteredCommands(); track ec.command) {
+        <mat-option [value]="ec.command">
+          <span class="auto-path">{{ ec.command }}</span>
+          <span class="auto-from">({{ ec.from }})</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
+
+    <!-- Basic settings -->
+    <mat-expansion-panel expanded>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Basic Settings</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="host" type="text" [matAutocomplete]="hostAuto" />
+          <mat-label>Host</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #hostAuto="matAutocomplete">
+          @for (hs of filteredHosts(); track hs.path) {
+            <mat-option [value]="hs.path">
+              <span class="auto-path">{{ hs.path }}</span>
+              <span class="auto-from">({{ hs.source }})</span>
+            </mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="port" type="number" />
+          <mat-label>Port</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="threads" type="number" />
+          <mat-label>Threads</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="flashAttn">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+            <mat-option value="auto">auto</mat-option>
+          </mat-select>
+          <mat-label>Flash Attention</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="fit">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Fit</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="parallel" type="number" />
+          <mat-label>Parallel</mat-label>
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <input matInput formControlName="apiKeyFile" [matAutocomplete]="apiKeyAuto" placeholder="/path/to/keys.ini" />
+        <mat-label>API Key File</mat-label>
+      </mat-form-field>
+
+      <mat-autocomplete #apiKeyAuto="matAutocomplete">
+        @for (s of pathSuggestions()["apiKeyFile"]; track s.path) {
+          <mat-option [value]="s.path">
+            <span class="auto-path">{{ s.path }}</span>
+            <span class="auto-from">({{ s.source }})</span>
+          </mat-option>
+        }
+      </mat-autocomplete>
+    </mat-expansion-panel>
+
+    <!-- GPU & Model -->
+    <mat-expansion-panel expanded>
+      <mat-expansion-panel-header>
+        <mat-panel-title>GPU &amp; Model</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col-60">
+          <input matInput formControlName="model" [matAutocomplete]="modelAuto" placeholder="/path/to/model.gguf" />
+          <mat-label>Model Path</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #modelAuto="matAutocomplete">
+          @for (s of pathSuggestions()["model"]; track s.path) {
+            <mat-option [value]="s.path">
+              <span class="auto-path">{{ s.path }}</span>
+              <span class="auto-from">({{ s.source }})</span>
+            </mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col-40">
+          <input matInput formControlName="nGpuLayers" type="number" />
+          <mat-label>N GPU Layers</mat-label>
+        </mat-form-field>
+      </div>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <input
+          matInput
+          formControlName="mmproj"
+          [matAutocomplete]="mmprojAuto"
+          placeholder="/path/to/mmproj.gguf (optional)"
+        />
+        <mat-label>MMProj Path</mat-label>
+      </mat-form-field>
+
+      <mat-autocomplete #mmprojAuto="matAutocomplete">
+        @for (s of pathSuggestions()["mmproj"]; track s.path) {
+          <mat-option [value]="s.path">
+            <span class="auto-path">{{ s.path }}</span>
+            <span class="auto-from">({{ s.source }})</span>
+          </mat-option>
+        }
+      </mat-autocomplete>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col-60">
+          <mat-select formControlName="device" multiple placeholder="Select GPU devices">
+            @for (dev of availableDevices(); track dev) {
+              <mat-option [value]="dev">{{ dev }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Device (multi-select)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col-40">
+          <input matInput formControlName="tensorSplit" placeholder="10,10,10" />
+          <mat-label>Tensor Split</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- Context -->
+    <mat-expansion-panel expanded>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Context</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="ctxSize" type="number" />
+          <mat-label>Context Size</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="batchSize" type="number" />
+          <mat-label>Batch Size</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="ubatchSize" type="number" />
+          <mat-label>Ubatch Size</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- Draft Model -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Draft Model (Speculative Decoding)</mat-panel-title>
+        <mat-panel-description>Optional: smaller model for speculative decoding</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <input matInput formControlName="modelDraft" placeholder="/path/to/draft-model.gguf" />
+        <mat-label>Draft Model Path</mat-label>
+      </mat-form-field>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="specDraftNMax" type="number" />
+          <mat-label>Spec Draft N Max</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="nGpuLayersDraft" type="number" />
+          <mat-label>N GPU Layers Draft</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- Speculative -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Speculative Decoding</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-select formControlName="specType">
+          <mat-option value="none">none</mat-option>
+          <mat-option value="draft-simple">draft-simple</mat-option>
+          <mat-option value="draft-eagle3">draft-eagle3</mat-option>
+          <mat-option value="draft-mtp">draft-mtp</mat-option>
+          <mat-option value="ngram-simple">ngram-simple</mat-option>
+          <mat-option value="ngram-mod">ngram-mod</mat-option>
+        </mat-select>
+        <mat-label>Spec Type</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
+    {{ isEdit ? "Save" : "Create" }}
+  </button>
+</mat-dialog-actions>

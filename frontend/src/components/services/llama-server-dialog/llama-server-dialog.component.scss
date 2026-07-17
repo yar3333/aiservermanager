@@ -1,0 +1,51 @@
+.llama-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 640px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.form-col {
+  flex: 1;
+}
+
+.form-col-60 {
+  flex: 3;
+}
+
+.form-col-40 {
+  flex: 2;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.auto-path {
+  font-family: monospace;
+}
+
+.auto-from {
+  margin-left: 8px;
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+mat-dialog-content {
+  padding-top: 10px !important;
+  max-height: 80vh;
+}
+
+mat-expansion-panel {
+  margin-bottom: 0;
+}
+
+mat-dialog-actions {
+  gap: 8px;
+}

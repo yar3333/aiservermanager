@@ -11,6 +11,7 @@ import {
   SERVICE_CONTROLLER,
   SERVICE_CONFIG_CONTROLLER,
   MANAGED_SERVICES_CONTROLLER,
+  LLAMA_AUTOCOMPLETE_SERVICE,
 } from "./types";
 import { AuthService } from "../services/authService";
 import { PasswordVerifier } from "../services/auth/passwordVerifier";
@@ -33,6 +34,7 @@ import { SystemctlController } from "../services/controllers/systemctlController
 import { WindowsServiceController } from "../services/controllers/windowsServiceController";
 import { ServiceConfigController } from "../services/serviceConfigController";
 import { ManagedServicesController } from "../services/managedServicesController";
+import { LlamaAutocompleteService } from "../services/llamaAutocompleteService";
 
 const isWindows = process.platform === "win32";
 
@@ -87,6 +89,9 @@ export function createContainer(): Container {
     .bind<ManagedServicesController>(MANAGED_SERVICES_CONTROLLER)
     .to(ManagedServicesController)
     .inSingletonScope();
+
+  // Llama autocomplete service — path suggestions, hosts, devices
+  container.bind<LlamaAutocompleteService>(LLAMA_AUTOCOMPLETE_SERVICE).to(LlamaAutocompleteService).inSingletonScope();
 
   return container;
 }
