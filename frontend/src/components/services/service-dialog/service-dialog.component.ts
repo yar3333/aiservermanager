@@ -1,6 +1,7 @@
-import { Component, Inject, inject } from "@angular/core";
+import { Component, Inject, inject, computed, OnInit, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
+import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { MatButtonModule } from "@angular/material/button";
 import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
@@ -9,6 +10,8 @@ import { ServiceConfig } from "../../../models/service";
 export interface ServiceDialogData {
   /** Existing config for edit mode, or null for create. */
   config: ServiceConfig | null;
+  /** All user-created configs (for command quick-select). */
+  allConfigs?: ServiceConfig[];
 }
 
 const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
@@ -16,7 +19,15 @@ const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
 @Component({
   selector: "app-service-dialog",
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatInputModule, MatDialogModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatAutocompleteModule,
+    MatButtonModule,
+    MatInputModule,
+    MatDialogModule,
+  ],
   templateUrl: "./service-dialog.component.html",
   styleUrls: ["./service-dialog.component.scss"],
 })
@@ -40,7 +51,36 @@ export class ServiceDialogComponent {
     return this.form.get("command")!;
   }
 
+  /** All unique commands from other configs (excludes current in edit mode). */
+  readonly allExistingCommands = computed<{ command: string; from: string }[]>(() => {
+    const all = this.data.allConfigs ?? [];
+    const currentName = this.data.config?.name ?? null;
+    const seen = new Set<string>();
+    const result: { command: string; from: string }[] = [];
+    for (const cfg of all) {
+      if (cfg.name === currentName) continue;
+      if (!seen.has(cfg.command)) {
+        seen.add(cfg.command);
+        result.push({ command: cfg.command, from: cfg.name });
+      }
+    }
+    return result;
+  });
+
+  /** Command input value as a signal (for reactive filtering). */
+  private _commandValue = signal<string>(this.data.config?.command ?? "");
+  readonly commandValue = this._commandValue.asReadonly();
+
+  /** Commands filtered by what the user typed. */
+  readonly filteredCommands = computed(() => {
+    const query = this.commandValue()?.toLowerCase() ?? "";
+    return this.allExistingCommands().filter(
+      (ec) => ec.command.toLowerCase().includes(query) || ec.from.toLowerCase().includes(query),
+    );
+  });
+
   ngOnInit(): void {
+    this.commandControl.valueChanges.subscribe((v) => this._commandValue.set(v as string));
     if (this.data.config?.flags?.length) {
       this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n") + "\n");
     }

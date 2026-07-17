@@ -13,12 +13,21 @@
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="full-width">
-      <input matInput formControlName="command" placeholder="/path/to/llama-server" />
+      <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/llama-server" />
       <mat-label>Command (absolute path)</mat-label>
       @if (commandControl.errors?.["required"]) {
         <mat-error>Required</mat-error>
       }
     </mat-form-field>
+
+    <mat-autocomplete #commandAuto="matAutocomplete">
+      @for (ec of filteredCommands(); track ec.command) {
+        <mat-option [value]="ec.command">
+          <span class="auto-path">{{ ec.command }}</span>
+          <span class="auto-from">({{ ec.from }})</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
 
     <mat-form-field appearance="outline" class="full-width">
       <textarea
