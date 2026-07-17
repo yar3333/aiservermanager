@@ -9,10 +9,10 @@ import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { MatSelectModule } from "@angular/material/select";
 import { ServiceConfig, ServiceType } from "../../../models/service";
-import { ServiceService, AutocompleteSuggestion, AutocompleteType } from "../../../services/service.service";
-import { Subscription } from "rxjs";
+import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
+import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
+import { Subscription, of } from "rxjs";
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from "rxjs/operators";
-import { of } from "rxjs";
 
 export interface LlamaServerDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -115,6 +115,7 @@ function flagValueNum(flags: string[], flag: string, fallback: number): number {
     MatInputModule,
     MatDialogModule,
     MatSelectModule,
+    FileAutocompleteComponent,
   ],
   templateUrl: "./llama-server-dialog.component.html",
   styleUrls: ["./llama-server-dialog.component.scss"],
@@ -154,87 +155,37 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     );
   });
 
-  // ── Autocomplete for path fields (model, mmproj, apiKeyFile) ──
+  // ── Device + Host autocomplete ──
 
   /** Available GPU device names from backend. */
   readonly availableDevices = signal<string[]>([]);
 
   /** Host suggestions (network IPs + defaults). */
-  readonly hostSuggestions = signal<AutocompleteSuggestion[]>([]);
+  readonly filteredHosts = signal<AutocompleteSuggestion[]>([]);
 
-  /** Device suggestions (GPU engine names). */
-  readonly deviceSuggestions = signal<AutocompleteSuggestion[]>([]);
+  // ── Existing paths from other configs (for empty-input autocomplete) ──
 
-  /** Path autocomplete suggestions keyed by field name. */
-  private _pathSuggestions = signal<Record<string, AutocompleteSuggestion[]>>({
-    model: [],
-    mmproj: [],
-    apiKeyFile: [],
-  });
-  readonly pathSuggestions = this._pathSuggestions.asReadonly();
+  readonly existingModelPaths = computed<string[]>(() => this.extractConfigPaths("--model"));
+  readonly existingMmprojPaths = computed<string[]>(() => this.extractConfigPaths("--mmproj"));
+  readonly existingApiKeyPaths = computed<string[]>(() => this.extractConfigPaths("--api-key-file"));
+  readonly existingDraftModelPaths = computed<string[]>(() => this.extractConfigPaths("--model-draft"));
 
-  /** Current raw input value for path autocomplete fields. */
-  private _pathInputValue = signal<Record<string, string>>({
-    model: "",
-    mmproj: "",
-    apiKeyFile: "",
-  });
-
-  /** Host input value. */
-  private _hostInputValue = signal<string>("");
-  readonly filteredHosts = computed(() => {
-    const query = this._hostInputValue().toLowerCase();
-    return this.hostSuggestions().filter((s) => !query || s.path.toLowerCase().includes(query));
-  });
-
-  /** Setup debounced autocomplete subscription for a path field. */
-  private setupPathAutocomplete(fieldName: string, type: AutocompleteType): void {
-    this.subs.add(
-      this.form
-        .get(fieldName)!
-        .valueChanges.pipe(
-          debounceTime(250),
-          distinctUntilChanged(),
-          switchMap((value: string | null) => {
-            const query = ((value as string) ?? "").trim();
-            this._pathInputValue.update((prev) => ({ ...prev, [fieldName]: query }));
-            if (!query) {
-              return of<AutocompleteSuggestion[]>([]);
-            }
-            return this.serviceService
-              .getLlamaAutocomplete(type, query)
-              .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
-          }),
-        )
-        .subscribe((suggestions) => {
-          this._pathSuggestions.update((prev) => ({ ...prev, [fieldName]: suggestions }));
-        }),
-    );
-  }
-
-  /** Setup debounced autocomplete for host field. */
-  private setupHostAutocomplete(): void {
-    this.subs.add(
-      this.form
-        .get("host")!
-        .valueChanges.pipe(
-          debounceTime(250),
-          distinctUntilChanged(),
-          switchMap((value: string | null) => {
-            this._hostInputValue.set((value as string) ?? "");
-            const query = ((value as string) ?? "").trim();
-            if (!query) {
-              return of<AutocompleteSuggestion[]>([]);
-            }
-            return this.serviceService
-              .getLlamaAutocomplete("host", query)
-              .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
-          }),
-        )
-        .subscribe((suggestions) => {
-          this.hostSuggestions.set(suggestions);
-        }),
-    );
+  /** Extract unique values for a given --flag from all configs (excluding current in edit mode). */
+  private extractConfigPaths(flagName: string): string[] {
+    const all = this.data.allConfigs ?? [];
+    const currentName = this.data.config?.name ?? null;
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const cfg of all) {
+      if (cfg.name === currentName) continue;
+      if (!cfg.flags) continue;
+      const val = findFlag(cfg.flags, flagName);
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        result.push(val);
+      }
+    }
+    return result;
   }
 
   form = this.fb.group({
@@ -282,7 +233,6 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     // Load GPU devices for the device dropdown
     this.serviceService.getLlamaAutocomplete("device", "").subscribe({
       next: (suggestions) => {
-        this.deviceSuggestions.set(suggestions);
         this.availableDevices.set(suggestions.map((s) => s.path));
       },
       error: () => {
@@ -293,20 +243,30 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     // Load host suggestions
     this.serviceService.getLlamaAutocomplete("host", "").subscribe({
       next: (suggestions) => {
-        this.hostSuggestions.set(suggestions);
+        this.filteredHosts.set(suggestions);
       },
       error: () => {
-        this.hostSuggestions.set([]);
+        this.filteredHosts.set([]);
       },
     });
 
-    // Setup debounced autocomplete for path fields
-    this.setupPathAutocomplete("model", "model");
-    this.setupPathAutocomplete("mmproj", "mmproj");
-    this.setupPathAutocomplete("apiKeyFile", "apikey");
-
     // Setup host autocomplete
-    this.setupHostAutocomplete();
+    this.subs.add(
+      this.form
+        .get("host")!
+        .valueChanges.pipe(
+          debounceTime(250),
+          distinctUntilChanged(),
+          switchMap((value: string | null) => {
+            const query = ((value as string) ?? "").trim();
+            if (!query) return of<AutocompleteSuggestion[]>([]);
+            return this.serviceService
+              .getLlamaAutocomplete("host", query)
+              .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
+          }),
+        )
+        .subscribe((suggestions) => this.filteredHosts.set(suggestions)),
+    );
   }
 
   ngOnDestroy(): void {

@@ -1,0 +1,24 @@
+<ng-container [formGroup]="innerForm">
+  <mat-form-field appearance="outline" class="full-width">
+    <input
+      matInput
+      formControlName="value"
+      [placeholder]="placeholder"
+      [required]="required"
+      [matAutocomplete]="auto"
+      (blur)="onBlur()"
+    />
+    <mat-label>{{ label }}</mat-label>
+  </mat-form-field>
+
+  <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelect($event.option.value)">
+    @for (s of suggestions(); track s.path) {
+      <mat-option [value]="s.path">
+        <span class="file-path">{{ s.path }}</span>
+        @if (s.isDir) {
+          <span class="file-dir">(dir)</span>
+        }
+      </mat-option>
+    }
+  </mat-autocomplete>
+</ng-container>

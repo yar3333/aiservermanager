@@ -6,9 +6,10 @@ import { JournalLine, ServiceAction, ServiceConfig, ServiceStatus } from "../mod
 export interface AutocompleteSuggestion {
   path: string;
   source: string;
+  isDir?: boolean;
 }
 
-export type AutocompleteType = "binary" | "model" | "mmproj" | "apikey" | "host" | "device";
+export type AutocompleteType = "binary" | "model" | "mmproj" | "apikey" | "host" | "device" | "path";
 
 @Injectable({ providedIn: "root" })
 export class ServiceService {

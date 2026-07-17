@@ -209,7 +209,7 @@ export default function serviceRoutes(container: Container) {
       const type = req.query.type as string;
       const query = (req.query.query as string) ?? "";
 
-      const validTypes = ["binary", "model", "mmproj", "apikey", "host", "device"];
+      const validTypes = ["binary", "model", "mmproj", "apikey", "host", "device", "path"];
       if (!type || !validTypes.includes(type)) {
         return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
       }
