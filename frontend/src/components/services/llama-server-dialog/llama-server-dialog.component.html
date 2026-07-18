@@ -30,7 +30,7 @@
       }
     </mat-autocomplete>
 
-    <!-- Basic settings -->
+    <!-- ═══════════ Basic Settings ═══════════ -->
     <mat-expansion-panel expanded>
       <mat-expansion-panel-header>
         <mat-panel-title>Basic Settings</mat-panel-title>
@@ -38,7 +38,13 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="host" type="text" [matAutocomplete]="hostAuto" />
+          <input
+            matInput
+            formControlName="host"
+            type="text"
+            [matAutocomplete]="hostAuto"
+            matTooltip="IP address to listen (default: 127.0.0.1). Can bind to UNIX socket if ends with .sock"
+          />
           <mat-label>Host</mat-label>
         </mat-form-field>
         <mat-autocomplete #hostAuto="matAutocomplete">
@@ -51,18 +57,35 @@
         </mat-autocomplete>
 
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="port" type="number" />
+          <input matInput formControlName="port" type="number" matTooltip="Port to listen (default: 8080)" />
           <mat-label>Port</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="threads" type="number" />
+          <input
+            matInput
+            formControlName="threads"
+            type="number"
+            matTooltip="Number of CPU threads to use during generation. -1 = auto-detect"
+          />
           <mat-label>Threads</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="parallel"
+            type="number"
+            matTooltip="Number of server slots for parallel requests. -1 = auto"
+          />
+          <mat-label>Parallel Slots</mat-label>
         </mat-form-field>
       </div>
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <mat-select formControlName="flashAttn">
+          <mat-select
+            formControlName="flashAttn"
+            matTooltip="Enable Flash Attention for faster inference with lower VRAM usage"
+          >
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
             <mat-option value="auto">auto</mat-option>
@@ -70,15 +93,55 @@
           <mat-label>Flash Attention</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <mat-select formControlName="fit">
+          <mat-select
+            formControlName="fit"
+            matTooltip="Adjust unset arguments to fit in device memory. Helps prevent OOM errors"
+          >
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
           </mat-select>
-          <mat-label>Fit</mat-label>
+          <mat-label>Fit to VRAM</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="parallel" type="number" />
-          <mat-label>Parallel</mat-label>
+          <mat-select
+            formControlName="contBatching"
+            matTooltip="Enable continuous (dynamic) batching for better throughput with multiple requests"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Cont. Batching</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="contextShift"
+            matTooltip="Enable context shift on infinite text generation. Shifts context window when full"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Context Shift</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="nPredict"
+            type="number"
+            matTooltip="Maximum number of tokens to predict. -1 = infinity (unlimited generation)"
+          />
+          <mat-label>Max Tokens (n-predict)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col-60">
+          <input
+            matInput
+            formControlName="alias"
+            type="text"
+            matTooltip="Set model name aliases (comma-separated). Used by API for model identification"
+          />
+          <mat-label>Model Alias</mat-label>
         </mat-form-field>
       </div>
 
@@ -90,10 +153,10 @@
       />
     </mat-expansion-panel>
 
-    <!-- GPU & Model -->
+    <!-- ═══════════ Model & GPU ═══════════ -->
     <mat-expansion-panel expanded>
       <mat-expansion-panel-header>
-        <mat-panel-title>GPU &amp; Model</mat-panel-title>
+        <mat-panel-title>Model &amp; GPU</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
@@ -105,8 +168,13 @@
           class="form-col-60"
         />
         <mat-form-field appearance="outline" class="form-col-40">
-          <input matInput formControlName="nGpuLayers" type="number" />
-          <mat-label>N GPU Layers</mat-label>
+          <input
+            matInput
+            formControlName="nGpuLayers"
+            type="number"
+            matTooltip="Max number of layers to store in VRAM. 999 = all layers. Can use 'auto' or 'all'"
+          />
+          <mat-label>GPU Layers</mat-label>
         </mat-form-field>
       </div>
 
@@ -119,7 +187,12 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col-60">
-          <mat-select formControlName="device" multiple placeholder="Select GPU devices">
+          <mat-select
+            formControlName="device"
+            multiple
+            placeholder="Select GPU devices"
+            matTooltip="Comma-separated list of devices for offloading. Use --list-devices to see available"
+          >
             @for (dev of availableDevices(); track dev) {
               <mat-option [value]="dev">{{ dev }}</mat-option>
             }
@@ -127,41 +200,451 @@
           <mat-label>Device (multi-select)</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col-40">
-          <input matInput formControlName="tensorSplit" placeholder="10,10,10" />
+          <input
+            matInput
+            formControlName="tensorSplit"
+            placeholder="10,10,10"
+            [disabled]="isTensorSplitDisabled()"
+            matTooltip="Fraction of model to offload to each GPU (comma-separated proportions, e.g. 3,1)"
+          />
           <mat-label>Tensor Split</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="splitMode"
+            matTooltip="How to split model across multiple GPUs. layer=pipelined, row=parallelized, tensor=experimental"
+          >
+            <mat-option value="layer">layer (pipelined)</mat-option>
+            <mat-option value="row">row (parallelized)</mat-option>
+            <mat-option value="tensor">tensor (experimental)</mat-option>
+            <mat-option value="none">none (single GPU)</mat-option>
+          </mat-select>
+          <mat-label>Split Mode</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="mainGpu"
+            type="number"
+            matTooltip="GPU index for model (with split-mode=none) or for intermediate results and KV (with split-mode=row)"
+          />
+          <mat-label>Main GPU</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="fitTarget"
+            type="number"
+            [disabled]="isFitTargetDisabled()"
+            matTooltip="Target margin per device in MiB for --fit option. Default: 1024"
+          />
+          <mat-label>Fit Target (MiB)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="fitCtx"
+            type="number"
+            [disabled]="isFitTargetDisabled()"
+            matTooltip="Minimum context size that can be set by --fit option. Default: 4096"
+          />
+          <mat-label>Fit Min Ctx</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="mlock"
+            matTooltip="Force system to keep model in RAM rather than swapping or compressing"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>mlock (pin RAM)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="mmap"
+            matTooltip="Memory-map model. If disabled: slower load but may reduce pageouts if not using mlock"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>mmap</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="cpuMoe" matTooltip="Keep all Mixture of Experts (MoE) weights in CPU memory">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>CPU MoE</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="nCpuMoe"
+            type="number"
+            matTooltip="Keep MoE weights of first N layers in CPU. 0 = disabled"
+          />
+          <mat-label>N CPU MoE Layers</mat-label>
         </mat-form-field>
       </div>
     </mat-expansion-panel>
 
-    <!-- Context -->
-    <mat-expansion-panel expanded>
+    <!-- ═══════════ Context & KV Cache ═══════════ -->
+    <mat-expansion-panel>
       <mat-expansion-panel-header>
-        <mat-panel-title>Context</mat-panel-title>
+        <mat-panel-title>Context &amp; KV Cache</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="ctxSize" type="number" />
+          <input
+            matInput
+            formControlName="ctxSize"
+            type="number"
+            matTooltip="Size of the prompt context. 0 = loaded from model metadata"
+          />
           <mat-label>Context Size</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="batchSize" type="number" />
+          <input
+            matInput
+            formControlName="batchSize"
+            type="number"
+            matTooltip="Logical maximum batch size for processing. Default: 2048"
+          />
           <mat-label>Batch Size</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="ubatchSize" type="number" />
+          <input
+            matInput
+            formControlName="ubatchSize"
+            type="number"
+            matTooltip="Physical maximum batch size. Default: 512"
+          />
           <mat-label>Ubatch Size</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="cacheTypeK"
+            matTooltip="KV cache data type for K. Options: f32, f16, bf16, q8_0, q4_0, q4_1, iq4_nl, q5_0, q5_1"
+          >
+            @for (t of kvCacheTypes; track t) {
+              <mat-option [value]="t">{{ t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>KV Cache Type K</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="cacheTypeV"
+            matTooltip="KV cache data type for V. Options: f32, f16, bf16, q8_0, q4_0, q4_1, iq4_nl, q5_0, q5_1"
+          >
+            @for (t of kvCacheTypes; track t) {
+              <mat-option [value]="t">{{ t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>KV Cache Type V</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="kvOffload"
+            matTooltip="Enable KV cache offloading to GPU. Reduces CPU memory usage"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>KV Offload</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="cacheRam"
+            type="number"
+            matTooltip="Maximum prompt cache size in MiB. -1 = no limit, 0 = disable. Default: 8192"
+          />
+          <mat-label>Cache RAM (MiB)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="swaFull"
+            matTooltip="Use full-size SWA (Sliding Window Attention) cache instead of compressed"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Full SWA Cache</mat-label>
         </mat-form-field>
       </div>
     </mat-expansion-panel>
 
-    <!-- Draft Model -->
+    <!-- ═══════════ RoPE Scaling ═══════════ -->
     <mat-expansion-panel>
       <mat-expansion-panel-header>
-        <mat-panel-title>Draft Model (Speculative Decoding)</mat-panel-title>
-        <mat-panel-description>Optional: smaller model for speculative decoding</mat-panel-description>
+        <mat-panel-title>RoPE Scaling</mat-panel-title>
       </mat-expansion-panel-header>
 
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="ropeScaling"
+            matTooltip="RoPE frequency scaling method. linear or yarn for extended context"
+          >
+            <mat-option value="none">none</mat-option>
+            <mat-option value="linear">linear</mat-option>
+            <mat-option value="yarn">yarn</mat-option>
+          </mat-select>
+          <mat-label>Scaling Method</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="ropeScale"
+            type="number"
+            matTooltip="RoPE context scaling factor. Expands context by factor of N"
+          />
+          <mat-label>Scale Factor</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="ropeFreqBase"
+            type="number"
+            matTooltip="RoPE base frequency for NTK-aware scaling. 0 = loaded from model"
+          />
+          <mat-label>Freq Base</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="ropeFreqScale"
+            type="number"
+            matTooltip="RoPE frequency scaling factor. Expands context by factor of 1/N. 0 = from model"
+          />
+          <mat-label>Freq Scale</mat-label>
+        </mat-form-field>
+      </div>
+
+      @if (showYarnParams()) {
+        <div class="subsection-label">YaRN Parameters</div>
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="yarnOrigCtx"
+              type="number"
+              matTooltip="YaRN: original context size of model. 0 = model training context size"
+            />
+            <mat-label>YaRN Orig Ctx</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="yarnExtFactor"
+              type="number"
+              matTooltip="YaRN: extrapolation mix factor. -1 = default, 0.0 = full interpolation"
+            />
+            <mat-label>Extrapolation Mix</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="yarnAttnFactor"
+              type="number"
+              matTooltip="YaRN: scale sqrt(t) or attention magnitude. -1 = default"
+            />
+            <mat-label>Attn Factor</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="yarnBetaSlow"
+              type="number"
+              matTooltip="YaRN: high correction dim (alpha). -1 = default"
+            />
+            <mat-label>Beta Slow</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="yarnBetaFast"
+              type="number"
+              matTooltip="YaRN: low correction dim (beta). -1 = default"
+            />
+            <mat-label>Beta Fast</mat-label>
+          </mat-form-field>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Sampling Defaults ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Sampling Defaults</mat-panel-title>
+        <mat-panel-description>Default sampling parameters for generation</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="subsection-label">Core</div>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="temperature"
+            type="number"
+            matTooltip="Temperature for sampling. Higher = more random, lower = more deterministic. Default: 0.8"
+          />
+          <mat-label>Temperature</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="seed"
+            type="number"
+            matTooltip="RNG seed for reproducibility. -1 = random seed"
+          />
+          <mat-label>Seed</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="topK"
+            type="number"
+            matTooltip="Top-K sampling: limit to K most likely tokens. 0 = disabled. Default: 40"
+          />
+          <mat-label>Top-K</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="topP"
+            type="number"
+            matTooltip="Top-P (nucleus) sampling: cumulative probability threshold. 1.0 = disabled. Default: 0.95"
+          />
+          <mat-label>Top-P</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="minP"
+            type="number"
+            matTooltip="Min-P sampling: minimum probability threshold. 0.0 = disabled. Default: 0.05"
+          />
+          <mat-label>Min-P</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="typicalP"
+            type="number"
+            matTooltip="Locally typical sampling parameter p. 1.0 = disabled"
+          />
+          <mat-label>Typical-P</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="mirostat"
+            matTooltip="Mirostat sampling mode. 0=disabled, 1=Mirostat, 2=Mirostat 2.0. Top-K/Nucleus ignored when enabled"
+          >
+            <mat-option [value]="0">disabled</mat-option>
+            <mat-option [value]="1">Mirostat</mat-option>
+            <mat-option [value]="2">Mirostat 2.0</mat-option>
+          </mat-select>
+          <mat-label>Mirostat</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="dynatempRange"
+            type="number"
+            matTooltip="Dynamic temperature range. 0.0 = disabled"
+          />
+          <mat-label>Dyn. Temp Range</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="subsection-label">Penalties</div>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="repeatLastN"
+            type="number"
+            matTooltip="Last N tokens to consider for penalty. 0 = disabled, -1 = ctx_size. Default: 64"
+          />
+          <mat-label>Repeat Last N</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="repeatPenalty"
+            type="number"
+            matTooltip="Penalize repeat sequence of tokens. 1.0 = disabled"
+          />
+          <mat-label>Repeat Penalty</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="presencePenalty"
+            type="number"
+            matTooltip="Alpha presence penalty: penalize tokens that appeared. 0.0 = disabled"
+          />
+          <mat-label>Presence Penalty</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="frequencyPenalty"
+            type="number"
+            matTooltip="Alpha frequency penalty: penalize by token frequency. 0.0 = disabled"
+          />
+          <mat-label>Frequency Penalty</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="subsection-label">DRY Sampling</div>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="dryMultiplier"
+            type="number"
+            matTooltip="DRY sampling multiplier: prevents repetition by penalizing recent tokens. 0.0 = disabled"
+          />
+          <mat-label>DRY Multiplier</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="dryBase" type="number" matTooltip="DRY sampling base value. Default: 1.75" />
+          <mat-label>DRY Base</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Speculative Decoding ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Speculative Decoding</mat-panel-title>
+        <mat-panel-description>Draft model and speculative decoding options</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="subsection-label">Draft Model</div>
       <app-file-autocomplete
         formControlName="modelDraft"
         label="Draft Model Path"
@@ -171,24 +654,50 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="specDraftNMax" type="number" />
-          <mat-label>Spec Draft N Max</mat-label>
+          <input
+            matInput
+            formControlName="specDraftNMax"
+            type="number"
+            matTooltip="Max number of tokens to draft for speculative decoding. Default: 3"
+          />
+          <mat-label>Draft N Max</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="nGpuLayersDraft" type="number" />
-          <mat-label>N GPU Layers Draft</mat-label>
+          <input
+            matInput
+            formControlName="nGpuLayersDraft"
+            type="number"
+            matTooltip="Max draft model layers to store in VRAM. 999 = all layers"
+          />
+          <mat-label>Draft GPU Layers</mat-label>
         </mat-form-field>
       </div>
-    </mat-expansion-panel>
 
-    <!-- Speculative -->
-    <mat-expansion-panel>
-      <mat-expansion-panel-header>
-        <mat-panel-title>Speculative Decoding</mat-panel-title>
-      </mat-expansion-panel-header>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="specDraftCacheTypeK" matTooltip="KV cache data type for K for the draft model">
+            @for (t of kvCacheTypes; track t) {
+              <mat-option [value]="t">{{ t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Draft Cache Type K</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="specDraftCacheTypeV" matTooltip="KV cache data type for V for the draft model">
+            @for (t of kvCacheTypes; track t) {
+              <mat-option [value]="t">{{ t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Draft Cache Type V</mat-label>
+        </mat-form-field>
+      </div>
 
+      <div class="subsection-label">Spec Type</div>
       <mat-form-field appearance="outline" class="full-width">
-        <mat-select formControlName="specType">
+        <mat-select
+          formControlName="specType"
+          matTooltip="Type of speculative decoding. draft-* uses draft model, ngram-* uses n-gram lookup"
+        >
           <mat-option value="none">none</mat-option>
           <mat-option value="draft-simple">draft-simple</mat-option>
           <mat-option value="draft-eagle3">draft-eagle3</mat-option>
@@ -198,6 +707,197 @@
         </mat-select>
         <mat-label>Spec Type</mat-label>
       </mat-form-field>
+
+      @if (showNgramParams()) {
+        <div class="subsection-label">Ngram Parameters</div>
+        <div class="sub-section-hint">Parameters for ngram-mod variant</div>
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramModNMin"
+              type="number"
+              matTooltip="Min number of ngram tokens for ngram-mod speculative decoding. Default: 48"
+            />
+            <mat-label>Ngram Mod N Min</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramModNMax"
+              type="number"
+              matTooltip="Max number of ngram tokens for ngram-mod speculative decoding. Default: 64"
+            />
+            <mat-label>Ngram Mod N Max</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramModNMatch"
+              type="number"
+              matTooltip="Ngram-mod lookup length. Default: 24"
+            />
+            <mat-label>Ngram Mod Match</mat-label>
+          </mat-form-field>
+        </div>
+        <div class="sub-section-hint">Parameters for ngram-simple variant</div>
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramSimpleSizeN"
+              type="number"
+              matTooltip="Ngram size N for ngram-simple: length of lookup n-gram. Default: 12"
+            />
+            <mat-label>Simple Size N</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramSimpleSizeM"
+              type="number"
+              matTooltip="Ngram size M for ngram-simple: length of draft m-gram. Default: 48"
+            />
+            <mat-label>Simple Size M</mat-label>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-col">
+            <input
+              matInput
+              formControlName="specNgramSimpleMinHits"
+              type="number"
+              matTooltip="Minimum hits for ngram-simple speculative decoding. Default: 1"
+            />
+            <mat-label>Simple Min Hits</mat-label>
+          </mat-form-field>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ LoRA & Adapters ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>LoRA &amp; Adapters</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <app-file-autocomplete
+        formControlName="lora"
+        label="LoRA Adapter Path"
+        placeholder="/path/to/lora.gguf (comma-separated for multiple)"
+        [existingPaths]="existingLoraPaths()"
+      />
+
+      <mat-form-field appearance="outline" class="full-width">
+        <input
+          matInput
+          formControlName="loraScaled"
+          type="text"
+          matTooltip="LoRA adapter with user-defined scaling. Format: path:scale,... (e.g. lora.gguf:0.5)"
+        />
+        <mat-label>LoRA Scaled</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Server Settings ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Server Settings</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="timeout"
+            type="number"
+            matTooltip="Server read/write timeout in seconds. Default: 3600"
+          />
+          <mat-label>Timeout (s)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="threadsHttp"
+            type="number"
+            matTooltip="Number of threads for HTTP requests. -1 = auto"
+          />
+          <mat-label>HTTP Threads</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="cacheReuse"
+            type="number"
+            matTooltip="Min chunk size to attempt reusing from cache via KV shifting. Requires prompt caching"
+          />
+          <mat-label>Cache Reuse</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="metrics" matTooltip="Enable Prometheus-compatible metrics endpoint at /metrics">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Prometheus Metrics</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="slots" matTooltip="Expose slots monitoring endpoint at /slots">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Slots Endpoint</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="cachePrompt" matTooltip="Enable prompt caching to speed up repeated prompts">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Prompt Cache</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Reasoning ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Reasoning</mat-panel-title>
+        <mat-panel-description>Thinking/reasoning mode settings</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="reasoning"
+            matTooltip="Use reasoning/thinking in chat. auto = detect from template"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+            <mat-option value="auto">auto</mat-option>
+          </mat-select>
+          <mat-label>Reasoning</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <input
+            matInput
+            formControlName="reasoningBudget"
+            type="number"
+            matTooltip="Token budget for thinking. -1 = unlimited, 0 = immediate end, N>0 = token limit"
+          />
+          <mat-label>Reasoning Budget</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select
+            formControlName="reasoningFormat"
+            matTooltip="Format for reasoning output. none=raw, deepseek=reasoning_content field, deepseek-legacy=keep think tags"
+          >
+            <mat-option value="none">none (raw)</mat-option>
+            <mat-option value="deepseek">deepseek</mat-option>
+            <mat-option value="deepseek-legacy">deepseek-legacy</mat-option>
+          </mat-select>
+          <mat-label>Reasoning Format</mat-label>
+        </mat-form-field>
+      </div>
     </mat-expansion-panel>
   </form>
 </mat-dialog-content>
