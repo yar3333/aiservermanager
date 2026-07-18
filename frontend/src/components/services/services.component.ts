@@ -12,6 +12,7 @@ import { ServiceAction, ServiceConfig, ServiceStatus, ServiceType } from "../../
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
+import { MatIconModule } from "@angular/material/icon";
 
 /** Merged service status + optional config for custom services. */
 export interface ServiceWithConfig {
@@ -31,7 +32,7 @@ export interface ServiceWithConfig {
 @Component({
   selector: "app-services",
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatChipsModule, MatMenuModule],
+  imports: [CommonModule, MatButtonModule, MatChipsModule, MatMenuModule, MatIconModule],
   templateUrl: "./services.component.html",
   styleUrls: ["./services.component.scss"],
 })

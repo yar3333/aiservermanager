@@ -7,6 +7,7 @@ import { MatListModule } from "@angular/material/list";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { MatIconModule } from "@angular/material/icon";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../../services/service.service";
 
@@ -22,6 +23,7 @@ import { ServiceService } from "../../../services/service.service";
     MatProgressBarModule,
     MatFormFieldModule,
     MatInputModule,
+    MatIconModule,
   ],
   templateUrl: "./managed-services-dialog.component.html",
   styleUrls: ["./managed-services-dialog.component.scss"],

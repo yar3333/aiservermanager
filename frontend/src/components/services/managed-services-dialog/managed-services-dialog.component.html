@@ -25,9 +25,9 @@
                   <span class="service-name">{{ name }}</span>
                   <button mat-icon-button [attr.aria-label]="'Toggle ' + name" (click)="toggle(name)">
                     @if (isManaged(name)) {
-                      <span class="material-icons">check_box</span>
+                      <mat-icon>check_box</mat-icon>
                     } @else {
-                      <span class="material-icons">check_box_outline_blank</span>
+                      <mat-icon>check_box_outline_blank</mat-icon>
                     }
                   </button>
                 </div>

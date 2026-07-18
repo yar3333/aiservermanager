@@ -3,20 +3,20 @@
     <h2>Services</h2>
     <div class="header-actions">
       <button mat-stroked-button (click)="manageServices()">
-        <span class="material-icons" style="font-size: 18px; margin-right: 4px">tune</span>
+        <mat-icon>tune</mat-icon>
         Select services to manage...
       </button>
       <button mat-raised-button color="primary" [matMenuTriggerFor]="addMenu" title="Install your own service.">
-        <span class="material-icons" style="font-size: 18px; margin-right: 4px">add</span>
+        <mat-icon>add</mat-icon>
         Add custom service...
       </button>
       <mat-menu #addMenu>
         <button mat-menu-item (click)="addService('generic')">
-          <span class="material-icons">settings</span>
+          <mat-icon>settings</mat-icon>
           Generic service
         </button>
         <button mat-menu-item (click)="addService('llama-server')">
-          <span class="material-icons">smart_toy</span>
+          <mat-icon>smart_toy</mat-icon>
           llama-server
         </button>
       </mat-menu>
@@ -43,7 +43,7 @@
                     [disabled]="busy()?.name === svc.name"
                     (click)="control(svc.name, 'start'); $event.stopPropagation()"
                   >
-                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">play_arrow</span>
+                    <mat-icon>play_arrow</mat-icon>
                     Start
                   </button>
                 } @else {
@@ -53,7 +53,7 @@
                     [disabled]="busy()?.name === svc.name"
                     (click)="control(svc.name, 'stop'); $event.stopPropagation()"
                   >
-                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">stop</span>
+                    <mat-icon>stop</mat-icon>
                     Stop
                   </button>
                 }
@@ -63,7 +63,7 @@
                     [disabled]="busy()?.name === svc.name"
                     (click)="control(svc.name, 'disable'); $event.stopPropagation()"
                   >
-                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock</span>
+                    <mat-icon>lock</mat-icon>
                     Disable
                   </button>
                 } @else {
@@ -72,7 +72,7 @@
                     [disabled]="svc.enabled || busy()?.name === svc.name"
                     (click)="control(svc.name, 'enable'); $event.stopPropagation()"
                   >
-                    <span class="material-icons" style="font-size: 18px; margin-right: 4px">lock_open</span>
+                    <mat-icon>lock_open</mat-icon>
                     Enable
                   </button>
                 }
@@ -81,10 +81,10 @@
             <td class="service-actions-cell">
               <div [style.visibility]="svc.hasConfig ? 'visible' : 'hidden'">
                 <button mat-icon-button color="primary" (click)="editService(svc)">
-                  <span class="material-icons">edit</span>
+                  <mat-icon>edit</mat-icon>
                 </button>
                 <button mat-icon-button color="warn" (click)="deleteService(svc.name)">
-                  <span class="material-icons">delete</span>
+                  <mat-icon>delete</mat-icon>
                 </button>
               </div>
             </td>

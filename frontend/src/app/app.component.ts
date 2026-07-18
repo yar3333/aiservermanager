@@ -6,6 +6,7 @@ import { MatCardModule } from "@angular/material/card";
 import { MatInputModule } from "@angular/material/input";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
 import { Gpu, GpuWithUsage, GpuUsage } from "../models/gpu";
 import { GpuService } from "../services/gpu.service";
 import { AuthService } from "../services/auth.service";
@@ -27,6 +28,7 @@ const SPLITTER_MAX = 1600;
     MatInputModule,
     MatFormFieldModule,
     MatButtonModule,
+    MatIconModule,
     GpuTableComponent,
     ServicesComponent,
     JournalPanelComponent,

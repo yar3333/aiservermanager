@@ -1,5 +1,5 @@
 <mat-toolbar color="primary">
-  <span class="material-icons" style="margin-right: 8px">monitoring</span>
+  <mat-icon style="margin-right: 8px">monitoring</mat-icon>
   <span>AI Server Manager</span>
   <span class="spacer"></span>
   @if (isAuthenticated()) {
@@ -12,7 +12,7 @@
     <mat-card class="login-card">
       <mat-card-content>
         <div class="login-header">
-          <span class="material-icons login-icon">lock</span>
+          <mat-icon class="login-icon">lock</mat-icon>
           <h2>Authentication Required</h2>
           <p class="mat-body-2" style="color: #999">Enter your system password to continue</p>
         </div>
@@ -31,7 +31,7 @@
 
           @if (loginError()) {
             <div class="login-error">
-              <span class="material-icons" style="font-size: 20px; vertical-align: middle">warning</span>
+              <mat-icon style="font-size: 20px; vertical-align: middle">warning</mat-icon>
               {{ loginError() }}
             </div>
           }
@@ -51,9 +51,9 @@
       @if (error()) {
         <mat-card class="error-card">
           <mat-card-content>
-            <span class="material-icons" style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
+            <mat-icon style="color: #f44336; font-size: 48px; float: left; margin-right: 16px">
               error_outline
-            </span>
+            </mat-icon>
             <p>{{ error() }}</p>
             <p class="mat-body-2" style="color: #999">Make sure the backend is running on port 4242.</p>
           </mat-card-content>
