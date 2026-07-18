@@ -139,7 +139,7 @@ export class ServicesComponent implements OnInit {
 
   editService(svc: ServiceWithConfig): void {
     this.selectedServiceService.select(svc.name);
-    this.openDialog(svc.config);
+    this.openDialog(svc.config, svc.config?.type);
   }
 
   async deleteService(name: string): Promise<void> {
@@ -200,10 +200,10 @@ export class ServicesComponent implements OnInit {
           // Create or update (no name change)
           await firstValueFrom(this.serviceService.saveConfig(result));
         }
-
-        await this.load();
       } catch (err) {
         this.showError(`Save: ${String(err)}`);
+      } finally {
+        await this.load();
       }
     });
   }

@@ -106,6 +106,7 @@ export default function serviceRoutes(container: Container) {
 
       const cfg: ServiceConfig = {
         name: body.name,
+        type: body.type,
         command: body.command,
         flags: body.flags ?? [],
       };
