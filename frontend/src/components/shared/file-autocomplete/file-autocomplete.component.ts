@@ -29,6 +29,8 @@ export class FileAutocompleteComponent implements ControlValueAccessor {
   @Input() label = "Path";
   @Input() placeholder = "/path/to/file";
   @Input() required = false;
+  /** CSS class to apply to the inner mat-form-field. */
+  @Input() fieldClass = "";
   /** Pre-populated suggestions shown when the input is empty. */
   @Input() existingPaths: string[] = [];
 

@@ -1,4 +1,4 @@
-import { Component, Inject, inject, signal, computed, OnInit, OnDestroy } from "@angular/core";
+import { Component, inject, signal, computed, OnInit, ChangeDetectorRef } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
 import { MatAutocompleteModule } from "@angular/material/autocomplete";
@@ -13,8 +13,8 @@ import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
-import { Subscription, of } from "rxjs";
-import { debounceTime, distinctUntilChanged, switchMap, catchError } from "rxjs/operators";
+import { of, debounceTime, distinctUntilChanged, switchMap, catchError } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 export interface LlamaServerDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -114,6 +114,19 @@ const DEFAULT_OPTIONS = {
   apiKeyFile: "",
 };
 
+/** Return true when the current form value differs from its compiled default. */
+function isChanged(controlName: string, formValue: unknown): boolean {
+  const defaultVal = (DEFAULT_OPTIONS as Record<string, unknown>)[controlName];
+  if (defaultVal === undefined) return false;
+  // Arrays: [].toString() === "", non-empty → non-empty string
+  if (Array.isArray(formValue) || Array.isArray(defaultVal)) {
+    const f = Array.isArray(formValue) ? formValue : [];
+    const d = Array.isArray(defaultVal) ? defaultVal : [];
+    return f.length !== d.length || f.some((v, i) => v !== d[i]);
+  }
+  return String(formValue) !== String(defaultVal);
+}
+
 const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
 
 const KV_CACHE_TYPES = ["f32", "f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl", "q5_0", "q5_1"];
@@ -183,12 +196,12 @@ function flagBool(flags: string[], positive: string, negative: string, fallback:
   templateUrl: "./llama-server-dialog.component.html",
   styleUrls: ["./llama-server-dialog.component.scss"],
 })
-export class LlamaServerDialogComponent implements OnInit, OnDestroy {
+export class LlamaServerDialogComponent implements OnInit {
   private fb = inject(FormBuilder);
   private dialogRef = inject(MatDialogRef<LlamaServerDialogComponent>);
   private data: LlamaServerDialogData = inject(MAT_DIALOG_DATA);
   private serviceService = inject(ServiceService);
-  private subs = new Subscription();
+  private cdr = inject(ChangeDetectorRef);
 
   readonly isEdit = this.data.config !== null;
 
@@ -349,11 +362,15 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     apiKeyFile: [""],
   });
 
-  get nameControl() {
-    return this.form.get("name")!;
+  /** Check whether a form control value differs from its compiled default. */
+  isControlChanged(controlName: string): boolean {
+    const val = this.form.get(controlName)?.value;
+    return val !== undefined && isChanged(controlName, val);
   }
-  get commandControl() {
-    return this.form.get("command")!;
+
+  /** Check whether any of the given controls differs from default (for panel-level highlighting). */
+  isSectionChanged(...controlNames: string[]): boolean {
+    return controlNames.some((name) => this.isControlChanged(name));
   }
 
   // ── Conditional signals ──
@@ -372,7 +389,8 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
   readonly showYarnParams = computed(() => this.ropeScalingValue() === "yarn");
 
   ngOnInit(): void {
-    this.commandControl.valueChanges.subscribe((v) => this._commandValue.set(v as string));
+    this.form.controls.command.valueChanges.pipe(takeUntilDestroyed()).subscribe((v) => this._commandValue.set(v!));
+
     if (this.data.config) {
       this.populateFormFromFlags(this.data.config.flags);
     }
@@ -398,25 +416,24 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     });
 
     // Setup host autocomplete
-    this.subs.add(
-      this.form.controls.host.valueChanges
-        .pipe(
-          debounceTime(250),
-          distinctUntilChanged(),
-          switchMap((value: string | null) => {
-            const query = ((value as string) ?? "").trim();
-            if (!query) return of<AutocompleteSuggestion[]>([]);
-            return this.serviceService
-              .getLlamaAutocomplete("host", query)
-              .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
-          }),
-        )
-        .subscribe((suggestions) => this.filteredHosts.set(suggestions)),
-    );
-  }
 
-  ngOnDestroy(): void {
-    this.subs.unsubscribe();
+    (this.form.controls.host.valueChanges
+      .pipe(
+        takeUntilDestroyed(),
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((value: string | null) => {
+          const query = (value ?? "").trim();
+          if (!query) return of<AutocompleteSuggestion[]>([]);
+          return this.serviceService
+            .getLlamaAutocomplete("host", query)
+            .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
+        }),
+      )
+      .subscribe((suggestions) => this.filteredHosts.set(suggestions)),
+      this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+        this.cdr.markForCheck();
+      }));
   }
 
   private populateFormFromFlags(flags: string[]): void {
@@ -668,9 +685,9 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
     if (this.form.invalid) return;
 
     const cfg: ServiceConfig = {
-      name: (this.nameControl.value as string).trim(),
+      name: this.form.controls.name.value!.trim(),
       type: "llama-server" as ServiceType,
-      command: (this.commandControl.value as string).trim(),
+      command: this.form.controls.command.value!.trim(),
       flags: this.buildFlags(),
     };
 

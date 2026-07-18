@@ -64,3 +64,18 @@ mat-dialog-actions {
   color: rgba(255, 255, 255, 0.4);
   margin-bottom: 4px;
 }
+
+/* ── Non-default highlighting ── */
+
+mat-expansion-panel.has-changed {
+  mat-panel-title {
+    font-weight: 700;
+  }
+}
+
+mat-form-field.changed ::ng-deep {
+  .mat-mdc-form-field-infix input,
+  .mat-mdc-form-field-infix .mat-mdc-select {
+    font-weight: 700;
+  }
+}

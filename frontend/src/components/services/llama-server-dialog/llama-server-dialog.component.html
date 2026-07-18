@@ -3,20 +3,20 @@
 <mat-dialog-content>
   <form [formGroup]="form" class="llama-form">
     <!-- Service identity -->
-    <mat-form-field appearance="outline" class="full-width">
-      <input matInput formControlName="name" placeholder="e.g. qwen3-vulkan" [disabled]="isEdit" />
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
+      <input matInput formControlName="name" placeholder="e.g. llama-qwen3_6-27b-q8" [disabled]="isEdit" />
       <mat-label>Service Name</mat-label>
-      @if (nameControl.errors?.["required"]) {
+      @if (form.controls.name.errors?.["required"]) {
         <mat-error>Required</mat-error>
-      } @else if (nameControl.errors?.["pattern"]) {
+      } @else if (form.controls.name.errors?.["pattern"]) {
         <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
       }
     </mat-form-field>
 
-    <mat-form-field appearance="outline" class="full-width">
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('command')">
       <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/llama-server" />
       <mat-label>Binary Path</mat-label>
-      @if (commandControl.errors?.["required"]) {
+      @if (form.controls.command.errors?.["required"]) {
         <mat-error>Required</mat-error>
       }
     </mat-form-field>
@@ -31,13 +31,30 @@
     </mat-autocomplete>
 
     <!-- ═══════════ Basic Settings ═══════════ -->
-    <mat-expansion-panel expanded>
+    <mat-expansion-panel
+      expanded
+      [class.has-changed]="
+        isSectionChanged(
+          'host',
+          'port',
+          'threads',
+          'parallel',
+          'flashAttn',
+          'fit',
+          'contBatching',
+          'contextShift',
+          'nPredict',
+          'alias',
+          'apiKeyFile'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Basic Settings</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('host')">
           <input
             matInput
             formControlName="host"
@@ -56,11 +73,11 @@
           }
         </mat-autocomplete>
 
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('port')">
           <input matInput formControlName="port" type="number" matTooltip="Port to listen (default: 8080)" />
           <mat-label>Port</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('threads')">
           <input
             matInput
             formControlName="threads"
@@ -69,7 +86,7 @@
           />
           <mat-label>Threads</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('parallel')">
           <input
             matInput
             formControlName="parallel"
@@ -81,7 +98,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('flashAttn')">
           <mat-select
             formControlName="flashAttn"
             matTooltip="Enable Flash Attention for faster inference with lower VRAM usage"
@@ -92,7 +109,7 @@
           </mat-select>
           <mat-label>Flash Attention</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fit')">
           <mat-select
             formControlName="fit"
             matTooltip="Adjust unset arguments to fit in device memory. Helps prevent OOM errors"
@@ -102,7 +119,7 @@
           </mat-select>
           <mat-label>Fit to VRAM</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contBatching')">
           <mat-select
             formControlName="contBatching"
             matTooltip="Enable continuous (dynamic) batching for better throughput with multiple requests"
@@ -112,7 +129,7 @@
           </mat-select>
           <mat-label>Cont. Batching</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contextShift')">
           <mat-select
             formControlName="contextShift"
             matTooltip="Enable context shift on infinite text generation. Shifts context window when full"
@@ -125,7 +142,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nPredict')">
           <input
             matInput
             formControlName="nPredict"
@@ -134,7 +151,7 @@
           />
           <mat-label>Max Tokens (n-predict)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col-60">
+        <mat-form-field appearance="outline" class="form-col-60" [class.changed]="isControlChanged('alias')">
           <input
             matInput
             formControlName="alias"
@@ -150,11 +167,31 @@
         label="API Key File"
         placeholder="/path/to/keys.ini"
         [existingPaths]="existingApiKeyPaths()"
+        [fieldClass]="isControlChanged('apiKeyFile') ? 'changed' : ''"
       />
     </mat-expansion-panel>
 
     <!-- ═══════════ Model & GPU ═══════════ -->
-    <mat-expansion-panel expanded>
+    <mat-expansion-panel
+      expanded
+      [class.has-changed]="
+        isSectionChanged(
+          'model',
+          'mmproj',
+          'nGpuLayers',
+          'device',
+          'tensorSplit',
+          'splitMode',
+          'mainGpu',
+          'fitTarget',
+          'fitCtx',
+          'mlock',
+          'mmap',
+          'cpuMoe',
+          'nCpuMoe'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Model &amp; GPU</mat-panel-title>
       </mat-expansion-panel-header>
@@ -165,9 +202,10 @@
           label="Model Path"
           placeholder="/path/to/model.gguf"
           [existingPaths]="existingModelPaths()"
+          [fieldClass]="isControlChanged('model') ? 'changed' : ''"
           class="form-col-60"
         />
-        <mat-form-field appearance="outline" class="form-col-40">
+        <mat-form-field appearance="outline" class="form-col-40" [class.changed]="isControlChanged('nGpuLayers')">
           <input
             matInput
             formControlName="nGpuLayers"
@@ -183,10 +221,11 @@
         label="MMProj Path"
         placeholder="/path/to/mmproj.gguf (optional)"
         [existingPaths]="existingMmprojPaths()"
+        [fieldClass]="isControlChanged('mmproj') ? 'changed' : ''"
       />
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col-60">
+        <mat-form-field appearance="outline" class="form-col-60" [class.changed]="isControlChanged('device')">
           <mat-select
             formControlName="device"
             multiple
@@ -199,7 +238,7 @@
           </mat-select>
           <mat-label>Device (multi-select)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col-40">
+        <mat-form-field appearance="outline" class="form-col-40" [class.changed]="isControlChanged('tensorSplit')">
           <input
             matInput
             formControlName="tensorSplit"
@@ -212,7 +251,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('splitMode')">
           <mat-select
             formControlName="splitMode"
             matTooltip="How to split model across multiple GPUs. layer=pipelined, row=parallelized, tensor=experimental"
@@ -224,7 +263,7 @@
           </mat-select>
           <mat-label>Split Mode</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mainGpu')">
           <input
             matInput
             formControlName="mainGpu"
@@ -236,7 +275,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fitTarget')">
           <input
             matInput
             formControlName="fitTarget"
@@ -246,7 +285,7 @@
           />
           <mat-label>Fit Target (MiB)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fitCtx')">
           <input
             matInput
             formControlName="fitCtx"
@@ -259,7 +298,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mlock')">
           <mat-select
             formControlName="mlock"
             matTooltip="Force system to keep model in RAM rather than swapping or compressing"
@@ -269,7 +308,7 @@
           </mat-select>
           <mat-label>mlock (pin RAM)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mmap')">
           <mat-select
             formControlName="mmap"
             matTooltip="Memory-map model. If disabled: slower load but may reduce pageouts if not using mlock"
@@ -279,14 +318,14 @@
           </mat-select>
           <mat-label>mmap</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cpuMoe')">
           <mat-select formControlName="cpuMoe" matTooltip="Keep all Mixture of Experts (MoE) weights in CPU memory">
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
           </mat-select>
           <mat-label>CPU MoE</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nCpuMoe')">
           <input
             matInput
             formControlName="nCpuMoe"
@@ -299,13 +338,26 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Context & KV Cache ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'ctxSize',
+          'batchSize',
+          'ubatchSize',
+          'cacheTypeK',
+          'cacheTypeV',
+          'kvOffload',
+          'cacheRam',
+          'swaFull'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Context &amp; KV Cache</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ctxSize')">
           <input
             matInput
             formControlName="ctxSize"
@@ -314,7 +366,7 @@
           />
           <mat-label>Context Size</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('batchSize')">
           <input
             matInput
             formControlName="batchSize"
@@ -323,7 +375,7 @@
           />
           <mat-label>Batch Size</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ubatchSize')">
           <input
             matInput
             formControlName="ubatchSize"
@@ -335,7 +387,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cacheTypeK')">
           <mat-select
             formControlName="cacheTypeK"
             matTooltip="KV cache data type for K. Options: f32, f16, bf16, q8_0, q4_0, q4_1, iq4_nl, q5_0, q5_1"
@@ -346,7 +398,7 @@
           </mat-select>
           <mat-label>KV Cache Type K</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cacheTypeV')">
           <mat-select
             formControlName="cacheTypeV"
             matTooltip="KV cache data type for V. Options: f32, f16, bf16, q8_0, q4_0, q4_1, iq4_nl, q5_0, q5_1"
@@ -357,7 +409,7 @@
           </mat-select>
           <mat-label>KV Cache Type V</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('kvOffload')">
           <mat-select
             formControlName="kvOffload"
             matTooltip="Enable KV cache offloading to GPU. Reduces CPU memory usage"
@@ -370,7 +422,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cacheRam')">
           <input
             matInput
             formControlName="cacheRam"
@@ -379,7 +431,7 @@
           />
           <mat-label>Cache RAM (MiB)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('swaFull')">
           <mat-select
             formControlName="swaFull"
             matTooltip="Use full-size SWA (Sliding Window Attention) cache instead of compressed"
@@ -393,13 +445,27 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ RoPE Scaling ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'ropeScaling',
+          'ropeScale',
+          'ropeFreqBase',
+          'ropeFreqScale',
+          'yarnOrigCtx',
+          'yarnExtFactor',
+          'yarnAttnFactor',
+          'yarnBetaSlow',
+          'yarnBetaFast'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>RoPE Scaling</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeScaling')">
           <mat-select
             formControlName="ropeScaling"
             matTooltip="RoPE frequency scaling method. linear or yarn for extended context"
@@ -410,7 +476,7 @@
           </mat-select>
           <mat-label>Scaling Method</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeScale')">
           <input
             matInput
             formControlName="ropeScale"
@@ -419,7 +485,7 @@
           />
           <mat-label>Scale Factor</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeFreqBase')">
           <input
             matInput
             formControlName="ropeFreqBase"
@@ -428,7 +494,7 @@
           />
           <mat-label>Freq Base</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeFreqScale')">
           <input
             matInput
             formControlName="ropeFreqScale"
@@ -442,7 +508,7 @@
       @if (showYarnParams()) {
         <div class="subsection-label">YaRN Parameters</div>
         <div class="form-row">
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('yarnOrigCtx')">
             <input
               matInput
               formControlName="yarnOrigCtx"
@@ -451,7 +517,7 @@
             />
             <mat-label>YaRN Orig Ctx</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('yarnExtFactor')">
             <input
               matInput
               formControlName="yarnExtFactor"
@@ -460,7 +526,7 @@
             />
             <mat-label>Extrapolation Mix</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('yarnAttnFactor')">
             <input
               matInput
               formControlName="yarnAttnFactor"
@@ -469,7 +535,7 @@
             />
             <mat-label>Attn Factor</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('yarnBetaSlow')">
             <input
               matInput
               formControlName="yarnBetaSlow"
@@ -478,7 +544,7 @@
             />
             <mat-label>Beta Slow</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('yarnBetaFast')">
             <input
               matInput
               formControlName="yarnBetaFast"
@@ -492,7 +558,26 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Sampling Defaults ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'temperature',
+          'seed',
+          'topK',
+          'topP',
+          'minP',
+          'typicalP',
+          'mirostat',
+          'dynatempRange',
+          'repeatLastN',
+          'repeatPenalty',
+          'presencePenalty',
+          'frequencyPenalty',
+          'dryMultiplier',
+          'dryBase'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Sampling Defaults</mat-panel-title>
         <mat-panel-description>Default sampling parameters for generation</mat-panel-description>
@@ -500,7 +585,7 @@
 
       <div class="subsection-label">Core</div>
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('temperature')">
           <input
             matInput
             formControlName="temperature"
@@ -509,7 +594,7 @@
           />
           <mat-label>Temperature</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('seed')">
           <input
             matInput
             formControlName="seed"
@@ -518,7 +603,7 @@
           />
           <mat-label>Seed</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topK')">
           <input
             matInput
             formControlName="topK"
@@ -527,7 +612,7 @@
           />
           <mat-label>Top-K</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topP')">
           <input
             matInput
             formControlName="topP"
@@ -539,7 +624,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('minP')">
           <input
             matInput
             formControlName="minP"
@@ -548,7 +633,7 @@
           />
           <mat-label>Min-P</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('typicalP')">
           <input
             matInput
             formControlName="typicalP"
@@ -557,7 +642,7 @@
           />
           <mat-label>Typical-P</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mirostat')">
           <mat-select
             formControlName="mirostat"
             matTooltip="Mirostat sampling mode. 0=disabled, 1=Mirostat, 2=Mirostat 2.0. Top-K/Nucleus ignored when enabled"
@@ -568,7 +653,7 @@
           </mat-select>
           <mat-label>Mirostat</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('dynatempRange')">
           <input
             matInput
             formControlName="dynatempRange"
@@ -581,7 +666,7 @@
 
       <div class="subsection-label">Penalties</div>
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('repeatLastN')">
           <input
             matInput
             formControlName="repeatLastN"
@@ -590,7 +675,7 @@
           />
           <mat-label>Repeat Last N</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('repeatPenalty')">
           <input
             matInput
             formControlName="repeatPenalty"
@@ -599,7 +684,7 @@
           />
           <mat-label>Repeat Penalty</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('presencePenalty')">
           <input
             matInput
             formControlName="presencePenalty"
@@ -608,7 +693,7 @@
           />
           <mat-label>Presence Penalty</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('frequencyPenalty')">
           <input
             matInput
             formControlName="frequencyPenalty"
@@ -621,7 +706,7 @@
 
       <div class="subsection-label">DRY Sampling</div>
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('dryMultiplier')">
           <input
             matInput
             formControlName="dryMultiplier"
@@ -630,7 +715,7 @@
           />
           <mat-label>DRY Multiplier</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('dryBase')">
           <input matInput formControlName="dryBase" type="number" matTooltip="DRY sampling base value. Default: 1.75" />
           <mat-label>DRY Base</mat-label>
         </mat-form-field>
@@ -638,7 +723,24 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Speculative Decoding ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'modelDraft',
+          'specDraftNMax',
+          'nGpuLayersDraft',
+          'specDraftCacheTypeK',
+          'specDraftCacheTypeV',
+          'specType',
+          'specNgramModNMin',
+          'specNgramModNMax',
+          'specNgramModNMatch',
+          'specNgramSimpleSizeN',
+          'specNgramSimpleSizeM',
+          'specNgramSimpleMinHits'
+        )
+      "
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Speculative Decoding</mat-panel-title>
         <mat-panel-description>Draft model and speculative decoding options</mat-panel-description>
@@ -650,10 +752,11 @@
         label="Draft Model Path"
         placeholder="/path/to/draft-model.gguf"
         [existingPaths]="existingDraftModelPaths()"
+        [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
       />
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftNMax')">
           <input
             matInput
             formControlName="specDraftNMax"
@@ -662,7 +765,7 @@
           />
           <mat-label>Draft N Max</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nGpuLayersDraft')">
           <input
             matInput
             formControlName="nGpuLayersDraft"
@@ -674,7 +777,7 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftCacheTypeK')">
           <mat-select formControlName="specDraftCacheTypeK" matTooltip="KV cache data type for K for the draft model">
             @for (t of kvCacheTypes; track t) {
               <mat-option [value]="t">{{ t }}</mat-option>
@@ -682,7 +785,7 @@
           </mat-select>
           <mat-label>Draft Cache Type K</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftCacheTypeV')">
           <mat-select formControlName="specDraftCacheTypeV" matTooltip="KV cache data type for V for the draft model">
             @for (t of kvCacheTypes; track t) {
               <mat-option [value]="t">{{ t }}</mat-option>
@@ -693,7 +796,7 @@
       </div>
 
       <div class="subsection-label">Spec Type</div>
-      <mat-form-field appearance="outline" class="full-width">
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('specType')">
         <mat-select
           formControlName="specType"
           matTooltip="Type of speculative decoding. draft-* uses draft model, ngram-* uses n-gram lookup"
@@ -712,7 +815,7 @@
         <div class="subsection-label">Ngram Parameters</div>
         <div class="sub-section-hint">Parameters for ngram-mod variant</div>
         <div class="form-row">
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specNgramModNMin')">
             <input
               matInput
               formControlName="specNgramModNMin"
@@ -721,7 +824,7 @@
             />
             <mat-label>Ngram Mod N Min</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specNgramModNMax')">
             <input
               matInput
               formControlName="specNgramModNMax"
@@ -730,7 +833,11 @@
             />
             <mat-label>Ngram Mod N Max</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specNgramModNMatch')"
+          >
             <input
               matInput
               formControlName="specNgramModNMatch"
@@ -742,7 +849,11 @@
         </div>
         <div class="sub-section-hint">Parameters for ngram-simple variant</div>
         <div class="form-row">
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specNgramSimpleSizeN')"
+          >
             <input
               matInput
               formControlName="specNgramSimpleSizeN"
@@ -751,7 +862,11 @@
             />
             <mat-label>Simple Size N</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specNgramSimpleSizeM')"
+          >
             <input
               matInput
               formControlName="specNgramSimpleSizeM"
@@ -760,7 +875,11 @@
             />
             <mat-label>Simple Size M</mat-label>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="form-col">
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specNgramSimpleMinHits')"
+          >
             <input
               matInput
               formControlName="specNgramSimpleMinHits"
@@ -774,7 +893,7 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ LoRA & Adapters ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('lora', 'loraScaled')">
       <mat-expansion-panel-header>
         <mat-panel-title>LoRA &amp; Adapters</mat-panel-title>
       </mat-expansion-panel-header>
@@ -784,9 +903,10 @@
         label="LoRA Adapter Path"
         placeholder="/path/to/lora.gguf (comma-separated for multiple)"
         [existingPaths]="existingLoraPaths()"
+        [fieldClass]="isControlChanged('lora') ? 'changed' : ''"
       />
 
-      <mat-form-field appearance="outline" class="full-width">
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('loraScaled')">
         <input
           matInput
           formControlName="loraScaled"
@@ -798,13 +918,15 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Server Settings ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel
+      [class.has-changed]="isSectionChanged('timeout', 'threadsHttp', 'metrics', 'slots', 'cachePrompt', 'cacheReuse')"
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Server Settings</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('timeout')">
           <input
             matInput
             formControlName="timeout"
@@ -813,7 +935,7 @@
           />
           <mat-label>Timeout (s)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('threadsHttp')">
           <input
             matInput
             formControlName="threadsHttp"
@@ -822,7 +944,7 @@
           />
           <mat-label>HTTP Threads</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cacheReuse')">
           <input
             matInput
             formControlName="cacheReuse"
@@ -834,21 +956,21 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('metrics')">
           <mat-select formControlName="metrics" matTooltip="Enable Prometheus-compatible metrics endpoint at /metrics">
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
           </mat-select>
           <mat-label>Prometheus Metrics</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('slots')">
           <mat-select formControlName="slots" matTooltip="Expose slots monitoring endpoint at /slots">
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
           </mat-select>
           <mat-label>Slots Endpoint</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cachePrompt')">
           <mat-select formControlName="cachePrompt" matTooltip="Enable prompt caching to speed up repeated prompts">
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
@@ -859,14 +981,14 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Reasoning ═══════════ -->
-    <mat-expansion-panel>
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('reasoning', 'reasoningBudget', 'reasoningFormat')">
       <mat-expansion-panel-header>
         <mat-panel-title>Reasoning</mat-panel-title>
         <mat-panel-description>Thinking/reasoning mode settings</mat-panel-description>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoning')">
           <mat-select
             formControlName="reasoning"
             matTooltip="Use reasoning/thinking in chat. auto = detect from template"
@@ -877,7 +999,7 @@
           </mat-select>
           <mat-label>Reasoning</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningBudget')">
           <input
             matInput
             formControlName="reasoningBudget"
@@ -886,11 +1008,12 @@
           />
           <mat-label>Reasoning Budget</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningFormat')">
           <mat-select
             formControlName="reasoningFormat"
             matTooltip="Format for reasoning output. none=raw, deepseek=reasoning_content field, deepseek-legacy=keep think tags"
           >
+            <mat-option value="auto">auto</mat-option>
             <mat-option value="none">none (raw)</mat-option>
             <mat-option value="deepseek">deepseek</mat-option>
             <mat-option value="deepseek-legacy">deepseek-legacy</mat-option>
