@@ -25,12 +25,12 @@ export interface LlamaServerDialogData {
 
 const DEFAULT_OPTIONS = {
   // Basic
-  host: "0.0.0.0",
-  port: 4239,
-  threads: 8,
-  flashAttn: "on",
-  fit: "off",
-  parallel: 2,
+  host: "127.0.0.1",
+  port: 8080,
+  threads: -1,
+  flashAttn: "auto",
+  fit: "on",
+  parallel: -1,
   alias: "",
   nPredict: -1,
   contextShift: "off",
@@ -38,7 +38,7 @@ const DEFAULT_OPTIONS = {
   // GPU & Model
   model: "",
   mmproj: "",
-  nGpuLayers: 999,
+  nGpuLayers: "auto",
   device: [] as string[],
   tensorSplit: "",
   splitMode: "layer",
@@ -50,8 +50,8 @@ const DEFAULT_OPTIONS = {
   cpuMoe: "off",
   nCpuMoe: 0,
   // Context & KV Cache
-  ctxSize: 524288,
-  batchSize: 1024,
+  ctxSize: 0,
+  batchSize: 2048,
   ubatchSize: 512,
   cacheTypeK: "f16",
   cacheTypeV: "f16",
@@ -85,8 +85,8 @@ const DEFAULT_OPTIONS = {
   dynatempRange: 0.0,
   // Speculative
   modelDraft: "",
-  specDraftNMax: 6,
-  nGpuLayersDraft: 999,
+  specDraftNMax: 3,
+  nGpuLayersDraft: "auto",
   specDraftCacheTypeK: "f16",
   specDraftCacheTypeV: "f16",
   specType: "none",
@@ -109,7 +109,7 @@ const DEFAULT_OPTIONS = {
   // Reasoning
   reasoning: "auto",
   reasoningBudget: -1,
-  reasoningFormat: "none",
+  reasoningFormat: "auto",
   // Auth
   apiKeyFile: "",
 };
@@ -399,9 +399,8 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
 
     // Setup host autocomplete
     this.subs.add(
-      this.form
-        .get("host")!
-        .valueChanges.pipe(
+      this.form.controls.host.valueChanges
+        .pipe(
           debounceTime(250),
           distinctUntilChanged(),
           switchMap((value: string | null) => {
@@ -421,21 +420,21 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
   }
 
   private populateFormFromFlags(flags: string[]): void {
-    const f = this.form;
+    const f = this.form.controls;
     // Basic
-    f.get("host")!.setValue(flagValueStr(flags, "--host", DEFAULT_OPTIONS.host));
-    f.get("port")!.setValue(flagValueNum(flags, "--port", DEFAULT_OPTIONS.port));
-    f.get("threads")!.setValue(flagValueNum(flags, "--threads", DEFAULT_OPTIONS.threads));
-    f.get("flashAttn")!.setValue(flagValueStr(flags, "--flash-attn", DEFAULT_OPTIONS.flashAttn));
-    f.get("fit")!.setValue(flagValueStr(flags, "--fit", DEFAULT_OPTIONS.fit));
-    f.get("parallel")!.setValue(flagValueNum(flags, "--parallel", DEFAULT_OPTIONS.parallel));
-    f.get("alias")!.setValue(flagValueStr(flags, "--alias", ""));
-    f.get("nPredict")!.setValue(flagValueNum(flags, "--n-predict", DEFAULT_OPTIONS.nPredict));
-    f.get("contextShift")!.setValue(flagBool(flags, "--context-shift", "--no-context-shift", false) ? "on" : "off");
-    f.get("contBatching")!.setValue(flagBool(flags, "--cont-batching", "--no-cont-batching", true) ? "on" : "off");
+    f.host.setValue(flagValueStr(flags, "--host", DEFAULT_OPTIONS.host));
+    f.port.setValue(flagValueNum(flags, "--port", DEFAULT_OPTIONS.port));
+    f.threads.setValue(flagValueNum(flags, "--threads", DEFAULT_OPTIONS.threads));
+    f.flashAttn.setValue(flagValueStr(flags, "--flash-attn", DEFAULT_OPTIONS.flashAttn));
+    f.fit.setValue(flagValueStr(flags, "--fit", DEFAULT_OPTIONS.fit));
+    f.parallel.setValue(flagValueNum(flags, "--parallel", DEFAULT_OPTIONS.parallel));
+    f.alias.setValue(flagValueStr(flags, "--alias", ""));
+    f.nPredict.setValue(flagValueNum(flags, "--n-predict", DEFAULT_OPTIONS.nPredict));
+    f.contextShift.setValue(flagBool(flags, "--context-shift", "--no-context-shift", false) ? "on" : "off");
+    f.contBatching.setValue(flagBool(flags, "--cont-batching", "--no-cont-batching", true) ? "on" : "off");
     // GPU & Model
     const deviceVal = findFlag(flags, "--device");
-    f.get("device")!.setValue(
+    f.device.setValue(
       deviceVal
         ? deviceVal
             .split(",")
@@ -443,224 +442,226 @@ export class LlamaServerDialogComponent implements OnInit, OnDestroy {
             .filter(Boolean)
         : [],
     );
-    f.get("tensorSplit")!.setValue(flagValueStr(flags, "--tensor-split", ""));
-    f.get("model")!.setValue(flagValueStr(flags, "--model", ""));
-    f.get("mmproj")!.setValue(flagValueStr(flags, "--mmproj", ""));
-    f.get("nGpuLayers")!.setValue(flagValueNum(flags, "--n-gpu-layers", DEFAULT_OPTIONS.nGpuLayers));
-    f.get("splitMode")!.setValue(flagValueStr(flags, "--split-mode", DEFAULT_OPTIONS.splitMode));
-    f.get("mainGpu")!.setValue(flagValueNum(flags, "--main-gpu", DEFAULT_OPTIONS.mainGpu));
-    f.get("fitTarget")!.setValue(flagValueNum(flags, "--fit-target", DEFAULT_OPTIONS.fitTarget));
-    f.get("fitCtx")!.setValue(flagValueNum(flags, "--fit-ctx", DEFAULT_OPTIONS.fitCtx));
-    f.get("mlock")!.setValue(flags.includes("--mlock") ? "on" : "off");
-    f.get("mmap")!.setValue(flagBool(flags, "--mmap", "--no-mmap", true) ? "on" : "off");
-    f.get("cpuMoe")!.setValue(flags.includes("--cpu-moe") ? "on" : "off");
-    f.get("nCpuMoe")!.setValue(flagValueNum(flags, "--n-cpu-moe", 0));
+    f.tensorSplit.setValue(flagValueStr(flags, "--tensor-split", ""));
+    f.model.setValue(flagValueStr(flags, "--model", ""));
+    f.mmproj.setValue(flagValueStr(flags, "--mmproj", ""));
+    f.nGpuLayers.setValue(flagValueStr(flags, "--n-gpu-layers", DEFAULT_OPTIONS.nGpuLayers));
+    f.splitMode.setValue(flagValueStr(flags, "--split-mode", DEFAULT_OPTIONS.splitMode));
+    f.mainGpu.setValue(flagValueNum(flags, "--main-gpu", DEFAULT_OPTIONS.mainGpu));
+    f.fitTarget.setValue(flagValueNum(flags, "--fit-target", DEFAULT_OPTIONS.fitTarget));
+    f.fitCtx.setValue(flagValueNum(flags, "--fit-ctx", DEFAULT_OPTIONS.fitCtx));
+    f.mlock.setValue(flags.includes("--mlock") ? "on" : "off");
+    f.mmap.setValue(flagBool(flags, "--mmap", "--no-mmap", true) ? "on" : "off");
+    f.cpuMoe.setValue(flags.includes("--cpu-moe") ? "on" : "off");
+    f.nCpuMoe.setValue(flagValueNum(flags, "--n-cpu-moe", 0));
     // Context & KV Cache
-    f.get("ctxSize")!.setValue(flagValueNum(flags, "--ctx-size", DEFAULT_OPTIONS.ctxSize));
-    f.get("batchSize")!.setValue(flagValueNum(flags, "--batch-size", DEFAULT_OPTIONS.batchSize));
-    f.get("ubatchSize")!.setValue(flagValueNum(flags, "--ubatch-size", DEFAULT_OPTIONS.ubatchSize));
-    f.get("cacheTypeK")!.setValue(flagValueStr(flags, "--cache-type-k", DEFAULT_OPTIONS.cacheTypeK));
-    f.get("cacheTypeV")!.setValue(flagValueStr(flags, "--cache-type-v", DEFAULT_OPTIONS.cacheTypeV));
-    f.get("kvOffload")!.setValue(flagBool(flags, "--kv-offload", "--no-kv-offload", true) ? "on" : "off");
-    f.get("cacheRam")!.setValue(flagValueNum(flags, "--cache-ram", DEFAULT_OPTIONS.cacheRam));
-    f.get("swaFull")!.setValue(flags.includes("--swa-full") ? "on" : "off");
+    f.ctxSize.setValue(flagValueNum(flags, "--ctx-size", DEFAULT_OPTIONS.ctxSize));
+    f.batchSize.setValue(flagValueNum(flags, "--batch-size", DEFAULT_OPTIONS.batchSize));
+    f.ubatchSize.setValue(flagValueNum(flags, "--ubatch-size", DEFAULT_OPTIONS.ubatchSize));
+    f.cacheTypeK.setValue(flagValueStr(flags, "--cache-type-k", DEFAULT_OPTIONS.cacheTypeK));
+    f.cacheTypeV.setValue(flagValueStr(flags, "--cache-type-v", DEFAULT_OPTIONS.cacheTypeV));
+    f.kvOffload.setValue(flagBool(flags, "--kv-offload", "--no-kv-offload", true) ? "on" : "off");
+    f.cacheRam.setValue(flagValueNum(flags, "--cache-ram", DEFAULT_OPTIONS.cacheRam));
+    f.swaFull.setValue(flags.includes("--swa-full") ? "on" : "off");
     // RoPE
-    f.get("ropeScaling")!.setValue(flagValueStr(flags, "--rope-scaling", DEFAULT_OPTIONS.ropeScaling));
-    f.get("ropeScale")!.setValue(flagValueFloat(flags, "--rope-scale", DEFAULT_OPTIONS.ropeScale));
-    f.get("ropeFreqBase")!.setValue(flagValueFloat(flags, "--rope-freq-base", DEFAULT_OPTIONS.ropeFreqBase));
-    f.get("ropeFreqScale")!.setValue(flagValueFloat(flags, "--rope-freq-scale", DEFAULT_OPTIONS.ropeFreqScale));
-    f.get("yarnOrigCtx")!.setValue(flagValueNum(flags, "--yarn-orig-ctx", DEFAULT_OPTIONS.yarnOrigCtx));
-    f.get("yarnExtFactor")!.setValue(flagValueFloat(flags, "--yarn-ext-factor", DEFAULT_OPTIONS.yarnExtFactor));
-    f.get("yarnAttnFactor")!.setValue(flagValueFloat(flags, "--yarn-attn-factor", DEFAULT_OPTIONS.yarnAttnFactor));
-    f.get("yarnBetaSlow")!.setValue(flagValueFloat(flags, "--yarn-beta-slow", DEFAULT_OPTIONS.yarnBetaSlow));
-    f.get("yarnBetaFast")!.setValue(flagValueFloat(flags, "--yarn-beta-fast", DEFAULT_OPTIONS.yarnBetaFast));
+    f.ropeScaling.setValue(flagValueStr(flags, "--rope-scaling", DEFAULT_OPTIONS.ropeScaling));
+    f.ropeScale.setValue(flagValueFloat(flags, "--rope-scale", DEFAULT_OPTIONS.ropeScale));
+    f.ropeFreqBase.setValue(flagValueFloat(flags, "--rope-freq-base", DEFAULT_OPTIONS.ropeFreqBase));
+    f.ropeFreqScale.setValue(flagValueFloat(flags, "--rope-freq-scale", DEFAULT_OPTIONS.ropeFreqScale));
+    f.yarnOrigCtx.setValue(flagValueNum(flags, "--yarn-orig-ctx", DEFAULT_OPTIONS.yarnOrigCtx));
+    f.yarnExtFactor.setValue(flagValueFloat(flags, "--yarn-ext-factor", DEFAULT_OPTIONS.yarnExtFactor));
+    f.yarnAttnFactor.setValue(flagValueFloat(flags, "--yarn-attn-factor", DEFAULT_OPTIONS.yarnAttnFactor));
+    f.yarnBetaSlow.setValue(flagValueFloat(flags, "--yarn-beta-slow", DEFAULT_OPTIONS.yarnBetaSlow));
+    f.yarnBetaFast.setValue(flagValueFloat(flags, "--yarn-beta-fast", DEFAULT_OPTIONS.yarnBetaFast));
     // Sampling
-    f.get("temperature")!.setValue(flagValueFloat(flags, "--temperature", DEFAULT_OPTIONS.temperature));
-    f.get("seed")!.setValue(flagValueNum(flags, "--seed", DEFAULT_OPTIONS.seed));
-    f.get("topK")!.setValue(flagValueNum(flags, "--top-k", DEFAULT_OPTIONS.topK));
-    f.get("topP")!.setValue(flagValueFloat(flags, "--top-p", DEFAULT_OPTIONS.topP));
-    f.get("minP")!.setValue(flagValueFloat(flags, "--min-p", DEFAULT_OPTIONS.minP));
-    f.get("typicalP")!.setValue(flagValueFloat(flags, "--typical", DEFAULT_OPTIONS.typicalP));
-    f.get("repeatLastN")!.setValue(flagValueNum(flags, "--repeat-last-n", DEFAULT_OPTIONS.repeatLastN));
-    f.get("repeatPenalty")!.setValue(flagValueFloat(flags, "--repeat-penalty", DEFAULT_OPTIONS.repeatPenalty));
-    f.get("presencePenalty")!.setValue(flagValueFloat(flags, "--presence-penalty", DEFAULT_OPTIONS.presencePenalty));
-    f.get("frequencyPenalty")!.setValue(flagValueFloat(flags, "--frequency-penalty", DEFAULT_OPTIONS.frequencyPenalty));
-    f.get("dryMultiplier")!.setValue(flagValueFloat(flags, "--dry-multiplier", DEFAULT_OPTIONS.dryMultiplier));
-    f.get("dryBase")!.setValue(flagValueFloat(flags, "--dry-base", DEFAULT_OPTIONS.dryBase));
-    f.get("mirostat")!.setValue(flagValueNum(flags, "--mirostat", DEFAULT_OPTIONS.mirostat));
-    f.get("dynatempRange")!.setValue(flagValueFloat(flags, "--dynatemp-range", DEFAULT_OPTIONS.dynatempRange));
+    f.temperature.setValue(flagValueFloat(flags, "--temperature", DEFAULT_OPTIONS.temperature));
+    f.seed.setValue(flagValueNum(flags, "--seed", DEFAULT_OPTIONS.seed));
+    f.topK.setValue(flagValueNum(flags, "--top-k", DEFAULT_OPTIONS.topK));
+    f.topP.setValue(flagValueFloat(flags, "--top-p", DEFAULT_OPTIONS.topP));
+    f.minP.setValue(flagValueFloat(flags, "--min-p", DEFAULT_OPTIONS.minP));
+    f.typicalP.setValue(flagValueFloat(flags, "--typical", DEFAULT_OPTIONS.typicalP));
+    f.repeatLastN.setValue(flagValueNum(flags, "--repeat-last-n", DEFAULT_OPTIONS.repeatLastN));
+    f.repeatPenalty.setValue(flagValueFloat(flags, "--repeat-penalty", DEFAULT_OPTIONS.repeatPenalty));
+    f.presencePenalty.setValue(flagValueFloat(flags, "--presence-penalty", DEFAULT_OPTIONS.presencePenalty));
+    f.frequencyPenalty.setValue(flagValueFloat(flags, "--frequency-penalty", DEFAULT_OPTIONS.frequencyPenalty));
+    f.dryMultiplier.setValue(flagValueFloat(flags, "--dry-multiplier", DEFAULT_OPTIONS.dryMultiplier));
+    f.dryBase.setValue(flagValueFloat(flags, "--dry-base", DEFAULT_OPTIONS.dryBase));
+    f.mirostat.setValue(flagValueNum(flags, "--mirostat", DEFAULT_OPTIONS.mirostat));
+    f.dynatempRange.setValue(flagValueFloat(flags, "--dynatemp-range", DEFAULT_OPTIONS.dynatempRange));
     // Speculative
-    f.get("modelDraft")!.setValue(flagValueStr(flags, "--model-draft", ""));
-    f.get("specDraftNMax")!.setValue(flagValueNum(flags, "--spec-draft-n-max", DEFAULT_OPTIONS.specDraftNMax));
-    f.get("nGpuLayersDraft")!.setValue(flagValueNum(flags, "--n-gpu-layers-draft", DEFAULT_OPTIONS.nGpuLayersDraft));
-    f.get("specDraftCacheTypeK")!.setValue(
-      flagValueStr(flags, "--cache-type-k-draft", DEFAULT_OPTIONS.specDraftCacheTypeK),
-    );
-    f.get("specDraftCacheTypeV")!.setValue(
-      flagValueStr(flags, "--cache-type-v-draft", DEFAULT_OPTIONS.specDraftCacheTypeV),
-    );
-    f.get("specType")!.setValue(flagValueStr(flags, "--spec-type", DEFAULT_OPTIONS.specType));
-    f.get("specNgramModNMin")!.setValue(
-      flagValueNum(flags, "--spec-ngram-mod-n-min", DEFAULT_OPTIONS.specNgramModNMin),
-    );
-    f.get("specNgramModNMax")!.setValue(
-      flagValueNum(flags, "--spec-ngram-mod-n-max", DEFAULT_OPTIONS.specNgramModNMax),
-    );
-    f.get("specNgramModNMatch")!.setValue(
-      flagValueNum(flags, "--spec-ngram-mod-n-match", DEFAULT_OPTIONS.specNgramModNMatch),
-    );
-    f.get("specNgramSimpleSizeN")!.setValue(
+    f.modelDraft.setValue(flagValueStr(flags, "--model-draft", ""));
+    f.specDraftNMax.setValue(flagValueNum(flags, "--spec-draft-n-max", DEFAULT_OPTIONS.specDraftNMax));
+    f.nGpuLayersDraft.setValue(flagValueStr(flags, "--n-gpu-layers-draft", DEFAULT_OPTIONS.nGpuLayersDraft));
+    f.specDraftCacheTypeK.setValue(flagValueStr(flags, "--cache-type-k-draft", DEFAULT_OPTIONS.specDraftCacheTypeK));
+    f.specDraftCacheTypeV.setValue(flagValueStr(flags, "--cache-type-v-draft", DEFAULT_OPTIONS.specDraftCacheTypeV));
+    f.specType.setValue(flagValueStr(flags, "--spec-type", DEFAULT_OPTIONS.specType));
+    f.specNgramModNMin.setValue(flagValueNum(flags, "--spec-ngram-mod-n-min", DEFAULT_OPTIONS.specNgramModNMin));
+    f.specNgramModNMax.setValue(flagValueNum(flags, "--spec-ngram-mod-n-max", DEFAULT_OPTIONS.specNgramModNMax));
+    f.specNgramModNMatch.setValue(flagValueNum(flags, "--spec-ngram-mod-n-match", DEFAULT_OPTIONS.specNgramModNMatch));
+    f.specNgramSimpleSizeN.setValue(
       flagValueNum(flags, "--spec-ngram-simple-size-n", DEFAULT_OPTIONS.specNgramSimpleSizeN),
     );
-    f.get("specNgramSimpleSizeM")!.setValue(
+    f.specNgramSimpleSizeM.setValue(
       flagValueNum(flags, "--spec-ngram-simple-size-m", DEFAULT_OPTIONS.specNgramSimpleSizeM),
     );
-    f.get("specNgramSimpleMinHits")!.setValue(
+    f.specNgramSimpleMinHits.setValue(
       flagValueNum(flags, "--spec-ngram-simple-min-hits", DEFAULT_OPTIONS.specNgramSimpleMinHits),
     );
     // LoRA
-    f.get("lora")!.setValue(flagValueStr(flags, "--lora", ""));
-    f.get("loraScaled")!.setValue(flagValueStr(flags, "--lora-scaled", ""));
+    f.lora.setValue(flagValueStr(flags, "--lora", ""));
+    f.loraScaled.setValue(flagValueStr(flags, "--lora-scaled", ""));
     // Server
-    f.get("timeout")!.setValue(flagValueNum(flags, "--timeout", DEFAULT_OPTIONS.timeout));
-    f.get("threadsHttp")!.setValue(flagValueNum(flags, "--threads-http", DEFAULT_OPTIONS.threadsHttp));
-    f.get("metrics")!.setValue(flags.includes("--metrics") ? "on" : "off");
-    f.get("slots")!.setValue(flagBool(flags, "--slots", "--no-slots", true) ? "on" : "off");
-    f.get("cachePrompt")!.setValue(flagBool(flags, "--cache-prompt", "--no-cache-prompt", true) ? "on" : "off");
-    f.get("cacheReuse")!.setValue(flagValueNum(flags, "--cache-reuse", DEFAULT_OPTIONS.cacheReuse));
+    f.timeout.setValue(flagValueNum(flags, "--timeout", DEFAULT_OPTIONS.timeout));
+    f.threadsHttp.setValue(flagValueNum(flags, "--threads-http", DEFAULT_OPTIONS.threadsHttp));
+    f.metrics.setValue(flags.includes("--metrics") ? "on" : "off");
+    f.slots.setValue(flagBool(flags, "--slots", "--no-slots", true) ? "on" : "off");
+    f.cachePrompt.setValue(flagBool(flags, "--cache-prompt", "--no-cache-prompt", true) ? "on" : "off");
+    f.cacheReuse.setValue(flagValueNum(flags, "--cache-reuse", DEFAULT_OPTIONS.cacheReuse));
     // Reasoning
-    f.get("reasoning")!.setValue(flagValueStr(flags, "--reasoning", DEFAULT_OPTIONS.reasoning));
-    f.get("reasoningBudget")!.setValue(flagValueNum(flags, "--reasoning-budget", DEFAULT_OPTIONS.reasoningBudget));
-    f.get("reasoningFormat")!.setValue(flagValueStr(flags, "--reasoning-format", DEFAULT_OPTIONS.reasoningFormat));
+    f.reasoning.setValue(flagValueStr(flags, "--reasoning", DEFAULT_OPTIONS.reasoning));
+    f.reasoningBudget.setValue(flagValueNum(flags, "--reasoning-budget", DEFAULT_OPTIONS.reasoningBudget));
+    f.reasoningFormat.setValue(flagValueStr(flags, "--reasoning-format", DEFAULT_OPTIONS.reasoningFormat));
     // Auth
-    f.get("apiKeyFile")!.setValue(flagValueStr(flags, "--api-key-file", ""));
+    f.apiKeyFile.setValue(flagValueStr(flags, "--api-key-file", ""));
   }
 
+  /** Add flag only if value differs from default. Compares as strings for uniformity. */
+  private addIf(flag: string, value: unknown, defaultVal: string | number): void {
+    if (String(value) !== String(defaultVal)) {
+      this._flags!.push(`${flag} ${value}`);
+    }
+  }
+
+  /** Add flag only if value differs from default. For toggles: writes positive or negative flag. */
+  private addToggle(value: string, positive: string, negative: string, defaultOn: boolean): void {
+    const isOn = value === "on";
+    if (isOn !== defaultOn) {
+      this._flags!.push(isOn ? positive : negative);
+    }
+  }
+
+  private _flags: string[] | null = null;
+
   buildFlags(): string[] {
-    const flags: string[] = [];
-    const f = this.form;
-    const add = (flag: string, value: string | number | null | undefined) => {
-      if (value !== null && value !== undefined && value !== "") {
-        flags.push(`${flag} ${value}`);
-      }
-    };
-    const addBool = (value: string, positive: string, negative: string, defaultOn: boolean) => {
-      const isOn = value === "on";
-      if (isOn !== defaultOn) {
-        flags.push(isOn ? positive : negative);
-      }
-    };
+    this._flags = [];
+    const c = this.form.controls;
 
     // Basic
-    add("--host", f.get("host")!.value);
-    add("--port", f.get("port")!.value);
-    add("--threads", f.get("threads")!.value);
-    add("--flash-attn", f.get("flashAttn")!.value);
-    add("--fit", f.get("fit")!.value);
-    add("--parallel", f.get("parallel")!.value);
-    add("--alias", f.get("alias")!.value);
-    add("--n-predict", f.get("nPredict")!.value);
-    addBool(f.get("contextShift")!.value as string, "--context-shift", "--no-context-shift", false);
-    addBool(f.get("contBatching")!.value as string, "--cont-batching", "--no-cont-batching", true);
+    this.addIf("--host", c.host.value, DEFAULT_OPTIONS.host);
+    this.addIf("--port", c.port.value, DEFAULT_OPTIONS.port);
+    this.addIf("--threads", c.threads.value, DEFAULT_OPTIONS.threads);
+    this.addIf("--flash-attn", c.flashAttn.value, DEFAULT_OPTIONS.flashAttn);
+    this.addIf("--fit", c.fit.value, DEFAULT_OPTIONS.fit);
+    this.addIf("--parallel", c.parallel.value, DEFAULT_OPTIONS.parallel);
+    this.addIf("--alias", c.alias.value, DEFAULT_OPTIONS.alias);
+    this.addIf("--n-predict", c.nPredict.value, DEFAULT_OPTIONS.nPredict);
+    this.addToggle(c.contextShift.value as string, "--context-shift", "--no-context-shift", false);
+    this.addToggle(c.contBatching.value as string, "--cont-batching", "--no-cont-batching", true);
 
     // GPU & Model
-    const deviceArr = f.get("device")!.value as string[];
+    const deviceArr = c.device.value as string[];
     if (deviceArr && deviceArr.length > 0) {
-      flags.push(`--device ${deviceArr.join(",")}`);
+      this._flags.push(`--device ${deviceArr.join(",")}`);
     }
-    add("--tensor-split", f.get("tensorSplit")!.value);
-    add("--model", f.get("model")!.value);
-    add("--mmproj", f.get("mmproj")!.value);
-    add("--n-gpu-layers", f.get("nGpuLayers")!.value);
-    add("--split-mode", f.get("splitMode")!.value);
-    add("--main-gpu", f.get("mainGpu")!.value);
-    add("--fit-target", f.get("fitTarget")!.value);
-    add("--fit-ctx", f.get("fitCtx")!.value);
-    if (f.get("mlock")!.value === "on") flags.push("--mlock");
-    addBool(f.get("mmap")!.value as string, "--mmap", "--no-mmap", true);
-    if (f.get("cpuMoe")!.value === "on") flags.push("--cpu-moe");
-    add("--n-cpu-moe", f.get("nCpuMoe")!.value);
+    this.addIf("--tensor-split", c.tensorSplit.value, DEFAULT_OPTIONS.tensorSplit);
+    this.addIf("--model", c.model.value, DEFAULT_OPTIONS.model);
+    this.addIf("--mmproj", c.mmproj.value, DEFAULT_OPTIONS.mmproj);
+    this.addIf("--n-gpu-layers", c.nGpuLayers.value, DEFAULT_OPTIONS.nGpuLayers);
+    this.addIf("--split-mode", c.splitMode.value, DEFAULT_OPTIONS.splitMode);
+    this.addIf("--main-gpu", c.mainGpu.value, DEFAULT_OPTIONS.mainGpu);
+    this.addIf("--fit-target", c.fitTarget.value, DEFAULT_OPTIONS.fitTarget);
+    this.addIf("--fit-ctx", c.fitCtx.value, DEFAULT_OPTIONS.fitCtx);
+    if (c.mlock.value === "on") this._flags.push("--mlock");
+    this.addToggle(c.mmap.value as string, "--mmap", "--no-mmap", true);
+    if (c.cpuMoe.value === "on") this._flags.push("--cpu-moe");
+    this.addIf("--n-cpu-moe", c.nCpuMoe.value, DEFAULT_OPTIONS.nCpuMoe);
 
     // Context & KV Cache
-    add("--ctx-size", f.get("ctxSize")!.value);
-    add("--batch-size", f.get("batchSize")!.value);
-    add("--ubatch-size", f.get("ubatchSize")!.value);
-    add("--cache-type-k", f.get("cacheTypeK")!.value);
-    add("--cache-type-v", f.get("cacheTypeV")!.value);
-    addBool(f.get("kvOffload")!.value as string, "--kv-offload", "--no-kv-offload", true);
-    add("--cache-ram", f.get("cacheRam")!.value);
-    if (f.get("swaFull")!.value === "on") flags.push("--swa-full");
+    this.addIf("--ctx-size", c.ctxSize.value, DEFAULT_OPTIONS.ctxSize);
+    this.addIf("--batch-size", c.batchSize.value, DEFAULT_OPTIONS.batchSize);
+    this.addIf("--ubatch-size", c.ubatchSize.value, DEFAULT_OPTIONS.ubatchSize);
+    this.addIf("--cache-type-k", c.cacheTypeK.value, DEFAULT_OPTIONS.cacheTypeK);
+    this.addIf("--cache-type-v", c.cacheTypeV.value, DEFAULT_OPTIONS.cacheTypeV);
+    this.addToggle(c.kvOffload.value as string, "--kv-offload", "--no-kv-offload", true);
+    this.addIf("--cache-ram", c.cacheRam.value, DEFAULT_OPTIONS.cacheRam);
+    if (c.swaFull.value === "on") this._flags.push("--swa-full");
 
     // RoPE
-    const ropeScaling = f.get("ropeScaling")!.value;
-    if (ropeScaling && ropeScaling !== "none") {
-      add("--rope-scaling", ropeScaling);
-      add("--rope-scale", f.get("ropeScale")!.value);
-      add("--rope-freq-base", f.get("ropeFreqBase")!.value);
-      add("--rope-freq-scale", f.get("ropeFreqScale")!.value);
+    const ropeScaling = c.ropeScaling.value as string;
+    if (ropeScaling && ropeScaling !== DEFAULT_OPTIONS.ropeScaling) {
+      this._flags.push(`--rope-scaling ${ropeScaling}`);
+      this.addIf("--rope-scale", c.ropeScale.value, DEFAULT_OPTIONS.ropeScale);
+      this.addIf("--rope-freq-base", c.ropeFreqBase.value, DEFAULT_OPTIONS.ropeFreqBase);
+      this.addIf("--rope-freq-scale", c.ropeFreqScale.value, DEFAULT_OPTIONS.ropeFreqScale);
       if (ropeScaling === "yarn") {
-        add("--yarn-orig-ctx", f.get("yarnOrigCtx")!.value);
-        add("--yarn-ext-factor", f.get("yarnExtFactor")!.value);
-        add("--yarn-attn-factor", f.get("yarnAttnFactor")!.value);
-        add("--yarn-beta-slow", f.get("yarnBetaSlow")!.value);
-        add("--yarn-beta-fast", f.get("yarnBetaFast")!.value);
+        this.addIf("--yarn-orig-ctx", c.yarnOrigCtx.value, DEFAULT_OPTIONS.yarnOrigCtx);
+        this.addIf("--yarn-ext-factor", c.yarnExtFactor.value, DEFAULT_OPTIONS.yarnExtFactor);
+        this.addIf("--yarn-attn-factor", c.yarnAttnFactor.value, DEFAULT_OPTIONS.yarnAttnFactor);
+        this.addIf("--yarn-beta-slow", c.yarnBetaSlow.value, DEFAULT_OPTIONS.yarnBetaSlow);
+        this.addIf("--yarn-beta-fast", c.yarnBetaFast.value, DEFAULT_OPTIONS.yarnBetaFast);
       }
     }
 
     // Sampling
-    add("--temperature", f.get("temperature")!.value);
-    add("--seed", f.get("seed")!.value);
-    add("--top-k", f.get("topK")!.value);
-    add("--top-p", f.get("topP")!.value);
-    add("--min-p", f.get("minP")!.value);
-    add("--typical", f.get("typicalP")!.value);
-    add("--repeat-last-n", f.get("repeatLastN")!.value);
-    add("--repeat-penalty", f.get("repeatPenalty")!.value);
-    add("--presence-penalty", f.get("presencePenalty")!.value);
-    add("--frequency-penalty", f.get("frequencyPenalty")!.value);
-    add("--dry-multiplier", f.get("dryMultiplier")!.value);
-    add("--dry-base", f.get("dryBase")!.value);
-    add("--mirostat", f.get("mirostat")!.value);
-    add("--dynatemp-range", f.get("dynatempRange")!.value);
+    this.addIf("--temperature", c.temperature.value, DEFAULT_OPTIONS.temperature);
+    this.addIf("--seed", c.seed.value, DEFAULT_OPTIONS.seed);
+    this.addIf("--top-k", c.topK.value, DEFAULT_OPTIONS.topK);
+    this.addIf("--top-p", c.topP.value, DEFAULT_OPTIONS.topP);
+    this.addIf("--min-p", c.minP.value, DEFAULT_OPTIONS.minP);
+    this.addIf("--typical", c.typicalP.value, DEFAULT_OPTIONS.typicalP);
+    this.addIf("--repeat-last-n", c.repeatLastN.value, DEFAULT_OPTIONS.repeatLastN);
+    this.addIf("--repeat-penalty", c.repeatPenalty.value, DEFAULT_OPTIONS.repeatPenalty);
+    this.addIf("--presence-penalty", c.presencePenalty.value, DEFAULT_OPTIONS.presencePenalty);
+    this.addIf("--frequency-penalty", c.frequencyPenalty.value, DEFAULT_OPTIONS.frequencyPenalty);
+    this.addIf("--dry-multiplier", c.dryMultiplier.value, DEFAULT_OPTIONS.dryMultiplier);
+    this.addIf("--dry-base", c.dryBase.value, DEFAULT_OPTIONS.dryBase);
+    this.addIf("--mirostat", c.mirostat.value, DEFAULT_OPTIONS.mirostat);
+    this.addIf("--dynatemp-range", c.dynatempRange.value, DEFAULT_OPTIONS.dynatempRange);
 
     // Speculative
-    add("--model-draft", f.get("modelDraft")!.value);
-    add("--spec-draft-n-max", f.get("specDraftNMax")!.value);
-    add("--n-gpu-layers-draft", f.get("nGpuLayersDraft")!.value);
-    add("--cache-type-k-draft", f.get("specDraftCacheTypeK")!.value);
-    add("--cache-type-v-draft", f.get("specDraftCacheTypeV")!.value);
-    add("--spec-type", f.get("specType")!.value);
-    const specType = f.get("specType")!.value as string;
+    this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
+    this.addIf("--spec-draft-n-max", c.specDraftNMax.value, DEFAULT_OPTIONS.specDraftNMax);
+    this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
+    this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
+    this.addIf("--cache-type-v-draft", c.specDraftCacheTypeV.value, DEFAULT_OPTIONS.specDraftCacheTypeV);
+    this.addIf("--spec-type", c.specType.value, DEFAULT_OPTIONS.specType);
+    const specType = c.specType.value as string;
     if (specType?.includes("ngram")) {
-      add("--spec-ngram-mod-n-min", f.get("specNgramModNMin")!.value);
-      add("--spec-ngram-mod-n-max", f.get("specNgramModNMax")!.value);
-      add("--spec-ngram-mod-n-match", f.get("specNgramModNMatch")!.value);
-      add("--spec-ngram-simple-size-n", f.get("specNgramSimpleSizeN")!.value);
-      add("--spec-ngram-simple-size-m", f.get("specNgramSimpleSizeM")!.value);
-      add("--spec-ngram-simple-min-hits", f.get("specNgramSimpleMinHits")!.value);
+      this.addIf("--spec-ngram-mod-n-min", c.specNgramModNMin.value, DEFAULT_OPTIONS.specNgramModNMin);
+      this.addIf("--spec-ngram-mod-n-max", c.specNgramModNMax.value, DEFAULT_OPTIONS.specNgramModNMax);
+      this.addIf("--spec-ngram-mod-n-match", c.specNgramModNMatch.value, DEFAULT_OPTIONS.specNgramModNMatch);
+      this.addIf("--spec-ngram-simple-size-n", c.specNgramSimpleSizeN.value, DEFAULT_OPTIONS.specNgramSimpleSizeN);
+      this.addIf("--spec-ngram-simple-size-m", c.specNgramSimpleSizeM.value, DEFAULT_OPTIONS.specNgramSimpleSizeM);
+      this.addIf(
+        "--spec-ngram-simple-min-hits",
+        c.specNgramSimpleMinHits.value,
+        DEFAULT_OPTIONS.specNgramSimpleMinHits,
+      );
     }
 
     // LoRA
-    add("--lora", f.get("lora")!.value);
-    add("--lora-scaled", f.get("loraScaled")!.value);
+    this.addIf("--lora", c.lora.value, DEFAULT_OPTIONS.lora);
+    this.addIf("--lora-scaled", c.loraScaled.value, DEFAULT_OPTIONS.loraScaled);
 
     // Server
-    add("--timeout", f.get("timeout")!.value);
-    add("--threads-http", f.get("threadsHttp")!.value);
-    if (f.get("metrics")!.value === "on") flags.push("--metrics");
-    addBool(f.get("slots")!.value as string, "--slots", "--no-slots", true);
-    addBool(f.get("cachePrompt")!.value as string, "--cache-prompt", "--no-cache-prompt", true);
-    add("--cache-reuse", f.get("cacheReuse")!.value);
+    this.addIf("--timeout", c.timeout.value, DEFAULT_OPTIONS.timeout);
+    this.addIf("--threads-http", c.threadsHttp.value, DEFAULT_OPTIONS.threadsHttp);
+    if (c.metrics.value === "on") this._flags.push("--metrics");
+    this.addToggle(c.slots.value as string, "--slots", "--no-slots", true);
+    this.addToggle(c.cachePrompt.value as string, "--cache-prompt", "--no-cache-prompt", true);
+    this.addIf("--cache-reuse", c.cacheReuse.value, DEFAULT_OPTIONS.cacheReuse);
 
     // Reasoning
-    add("--reasoning", f.get("reasoning")!.value);
-    add("--reasoning-budget", f.get("reasoningBudget")!.value);
-    add("--reasoning-format", f.get("reasoningFormat")!.value);
+    this.addIf("--reasoning", c.reasoning.value, DEFAULT_OPTIONS.reasoning);
+    this.addIf("--reasoning-budget", c.reasoningBudget.value, DEFAULT_OPTIONS.reasoningBudget);
+    this.addIf("--reasoning-format", c.reasoningFormat.value, DEFAULT_OPTIONS.reasoningFormat);
 
     // Auth
-    add("--api-key-file", f.get("apiKeyFile")!.value);
+    this.addIf("--api-key-file", c.apiKeyFile.value, DEFAULT_OPTIONS.apiKeyFile);
 
-    return flags;
+    const result = this._flags;
+    this._flags = null;
+    return result;
   }
 
   save(): void {
