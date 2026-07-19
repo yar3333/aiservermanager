@@ -139,10 +139,8 @@ export class WindowsServiceController implements ServiceController {
     return status;
   }
 
-  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
+  async install(name: string, execStart: string): Promise<ServiceStatus> {
     const SC = WindowsServiceController.SC;
-
-    // sc.exe create requires Administrator — check upfront
     const isAdmin = await this.checkIsAdmin();
     if (!isAdmin) {
       return {
@@ -154,15 +152,15 @@ export class WindowsServiceController implements ServiceController {
       };
     }
 
-    // sc.exe create with auto start — install + enable in one step
+    // sc.exe create with demand start (disabled) — install only, no auto-start
     const createResult: ExecResultWithCode = await ExecTools.safeExecWithCode(
-      `${SC} create "${name}" binPath= "${execStart}" start= auto`,
+      `${SC} create "${name}" binPath= "${execStart}" start= demand`,
     );
 
     if (createResult.exitCode !== 0) {
-      // Service may already exist — try sc.exe config to update and enable
+      // Service may already exist — try sc.exe config to update
       const configResult: ExecResultWithCode = await ExecTools.safeExecWithCode(
-        `${SC} config "${name}" binPath= "${execStart}" start= auto`,
+        `${SC} config "${name}" binPath= "${execStart}" start= demand`,
       );
 
       if (configResult.exitCode !== 0) {
@@ -175,6 +173,27 @@ export class WindowsServiceController implements ServiceController {
         };
       }
       return this.getStatus(name);
+    }
+
+    return this.getStatus(name);
+  }
+
+  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart);
+    if (status.error) return status;
+
+    // Enable (set to auto start)
+    const enableResult: ExecResultWithCode = await ExecTools.safeExecWithCode(
+      `${WindowsServiceController.SC} config "${name}" start= auto`,
+    );
+    if (enableResult.exitCode !== 0) {
+      return {
+        name,
+        running: false,
+        enabled: false,
+        installed: true,
+        error: `sc.exe config start=auto failed: ${enableResult.stderr.trim()}`,
+      };
     }
 
     return this.getStatus(name);

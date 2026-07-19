@@ -20,6 +20,12 @@ export interface ServiceController {
   perform(name: string, action: ServiceAction): Promise<ServiceStatus>;
 
   /**
+   * Install a custom service unit file and reload the daemon.
+   * Does NOT enable (auto-start). Returns the post-action status on success.
+   */
+  install(name: string, execStart: string): Promise<ServiceStatus>;
+
+  /**
    * Install a custom service from its config, then enable it (auto-start).
    * Returns the post-action status on success.
    */

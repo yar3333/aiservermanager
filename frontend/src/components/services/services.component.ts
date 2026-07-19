@@ -185,12 +185,18 @@ export class ServicesComponent implements OnInit {
           // Capture old service state before destruction
           const oldService = this.unified().find((s) => s.name === oldName);
           const wasRunning = oldService?.running ?? false;
+          const wasEnabled = oldService?.enabled ?? false;
 
           // Delete old service (stops + uninstalls + removes config)
           await firstValueFrom(this.serviceService.deleteConfig(oldName!));
 
           // Create new service with new name
           await firstValueFrom(this.serviceService.saveConfig(result));
+
+          // Restore enabled state
+          if (wasEnabled) {
+            await firstValueFrom(this.serviceService.control(result.name, "enable"));
+          }
 
           // Restore running state
           if (wasRunning) {

@@ -37,6 +37,7 @@ export class ServiceConfigController {
   /**
    * Create or update a service config and its OS service.
    * No name change — that logic lives on the frontend (delete → create).
+   * Preserves the enabled state when updating an existing service.
    * @returns { ok, config?, error? }
    */
   async createOrUpdate(cfg: ServiceConfig): Promise<{ ok: boolean; config?: ServiceConfig; error?: string }> {
@@ -56,14 +57,28 @@ export class ServiceConfigController {
     // Save config file
     this.configManager.save(cfg);
 
-    // Install/update OS service
+    // Install/update OS service (without changing enabled state)
     const controller = await this.getActiveController();
     if (controller) {
       const execStart = buildExecStart(cfg);
-      const result = await controller.installAndEnable(cfg.name, execStart);
+
+      // Check if service was already installed — preserve its enabled state
+      const priorStatus = await controller.getStatus(cfg.name);
+      const wasInstalled = priorStatus.installed;
+      const wasEnabled = wasInstalled && priorStatus.enabled;
+
+      const result = await controller.install(cfg.name, execStart);
       if (result.error) {
         // Config was saved but service install failed — keep config for retry
         return { ok: false, error: result.error };
+      }
+
+      // Re-enable only if the service was already installed and enabled
+      if (wasInstalled && wasEnabled) {
+        const enableResult = await controller.perform(cfg.name, "enable");
+        if (enableResult.error) {
+          return { ok: false, error: enableResult.error };
+        }
       }
     }
 

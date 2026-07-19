@@ -68,7 +68,7 @@ export class SystemctlController implements ServiceController {
     const enableStdout = enableResult.stdout.trim();
 
     const running = activeStdout === "active";
-    const enabled = ["enabled", "static"].includes(enableStdout);
+    const enabled = enableStdout === "enabled";
 
     // Capture systemd "failed" state as an error the user can see
     let error: string | undefined;
@@ -113,14 +113,11 @@ export class SystemctlController implements ServiceController {
     return status;
   }
 
-  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
-    // Verify privileges first
-    const sudo = "sudo ";
-
-    // Write unit file to /etc/systemd/system/
-    const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
-
-    const unitContent = `[Unit]
+  /**
+   * Build the systemd unit file content for a custom service.
+   */
+  private buildUnitContent(name: string, execStart: string): string {
+    return `[Unit]
 Description=ai server manager service (${name})
 After=network.target
 
@@ -133,10 +130,18 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 `;
+  }
+
+  /**
+   * Write the unit file and reload the daemon. Does NOT enable.
+   */
+  async install(name: string, execStart: string): Promise<ServiceStatus> {
+    const sudo = "sudo ";
+    const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
+    const unitContent = this.buildUnitContent(name, execStart);
 
     try {
       if (this.hasCustomConfig(name)) {
-        // Need sudo to write to /etc/systemd/system/
         const writeResult = await ExecTools.safeExecWithCode(
           `echo '${unitContent.replace(/'/g, "'\"'\"'")}' | sudo tee ${unitPath} > /dev/null`,
         );
@@ -162,7 +167,6 @@ WantedBy=multi-user.target
       };
     }
 
-    // Reload systemd daemon
     const reloadResult = await ExecTools.safeExecWithCode(`${sudo}systemctl daemon-reload`);
     if (reloadResult.exitCode !== 0) {
       return {
@@ -174,8 +178,14 @@ WantedBy=multi-user.target
       };
     }
 
-    // Enable the service (auto-start)
-    const enableResult = await ExecTools.safeExecWithCode(`${sudo}systemctl enable ${name}`);
+    return this.getStatus(name);
+  }
+
+  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart);
+    if (status.error) return status;
+
+    const enableResult = await ExecTools.safeExecWithCode(`sudo systemctl enable ${name}`);
     if (enableResult.exitCode !== 0) {
       return {
         name,

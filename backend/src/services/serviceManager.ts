@@ -78,7 +78,7 @@ export class ServiceManager {
         if (!cfg) return;
 
         const execStart = buildExecStart(cfg);
-        const result = await controller.installAndEnable(status.name, execStart);
+        const result = await controller.install(status.name, execStart);
 
         // If install failed, cache the error
         if (result.error) {
@@ -148,26 +148,6 @@ export class ServiceManager {
 
     const status = await controller.perform(name, action);
     return { ...def, ...status };
-  }
-
-  /**
-   * Install a custom service from its config, then enable it.
-   * Only works for services that have a config but are not yet installed.
-   */
-  async installAndEnable(name: string): Promise<ServiceStatus> {
-    const cfg = this.configManager.get(name);
-    if (!cfg) {
-      throw new Error(`Config "${name}" not found — cannot install without config`);
-    }
-
-    const controller = await this.getActiveController();
-    if (!controller) {
-      throw new Error("No service controller available on this platform");
-    }
-
-    const execStart = buildExecStart(cfg);
-    const status = await controller.installAndEnable(name, execStart);
-    return status;
   }
 
   async getJournal(name: string, count: number = 100): Promise<JournalLine[] | { error: string }> {
