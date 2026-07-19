@@ -204,11 +204,12 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** Llama autocomplete suggestions: GET /llama/autocomplete?type=binary&query=xxx */
+  /** Llama autocomplete suggestions: GET /llama/autocomplete?type=binary&query=xxx&binary=/path/to/llama-server */
   router.get("/llama/autocomplete", async (req: Request, res: Response) => {
     try {
       const type = req.query.type as string;
       const query = (req.query.query as string) ?? "";
+      const binary = (req.query.binary as string) ?? "";
 
       const validTypes = ["binary", "model", "mmproj", "apikey", "host", "device", "path"];
       if (!type || !validTypes.includes(type)) {
@@ -229,7 +230,7 @@ export default function serviceRoutes(container: Container) {
         // GPU service not available — device suggestions will be empty
       }
 
-      const suggestions = await acas.getSuggestions(type as AutocompleteType, query, allConfigs);
+      const suggestions = await acas.getSuggestions(type as AutocompleteType, query, allConfigs, binary);
       res.json(suggestions);
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });

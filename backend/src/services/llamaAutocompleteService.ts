@@ -1,6 +1,7 @@
 import { readdir, stat } from "fs/promises";
 import { join, dirname, sep } from "path";
 import { GpuService } from "./gpuService";
+import { ExecTools } from "../helpers/ExecTools";
 
 /** One autocomplete suggestion entry. */
 export interface AutocompleteSuggestion {
@@ -157,6 +158,26 @@ function getDeviceNamesFromGpu(gpuService: GpuService | null): string[] {
   return devices;
 }
 
+/**
+ * Run `<binary> --list-devices` and parse device names from output.
+ * Format: "  Vulkan0: AMD Radeon RX 7900 XTX (24560 MiB, ...)"
+ */
+async function listDevicesFromBinary(binary: string): Promise<string[]> {
+  if (!binary) return [];
+  const result = await ExecTools.safeExec(`"${binary}" --list-devices 2>&1`, { timeout: 5000 });
+  if (result.stderr && !result.stdout) return [];
+
+  const devices: string[] = [];
+  const lines = result.stdout.split("\n");
+  for (const line of lines) {
+    const match = line.match(/^\s+(\w+):/);
+    if (match) {
+      devices.push(match[1]);
+    }
+  }
+  return devices;
+}
+
 export class LlamaAutocompleteService {
   private gpuService: GpuService | null = null;
 
@@ -171,6 +192,7 @@ export class LlamaAutocompleteService {
     type: AutocompleteType,
     query: string,
     allConfigs: { command?: string; flags?: string[] }[],
+    binary?: string,
   ): Promise<AutocompleteSuggestion[]> {
     const trimmed = query.trim();
     const lowerQuery = trimmed.toLowerCase();
@@ -208,10 +230,10 @@ export class LlamaAutocompleteService {
           }));
 
       case "device":
-        const devices = getDeviceNamesFromGpu(this.gpuService);
+        const devices = binary ? await listDevicesFromBinary(binary) : getDeviceNamesFromGpu(this.gpuService);
         return devices
           .filter((d) => !trimmed || d.toLowerCase().includes(lowerQuery))
-          .map((d) => ({ path: d, source: "GPU device" }));
+          .map((d) => ({ path: d, source: binary ? "llama-server" : "GPU device" }));
 
       default:
         return [];

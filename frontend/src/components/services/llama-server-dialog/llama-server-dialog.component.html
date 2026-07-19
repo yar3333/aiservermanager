@@ -232,8 +232,8 @@
             placeholder="Select GPU devices"
             matTooltip="Comma-separated list of devices for offloading. Use --list-devices to see available"
           >
-            @for (dev of availableDevices(); track dev) {
-              <mat-option [value]="dev">{{ dev }}</mat-option>
+            @for (dev of availableDevices(); track dev.path) {
+              <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
             }
           </mat-select>
           <mat-label>Device (multi-select)</mat-label>

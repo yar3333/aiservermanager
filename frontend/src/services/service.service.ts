@@ -72,9 +72,9 @@ export class ServiceService {
   }
 
   /** Get autocomplete suggestions for llama-server dialog fields. */
-  getLlamaAutocomplete(type: AutocompleteType, query: string): Observable<AutocompleteSuggestion[]> {
-    return this.http.get<AutocompleteSuggestion[]>(`${this.url}/llama/autocomplete`, {
-      params: { type, query },
-    });
+  getLlamaAutocomplete(type: AutocompleteType, query: string, binary?: string): Observable<AutocompleteSuggestion[]> {
+    const params: Record<string, string> = { type, query };
+    if (binary) params["binary"] = binary;
+    return this.http.get<AutocompleteSuggestion[]>(`${this.url}/llama/autocomplete`, { params });
   }
 }

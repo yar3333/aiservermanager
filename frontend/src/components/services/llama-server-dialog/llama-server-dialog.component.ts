@@ -288,11 +288,25 @@ export class LlamaServerDialogComponent implements OnInit {
 
   // ── Device + Host autocomplete ──
 
-  /** Available GPU device names from backend. */
+  /** Available GPU device names from backend — reactive to binary (command) changes. */
   readonly availableDevices = toSignal(
-    this.serviceService.getLlamaAutocomplete("device", "").pipe(
+    this.form.controls.command.valueChanges.pipe(
       takeUntilDestroyed(),
-      catchError(() => of<{ path: string; source: string }[]>([])),
+      startWith(this.form.controls.command.value as string),
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap((binary: string | null) => {
+        const bin = (binary ?? "").trim();
+        if (!bin) {
+          // Fallback: GPU cache (no binary specified)
+          return this.serviceService
+            .getLlamaAutocomplete("device", "")
+            .pipe(catchError(() => of<{ path: string; source: string }[]>([])));
+        }
+        return this.serviceService
+          .getLlamaAutocomplete("device", "", bin)
+          .pipe(catchError(() => of<{ path: string; source: string }[]>([])));
+      }),
     ),
     { initialValue: [] },
   );
