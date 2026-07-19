@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, ChangeDetectorRef } from "@angular/core";
+import { Component, inject, signal, computed, OnInit, DestroyRef, ChangeDetectorRef } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
 import { MatAutocompleteModule } from "@angular/material/autocomplete";
@@ -12,9 +12,10 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
+import { findFlag, flagBool, flagValueFloat, flagValueNum, flagValueStr } from "./flag-parsing";
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
-import { of, debounceTime, distinctUntilChanged, switchMap, catchError } from "rxjs";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
+import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 
 export interface LlamaServerDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -131,50 +132,6 @@ const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
 
 const KV_CACHE_TYPES = ["f32", "f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl", "q5_0", "q5_1"];
 
-/** Extract value for a flag from the flags array. Handles both "--flag value" and "--flag=value". */
-function findFlag(flags: string[], name: string): string | null {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i] === name && i + 1 < flags.length) {
-      return flags[i + 1];
-    }
-    const eqIdx = flags[i].indexOf("=");
-    if (eqIdx > 0 && flags[i].slice(0, eqIdx) === name) {
-      return flags[i].slice(eqIdx + 1);
-    }
-  }
-  return null;
-}
-
-function flagValueStr(flags: string[], flag: string, fallback: string): string {
-  const val = findFlag(flags, flag);
-  return val !== null ? val : fallback;
-}
-
-function flagValueNum(flags: string[], flag: string, fallback: number): number {
-  const val = findFlag(flags, flag);
-  if (val !== null) {
-    const parsed = parseInt(val, 10);
-    return isNaN(parsed) ? fallback : parsed;
-  }
-  return fallback;
-}
-
-function flagValueFloat(flags: string[], flag: string, fallback: number): number {
-  const val = findFlag(flags, flag);
-  if (val !== null) {
-    const parsed = parseFloat(val);
-    return isNaN(parsed) ? fallback : parsed;
-  }
-  return fallback;
-}
-
-/** Check if a boolean flag is present. For negation pairs, checks both variants. */
-function flagBool(flags: string[], positive: string, negative: string, fallback: boolean): boolean {
-  if (flags.includes(positive)) return true;
-  if (flags.includes(negative)) return false;
-  return fallback;
-}
-
 @Component({
   selector: "app-llama-server-dialog",
   standalone: true,
@@ -202,6 +159,7 @@ export class LlamaServerDialogComponent implements OnInit {
   private data: LlamaServerDialogData = inject(MAT_DIALOG_DATA);
   private serviceService = inject(ServiceService);
   private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
 
   readonly isEdit = this.data.config !== null;
 
@@ -233,41 +191,7 @@ export class LlamaServerDialogComponent implements OnInit {
     );
   });
 
-  // ── Device + Host autocomplete ──
-
-  /** Available GPU device names from backend. */
-  readonly availableDevices = signal<string[]>([]);
-
-  /** Host suggestions (network IPs + defaults). */
-  readonly filteredHosts = signal<AutocompleteSuggestion[]>([]);
-
-  // ── Existing paths from other configs (for empty-input autocomplete) ──
-
-  readonly existingModelPaths = computed<string[]>(() => this.extractConfigPaths("--model"));
-  readonly existingMmprojPaths = computed<string[]>(() => this.extractConfigPaths("--mmproj"));
-  readonly existingApiKeyPaths = computed<string[]>(() => this.extractConfigPaths("--api-key-file"));
-  readonly existingDraftModelPaths = computed<string[]>(() => this.extractConfigPaths("--model-draft"));
-  readonly existingLoraPaths = computed<string[]>(() => this.extractConfigPaths("--lora"));
-
-  /** Extract unique values for a given --flag from all configs (excluding current in edit mode). */
-  private extractConfigPaths(flagName: string): string[] {
-    const all = this.data.allConfigs ?? [];
-    const currentName = this.data.config?.name ?? null;
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const cfg of all) {
-      if (cfg.name === currentName) continue;
-      if (!cfg.flags) continue;
-      const val = findFlag(cfg.flags, flagName);
-      if (val && !seen.has(val)) {
-        seen.add(val);
-        result.push(val);
-      }
-    }
-    return result;
-  }
-
-  // ── Form ──
+  // ── Form (must be before filteredHosts which references it) ──
 
   form = this.fb.group({
     name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
@@ -362,6 +286,61 @@ export class LlamaServerDialogComponent implements OnInit {
     apiKeyFile: [""],
   });
 
+  // ── Device + Host autocomplete ──
+
+  /** Available GPU device names from backend. */
+  readonly availableDevices = toSignal(
+    this.serviceService.getLlamaAutocomplete("device", "").pipe(
+      takeUntilDestroyed(),
+      catchError(() => of<{ path: string; source: string }[]>([])),
+    ),
+    { initialValue: [] },
+  );
+
+  /** Host suggestions (network IPs + defaults). */
+  readonly filteredHosts = toSignal(
+    this.form.controls.host.valueChanges.pipe(
+      takeUntilDestroyed(),
+      startWith(this.form.controls.host.value as string),
+      debounceTime(250),
+      distinctUntilChanged(),
+      switchMap((value: string | null) => {
+        const query = (value ?? "").trim();
+        if (!query) return of<AutocompleteSuggestion[]>([]);
+        return this.serviceService
+          .getLlamaAutocomplete("host", query)
+          .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
+      }),
+    ),
+    { initialValue: [] },
+  );
+
+  // ── Existing paths from other configs (for empty-input autocomplete) ──
+
+  readonly existingModelPaths = computed<string[]>(() => this.extractConfigPaths("--model"));
+  readonly existingMmprojPaths = computed<string[]>(() => this.extractConfigPaths("--mmproj"));
+  readonly existingApiKeyPaths = computed<string[]>(() => this.extractConfigPaths("--api-key-file"));
+  readonly existingDraftModelPaths = computed<string[]>(() => this.extractConfigPaths("--model-draft"));
+  readonly existingLoraPaths = computed<string[]>(() => this.extractConfigPaths("--lora"));
+
+  /** Extract unique values for a given --flag from all configs (excluding current in edit mode). */
+  private extractConfigPaths(flagName: string): string[] {
+    const all = this.data.allConfigs ?? [];
+    const currentName = this.data.config?.name ?? null;
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const cfg of all) {
+      if (cfg.name === currentName) continue;
+      if (!cfg.flags) continue;
+      const val = findFlag(cfg.flags, flagName);
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        result.push(val);
+      }
+    }
+    return result;
+  }
+
   /** Check whether a form control value differs from its compiled default. */
   isControlChanged(controlName: string): boolean {
     const val = this.form.get(controlName)?.value;
@@ -389,51 +368,17 @@ export class LlamaServerDialogComponent implements OnInit {
   readonly showYarnParams = computed(() => this.ropeScalingValue() === "yarn");
 
   ngOnInit(): void {
-    this.form.controls.command.valueChanges.pipe(takeUntilDestroyed()).subscribe((v) => this._commandValue.set(v!));
+    this.form.controls.command.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((v) => this._commandValue.set(v!));
 
     if (this.data.config) {
       this.populateFormFromFlags(this.data.config.flags);
     }
 
-    // Load GPU devices for the device dropdown
-    this.serviceService.getLlamaAutocomplete("device", "").subscribe({
-      next: (suggestions) => {
-        this.availableDevices.set(suggestions.map((s) => s.path));
-      },
-      error: () => {
-        this.availableDevices.set([]);
-      },
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.cdr.markForCheck();
     });
-
-    // Load host suggestions
-    this.serviceService.getLlamaAutocomplete("host", "").subscribe({
-      next: (suggestions) => {
-        this.filteredHosts.set(suggestions);
-      },
-      error: () => {
-        this.filteredHosts.set([]);
-      },
-    });
-
-    // Setup host autocomplete
-
-    (this.form.controls.host.valueChanges
-      .pipe(
-        takeUntilDestroyed(),
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap((value: string | null) => {
-          const query = (value ?? "").trim();
-          if (!query) return of<AutocompleteSuggestion[]>([]);
-          return this.serviceService
-            .getLlamaAutocomplete("host", query)
-            .pipe(catchError(() => of<AutocompleteSuggestion[]>([])));
-        }),
-      )
-      .subscribe((suggestions) => this.filteredHosts.set(suggestions)),
-      this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
-        this.cdr.markForCheck();
-      }));
   }
 
   private populateFormFromFlags(flags: string[]): void {
