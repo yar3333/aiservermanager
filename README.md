@@ -11,7 +11,7 @@ Web dashboard for monitoring GPU server and managing AI services (llama.cpp, Com
 - **GPU Monitoring** — Real-time GPU utilization, temperature, and VRAM usage. Supports NVIDIA, AMD, and Intel GPUs with automatic detection and deduplication.
 - **Custom Services** — Create your own service with a custom name, command, and CLI flags. Installed as `systemd` unit.
 - **Managed Services** — Discover and manage any installed systemd service from the dashboard. Start, stop, enable, or disable with a single click.
-- **Cross-platform** — Runs on Linux (systemctl) and Windows (Windows Services, experimaental).
+- **Cross-platform** — Runs on Linux (systemctl) and Windows (Windows Services, experimental).
 
 ## Architecture
 
