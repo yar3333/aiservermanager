@@ -1,6 +1,5 @@
 import { Component, computed, inject, signal, HostListener, OnInit, OnDestroy } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatCardModule } from "@angular/material/card";
 import { MatInputModule } from "@angular/material/input";
@@ -22,7 +21,6 @@ const SPLITTER_MAX = 1600;
   standalone: true,
   imports: [
     CommonModule,
-    MatToolbarModule,
     MatProgressBarModule,
     MatCardModule,
     MatInputModule,
