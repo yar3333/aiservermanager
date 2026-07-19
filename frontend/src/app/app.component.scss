@@ -68,7 +68,7 @@
 
 .layout {
   display: flex;
-  height: calc(100vh - 56px); /* toolbar height */
+  height: 100%;
   overflow: hidden;
 
   &.dragging {
