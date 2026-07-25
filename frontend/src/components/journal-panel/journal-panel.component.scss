@@ -75,8 +75,11 @@
     font-size: 12px;
     line-height: 1.6;
     color: #d4d4d4;
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
+
+    &.wrap-on {
+      white-space: pre-wrap;
+    }
   }
 }
 
@@ -89,5 +92,15 @@
     margin: 0;
     color: #888;
     font-size: 14px;
+  }
+}
+
+:host ::ng-deep {
+  .mdc-button {
+    min-width: 32px;
+  }
+  .mat-mdc-unelevated-button > .mat-icon,
+  .mat-mdc-outlined-button > .mat-icon {
+    margin-right: 0;
   }
 }

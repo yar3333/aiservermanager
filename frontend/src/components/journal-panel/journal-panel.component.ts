@@ -14,6 +14,7 @@ import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatSelectModule } from "@angular/material/select";
 import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { FormsModule } from "@angular/forms";
 import { timer, Subscription } from "rxjs";
@@ -27,7 +28,15 @@ const AUTOSCROLL_THRESHOLD = 40;
 @Component({
   selector: "app-journal-panel",
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatSelectModule, MatButtonModule, MatProgressBarModule, FormsModule],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatSelectModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressBarModule,
+    FormsModule,
+  ],
   templateUrl: "./journal-panel.component.html",
   styleUrls: ["./journal-panel.component.scss"],
 })
@@ -49,6 +58,13 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
 
   /** Currently selected service name — synced with the shared signal. */
   selectedService = computed<string | null>(() => this.selectedServiceService.selectedService());
+
+  /** Word-wrap toggle for journal text. */
+  wordWrap = signal(true);
+
+  toggleWordWrap(): void {
+    this.wordWrap.update((v) => !v);
+  }
 
   /** Plain-text journal content for a single `<pre>` element — no nested DOM. */
   journalText = computed(() => {

@@ -14,6 +14,16 @@
             <mat-option [value]="svc.name">{{ svc.name }}</mat-option>
           }
         </mat-select>
+
+        @if (wordWrap()) {
+          <button mat-flat-button color="primary" (click)="toggleWordWrap()" aria-label="Disable word wrap">
+            <mat-icon>wrap_text</mat-icon>
+          </button>
+        } @else {
+          <button mat-stroked-button (click)="toggleWordWrap()" aria-label="Enable word wrap">
+            <mat-icon>wrap_text</mat-icon>
+          </button>
+        }
       }
     </div>
 
@@ -23,7 +33,7 @@
 
     @if (selectedService()) {
       <div #journalBody class="journal-body">
-        <pre>{{ journalText() }}</pre>
+        <pre [class.wrap-on]="wordWrap()">{{ journalText() }}</pre>
       </div>
     } @else {
       <div class="journal-body journal-empty">
