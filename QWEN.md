@@ -78,6 +78,7 @@ aiservermanager/
         │   └── app.component.scss    # container layout styles
         ├── components/
         │   ├── gpu-table/            # Таблица GPU (вынесен из AppComponent)
+        │   ├── journal-panel/        # Правая панель — журнал логов выбранного сервиса
         │   └── services/             # Карточки управления сервисами
         │       ├── service-dialog/   # Диалог создания/редактирования llama-конфигов
         │       └── managed-services-dialog/ # Диалог выбора системных сервисов
@@ -86,7 +87,8 @@ aiservermanager/
         │   └── service.ts            # ServiceStatus, ServiceAction, ServiceConfig
         └── services/
             ├── gpu.service.ts        # fetchGpus() + watchUsage()
-            └── service.service.ts    # Services API + managed services
+            ├── service.service.ts    # Services API + managed services + journal
+            └── selected-service.service.ts # Shared signal: выбранный сервис для журнала
 ```
 
 ## Backend
@@ -156,20 +158,21 @@ aiservermanager/
 
 ### API
 
-| Endpoint                          | Method | Описание                                                         |
-| --------------------------------- | ------ | ---------------------------------------------------------------- |
-| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)   |
-| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)          |
-| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                  |
-| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable |
-| `/api/services/config`            | GET    | `ServiceConfig[]` — custom configs                               |
-| `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config            |
-| `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                    |
-| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме custom)  |
-| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов       |
-| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                           |
-| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                           |
-| `/health`                         | GET    | `{ status: "ok", uptime: number }`                               |
+| Endpoint                          | Method | Описание                                                            |
+| --------------------------------- | ------ | ------------------------------------------------------------------- |
+| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)      |
+| `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)             |
+| `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                     |
+| `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable    |
+| `/api/services/config`            | GET    | `ServiceConfig[]` — custom configs                                  |
+| `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config               |
+| `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                       |
+| `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме custom)     |
+| `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов          |
+| `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                              |
+| `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                              |
+| `/api/services/journal/:name`     | GET    | `JournalLine[]` — последние строки журнала сервиса (param: `lines`) |
+| `/health`                         | GET    | `{ status: "ok", uptime: number }`                                  |
 
 **Custom** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
 
@@ -209,6 +212,12 @@ interface ServiceStatus {
   error?: string;
 }
 type ServiceAction = "start" | "stop" | "enable" | "disable";
+
+// Журнал сервиса
+interface JournalLine {
+  timestamp: string;
+  message: string;
+}
 ```
 
 Фронтенд мерджит `GpuInfo` + `GpuUsage` на клиенте (`GpuWithUsage`).
@@ -228,8 +237,9 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (вк�
 
 ### Компоненты
 
-- `AppComponent` — compose layout: toolbar + GPU block + Services block
+- `AppComponent` — compose layout: toolbar + GPU block + Services block, draggable splitter для правой панели
 - `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
+- `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
 - `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор managed) + **Add Service** (создание custom). `ServiceWithConfig` объединяет статус + config
 - `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора managed сервисов
 - `ServiceDialogComponent` — диалог создания/редактирования custom конфигов (name, command, flags)
@@ -257,8 +267,10 @@ readonly hasGpus = computed(() => this.gpus().length > 0);
 
 ## Паттерны
 
+Предпочтение Signal, потом Promise и только в крайнем случае Observable.
+
 - **Strategy** — `GpuDetector` / `GpuEnricher` / `GpuUsageProbe` / `ServiceController` интерфейсы
 - **Two-phase** — bootstrap (static, cached) + polling (dynamic, per-request)
 - **DI** — InversifyJS, platform-aware bindings, multi-inject
-- **Signals** — Angular 22 reactive state management
+- **Signals** — Angular 22 reactive state management. `effect()` только в field initializer или конструкторе (NG0203: требует injection context). `takeUntilDestroyed()` аналогично — только в field initializer/конструкторе, иначе «macro task» ошибка.
 - **Component composition** — AppComponent делегирует рендеринг подкомпонентам (GpuTable, Services)

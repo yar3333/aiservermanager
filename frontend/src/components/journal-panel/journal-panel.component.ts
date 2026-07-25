@@ -3,7 +3,7 @@ import {
   signal,
   computed,
   inject,
-  OnInit,
+  effect,
   OnDestroy,
   ChangeDetectorRef,
   ViewChild,
@@ -31,7 +31,7 @@ const AUTOSCROLL_THRESHOLD = 40;
   templateUrl: "./journal-panel.component.html",
   styleUrls: ["./journal-panel.component.scss"],
 })
-export class JournalPanelComponent implements OnInit, OnDestroy, AfterViewInit {
+export class JournalPanelComponent implements OnDestroy, AfterViewInit {
   private serviceService = inject(ServiceService);
   private selectedServiceService = inject(SelectedServiceService);
   private cdr = inject(ChangeDetectorRef);
@@ -45,6 +45,7 @@ export class JournalPanelComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly error = signal<string | null>(null);
 
   private journalSub?: Subscription;
+  readonly servicesLoaded = signal(false);
 
   /** Currently selected service name — synced with the shared signal. */
   selectedService = computed<string | null>(() => this.selectedServiceService.selectedService());
@@ -56,7 +57,22 @@ export class JournalPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     return lines.map((l) => (l.timestamp ? `${l.timestamp} ${l.message}` : l.message)).join("\n");
   });
 
-  ngOnInit(): void {
+  constructor() {
+    // Watch shared signal reactively — catches changes from dropdown, row click, edit, delete, etc.
+    effect(() => {
+      if (!this.servicesLoaded()) return;
+      const name = this.selectedService();
+
+      if (name) {
+        this.journalLines.set([]);
+        this.error.set(null);
+        this.restartPolling();
+      } else {
+        this.stopPolling();
+        this.journalLines.set([]);
+      }
+    });
+
     this.loadServices();
   }
 
@@ -81,7 +97,7 @@ export class JournalPanelComponent implements OnInit, OnDestroy, AfterViewInit {
         }
 
         this.loading.set(false);
-        this.restartPolling();
+        this.servicesLoaded.set(true);
       },
       error: (err) => {
         this.error.set(err.message);
@@ -90,7 +106,7 @@ export class JournalPanelComponent implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
-  onServiceChange(name: string): void {
+  onServiceChange(name: string | null): void {
     this.selectedServiceService.select(name);
   }
 

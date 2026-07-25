@@ -9,6 +9,7 @@
           class="service-select"
           disableOptionCentering
         >
+          <mat-option [value]="null">— None —</mat-option>
           @for (svc of services(); track svc.name) {
             <mat-option [value]="svc.name">{{ svc.name }}</mat-option>
           }
@@ -20,8 +21,14 @@
       <div class="journal-error">{{ error() }}</div>
     }
 
-    <div #journalBody class="journal-body">
-      <pre>{{ journalText() }}</pre>
-    </div>
+    @if (selectedService()) {
+      <div #journalBody class="journal-body">
+        <pre>{{ journalText() }}</pre>
+      </div>
+    } @else {
+      <div class="journal-body journal-empty">
+        <p>No service selected</p>
+      </div>
+    }
   </mat-card-content>
 </mat-card>

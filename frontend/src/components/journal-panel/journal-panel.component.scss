@@ -79,3 +79,15 @@
     word-break: break-word;
   }
 }
+
+.journal-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  p {
+    margin: 0;
+    color: #888;
+    font-size: 14px;
+  }
+}
