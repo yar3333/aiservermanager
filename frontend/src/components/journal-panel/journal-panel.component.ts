@@ -143,6 +143,9 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
     const name = this.selectedService();
     if (!name) return;
 
+    // Skip update if the user is currently selecting text in the journal
+    if (this.isTextSelected()) return;
+
     this.journalLoading.set(true);
     this.serviceService.fetchJournal(name, 100).subscribe({
       next: (lines) => {
@@ -171,6 +174,18 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
 
   private get scrollContainer(): HTMLElement | null {
     return this.journalBody?.nativeElement ?? null;
+  }
+
+  /** Returns true if the user has an active text selection inside the journal body. */
+  private isTextSelected(): boolean {
+    const win = typeof window !== "undefined" ? window : null;
+    if (!win) return false;
+    const sel = win.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+    const container = this.scrollContainer;
+    if (!container) return false;
+    // Check if the selection's anchor node is inside the journal body
+    return container.contains(sel.anchorNode);
   }
 
   private isScrolledToBottom(): boolean {
