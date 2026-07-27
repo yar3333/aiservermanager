@@ -2,6 +2,7 @@
 export const AUTH_SERVICE = "AUTH_SERVICE";
 export const PASSWORD_VERIFIER = "PASSWORD_VERIFIER";
 export const GPU_SERVICE = "GPU_SERVICE";
+export const SYSTEM_SERVICE = "SYSTEM_SERVICE";
 export const GPU_DETECTOR = "GPU_DETECTOR";
 export const GPU_ENRICHER = "GPU_ENRICHER";
 export const GPU_USAGE_PROBE = "GPU_USAGE_PROBE";

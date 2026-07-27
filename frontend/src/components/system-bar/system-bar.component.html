@@ -1,0 +1,49 @@
+<div class="system-bar">
+  <!-- CPU -->
+  <mat-card class="system-panel">
+    <mat-card-content>
+      <div class="panel-body">
+        <mat-icon class="panel-icon">dynamic_feed</mat-icon>
+        <div class="panel-content">
+          <div class="panel-header">
+            <span class="panel-label">CPU</span>
+            <span class="panel-value" [style.color]="colorForUsage(systemInfo().cpuUsage)">
+              {{ ceilCpu(systemInfo().cpuUsage) }}%
+            </span>
+          </div>
+          <div class="bar-bg">
+            <div
+              class="bar-fill"
+              [style.width.%]="systemInfo().cpuUsage"
+              [style.background]="colorForUsage(systemInfo().cpuUsage)"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Memory -->
+  <mat-card class="system-panel">
+    <mat-card-content>
+      <div class="panel-body">
+        <mat-icon class="panel-icon">memory</mat-icon>
+        <div class="panel-content">
+          <div class="panel-header">
+            <span class="panel-label">RAM</span>
+            <span class="panel-value" [style.color]="colorForUsage(systemInfo().memoryPercent)">
+              {{ formatBytes(systemInfo().memoryUsed) }} / {{ formatBytes(systemInfo().memoryTotal) }}
+            </span>
+          </div>
+          <div class="bar-bg">
+            <div
+              class="bar-fill"
+              [style.width.%]="systemInfo().memoryPercent"
+              [style.background]="colorForUsage(systemInfo().memoryPercent)"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

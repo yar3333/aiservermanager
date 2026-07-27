@@ -4,6 +4,7 @@ import {
   AUTH_SERVICE,
   PASSWORD_VERIFIER,
   GPU_SERVICE,
+  SYSTEM_SERVICE,
   GPU_DETECTOR,
   GPU_ENRICHER,
   GPU_USAGE_PROBE,
@@ -18,6 +19,7 @@ import { PasswordVerifier } from "../services/auth/passwordVerifier";
 import { LinuxPasswordVerifier } from "../services/auth/linuxPasswordVerifier";
 import { WindowsPasswordVerifier } from "../services/auth/windowsPasswordVerifier";
 import { GpuService } from "../services/gpuService";
+import { SystemService } from "../services/systemService";
 import { GpuDetector } from "../services/detectors/gpuDetector";
 import { NvidiaSmiDetector } from "../services/detectors/nvidiaSmiDetector";
 import { AmdLinuxDetector } from "../services/detectors/amdLinuxDetector";
@@ -53,6 +55,9 @@ export function createContainer(): Container {
 
   // GpuService — singleton for the lifetime of the app
   container.bind<GpuService>(GPU_SERVICE).to(GpuService).inSingletonScope();
+
+  // SystemService — CPU + memory info
+  container.bind<SystemService>(SYSTEM_SERVICE).to(SystemService).inSingletonScope();
 
   // Detectors — static GPU info (run once at bootstrap)
   container.bind<GpuDetector>(GPU_DETECTOR).to(NvidiaSmiDetector);

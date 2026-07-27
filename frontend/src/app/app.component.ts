@@ -12,6 +12,7 @@ import { AuthService } from "../services/auth.service";
 import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
 import { ServicesComponent } from "../components/services/services.component";
 import { JournalPanelComponent } from "../components/journal-panel/journal-panel.component";
+import { SystemBarComponent } from "../components/system-bar/system-bar.component";
 
 const SPLITTER_MIN = 100;
 const SPLITTER_MAX = 1600;
@@ -30,6 +31,7 @@ const SPLITTER_MAX = 1600;
     GpuTableComponent,
     ServicesComponent,
     JournalPanelComponent,
+    SystemBarComponent,
   ],
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.scss"],
