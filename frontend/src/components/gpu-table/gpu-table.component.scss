@@ -96,27 +96,13 @@
   font-size: 0.95rem;
 }
 
-/* Table header styling */
-.mat-header-cell {
-  font-weight: 500;
-  color: #555;
-  border-bottom: 2px solid #e0e0e0;
-}
-
 .mat-row {
   transition: background 0.2s ease;
+  height: 44px;
 }
 
 .mat-row:hover {
   background: #fafafa;
-}
-
-.mat-header-row {
-  height: 48px;
-}
-
-.mat-row {
-  height: 56px;
 }
 
 mat-card-content {
