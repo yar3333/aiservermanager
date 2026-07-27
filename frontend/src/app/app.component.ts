@@ -120,12 +120,17 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  private initGpus(): void {
+  private initGpus(retryCount = 0): void {
     // 1. Fetch static GPU info once
     this.gpuService.fetchGpus().subscribe({
       next: (staticGpus) => {
         if (staticGpus.length === 0) {
-          this.loading.set(false);
+          // Retry up to 3 times with 5s delay if GPUs not detected yet
+          if (retryCount < 3) {
+            setTimeout(() => this.initGpus(retryCount + 1), 5000);
+          } else {
+            this.loading.set(false);
+          }
           return;
         }
 

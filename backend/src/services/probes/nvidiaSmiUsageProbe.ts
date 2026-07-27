@@ -17,8 +17,11 @@ export class NvidiaSmiUsageProbe implements GpuUsageProbe {
     const result = await ExecTools.safeExec("nvidia-smi --query-gpu=index --format=csv,noheader,nounits", {
       timeout: 5000,
     });
-    this.availableCache = result.stdout.trim().length > 0;
-    return this.availableCache;
+    const available = result.stdout.trim().length > 0;
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async probe(_gpus: GpuInfo[]): Promise<GpuUsage[]> {

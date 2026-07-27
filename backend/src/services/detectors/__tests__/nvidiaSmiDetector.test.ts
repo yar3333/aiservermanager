@@ -35,6 +35,19 @@ describe("NvidiaSmiDetector", () => {
 
       expect(mockSafeExec).toHaveBeenCalledTimes(1);
     });
+
+    it("does not cache false — retries on next call", async () => {
+      mockSafeExec
+        .mockResolvedValueOnce({ stdout: "", stderr: "not found" })
+        .mockResolvedValueOnce({ stdout: "0\n", stderr: "" });
+
+      const first = await detector.isAvailable();
+      expect(first).toBe(false);
+
+      const second = await detector.isAvailable();
+      expect(second).toBe(true);
+      expect(mockSafeExec).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("detect", () => {

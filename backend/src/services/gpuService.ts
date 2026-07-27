@@ -39,7 +39,11 @@ export class GpuService {
    */
   async getStaticGpus(): Promise<GpuInfo[]> {
     if (!this.cachedGpus) {
-      this.cachedGpus = await this.bootstrap();
+      const gpus = await this.bootstrap();
+      if (gpus.length > 0) {
+        this.cachedGpus = gpus;
+      }
+      return gpus;
     }
     return this.cachedGpus;
   }

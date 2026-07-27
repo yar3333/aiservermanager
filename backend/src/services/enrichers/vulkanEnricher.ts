@@ -22,8 +22,11 @@ export class VulkanEnricher implements GpuEnricher {
     if (this.availableCache !== null) return this.availableCache as boolean;
 
     const result = await ExecTools.safeExec("vulkaninfo --summary 2>/dev/null", { timeout: 5000 });
-    this.availableCache = result.stdout.includes("deviceName");
-    return this.availableCache;
+    const available = result.stdout.includes("deviceName");
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async enrich(gpus: GpuInfo[]): Promise<void> {

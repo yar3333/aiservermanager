@@ -28,8 +28,11 @@ export class WmiDetector implements GpuDetector {
       "Get-CimInstance -ClassName Win32_VideoController | Select-Object -First 1 | ConvertTo-Json",
       { timeout: 8000 },
     );
-    this.availableCache = result.stdout.trim().length > 0;
-    return this.availableCache;
+    const available = result.stdout.trim().length > 0;
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async detect(): Promise<GpuInfo[]> {

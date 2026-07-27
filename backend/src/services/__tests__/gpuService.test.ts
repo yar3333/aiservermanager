@@ -167,6 +167,21 @@ describe("GpuService", () => {
       expect(det1.detect).toHaveBeenCalledTimes(1);
     });
 
+    it("does not cache empty result — retries on next call", async () => {
+      const det1 = makeMockDetector();
+      det1.detect.mockResolvedValueOnce([]).mockResolvedValueOnce([gpu1]);
+
+      container = createTestContainer([det1]);
+      const service = container.get<GpuService>(GPU_SERVICE);
+
+      const first = await service.getStaticGpus();
+      expect(first).toEqual([]);
+
+      const second = await service.getStaticGpus();
+      expect(second).toHaveLength(1);
+      expect(det1.detect).toHaveBeenCalledTimes(2);
+    });
+
     it("returns empty array when no detectors are available", async () => {
       const det1 = makeMockDetector();
       const det2 = makeMockDetector();

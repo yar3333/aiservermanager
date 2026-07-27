@@ -21,8 +21,11 @@ export class AmdLinuxUsageProbe implements GpuUsageProbe {
     if (this.availableCache !== null) return this.availableCache;
 
     const result = await ExecTools.safeExec("rocm-smi --showproductname --json", { timeout: 5000 });
-    this.availableCache = result.stdout.trim().length > 0;
-    return this.availableCache;
+    const available = result.stdout.trim().length > 0;
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async probe(gpus: GpuInfo[]): Promise<GpuUsage[]> {

@@ -27,8 +27,11 @@ export class AmdLinuxDetector implements GpuDetector {
     if (this.availableCache !== null) return this.availableCache;
 
     const result = await ExecTools.safeExec("rocm-smi --showproductname --json", { timeout: 5000 });
-    this.availableCache = result.stdout.trim().length > 0;
-    return this.availableCache;
+    const available = result.stdout.trim().length > 0;
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async detect(): Promise<GpuInfo[]> {

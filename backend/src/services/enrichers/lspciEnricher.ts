@@ -21,8 +21,11 @@ export class LspciEnricher implements GpuEnricher {
     if (this.availableCache !== null) return this.availableCache as boolean;
 
     const result = await ExecTools.safeExec("lspci -vnn 2>/dev/null", { timeout: 5000 });
-    this.availableCache = result.stdout.includes("VGA") || result.stdout.includes("3D");
-    return this.availableCache;
+    const available = result.stdout.includes("VGA") || result.stdout.includes("3D");
+    if (available) {
+      this.availableCache = true;
+    }
+    return available;
   }
 
   async enrich(gpus: GpuInfo[]): Promise<void> {
