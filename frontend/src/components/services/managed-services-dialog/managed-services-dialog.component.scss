@@ -25,9 +25,14 @@ mat-dialog-title {
 
 .service-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   width: 100%;
+
+  button {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
 }
 
 .service-name {
@@ -36,6 +41,7 @@ mat-dialog-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .no-services {
@@ -43,4 +49,17 @@ mat-dialog-title {
   color: #999;
   font-size: 0.9rem;
   padding: 16px 0;
+}
+
+mat-list-item.orphaned {
+  .service-name {
+    color: #999;
+  }
+
+  .orphaned-hint {
+    color: #bbb;
+    font-size: 0.8rem;
+    font-style: italic;
+    margin-right: 8px;
+  }
 }

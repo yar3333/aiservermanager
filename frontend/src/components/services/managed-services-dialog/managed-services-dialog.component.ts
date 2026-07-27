@@ -34,6 +34,7 @@ export class ManagedServicesDialogComponent implements OnInit {
 
   readonly available = signal<string[]>([]);
   readonly managed = signal<Set<string>>(new Set());
+  readonly orphaned = signal<Set<string>>(new Set());
   readonly loading = signal(true);
   readonly filter = signal("");
 
@@ -45,6 +46,9 @@ export class ManagedServicesDialogComponent implements OnInit {
       ]);
       this.available.set(available);
       this.managed.set(new Set(managed));
+      const availableSet = new Set(available);
+      const orphaned = managed.filter((name) => !availableSet.has(name));
+      this.orphaned.set(new Set(orphaned));
     } catch (err) {
       console.error("[ManagedServicesDialog] load error:", err);
     } finally {
@@ -53,10 +57,17 @@ export class ManagedServicesDialogComponent implements OnInit {
   }
 
   get filteredServices(): string[] {
+    const available = this.available();
+    const orphaned = this.orphaned();
+    const all = [...new Set([...available, ...orphaned])].sort();
     const f = this.filter();
-    if (!f) return this.available();
+    if (!f) return all;
     const lower = f.toLowerCase();
-    return this.available().filter((s) => s.toLowerCase().includes(lower));
+    return all.filter((s) => s.toLowerCase().includes(lower));
+  }
+
+  isOrphaned(name: string): boolean {
+    return this.orphaned().has(name);
   }
 
   isManaged(name: string): boolean {

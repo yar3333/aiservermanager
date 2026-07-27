@@ -20,9 +20,12 @@
         @if (filteredServices.length > 0) {
           <mat-list>
             @for (name of filteredServices; track name) {
-              <mat-list-item>
+              <mat-list-item [class.orphaned]="isOrphaned(name)">
                 <div class="service-row">
                   <span class="service-name">{{ name }}</span>
+                  @if (isOrphaned(name)) {
+                    <span class="orphaned-hint">(removed)</span>
+                  }
                   <button mat-icon-button [attr.aria-label]="'Toggle ' + name" (click)="toggle(name)">
                     @if (isManaged(name)) {
                       <mat-icon>check_box</mat-icon>
