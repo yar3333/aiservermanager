@@ -1,9 +1,8 @@
-import { Component, signal, inject, OnInit } from "@angular/core";
+import { Component, input } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
-import { SystemInfo } from "../../models/system";
-import { SystemService } from "../../services/system.service";
+import { SystemInfo } from "../../models/gpu";
 
 @Component({
   selector: "app-system-bar",
@@ -12,22 +11,8 @@ import { SystemService } from "../../services/system.service";
   templateUrl: "./system-bar.component.html",
   styleUrls: ["./system-bar.component.scss"],
 })
-export class SystemBarComponent implements OnInit {
-  private systemService = inject(SystemService);
-
-  readonly systemInfo = signal<SystemInfo>({
-    cpuUsage: 0,
-    memoryTotal: 0,
-    memoryUsed: 0,
-    memoryPercent: 0,
-  });
-
-  ngOnInit(): void {
-    this.systemService.watchSystemInfo().subscribe({
-      next: (info) => this.systemInfo.set(info),
-      error: (err) => console.error("[SystemBarComponent] poll error:", err),
-    });
-  }
+export class SystemBarComponent {
+  readonly systemInfo = input.required<SystemInfo>();
 
   formatBytes(bytes: number): string {
     const gb = bytes / (1024 * 1024 * 1024);

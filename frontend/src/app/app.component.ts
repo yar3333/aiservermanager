@@ -6,7 +6,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
-import { Gpu, GpuWithUsage, GpuUsage } from "../models/gpu";
+import { Gpu, GpuWithUsage, GpuUsage, SystemInfo } from "../models/gpu";
 import { GpuService } from "../services/gpu.service";
 import { AuthService } from "../services/auth.service";
 import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
@@ -41,6 +41,12 @@ export class AppComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
 
   readonly gpus = signal<GpuWithUsage[]>([]);
+  readonly systemInfo = signal<SystemInfo>({
+    cpuUsage: 0,
+    memoryTotal: 0,
+    memoryUsed: 0,
+    memoryPercent: 0,
+  });
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly hasGpus = computed(() => this.gpus().length > 0);
@@ -142,11 +148,14 @@ export class AppComponent implements OnInit, OnDestroy {
         this.loading.set(false);
         this.error.set(null);
 
-        // 2. Start polling usage metrics
-        this.gpuService.watchUsage().subscribe({
-          next: (usages) => this.mergeUsage(staticGpus, usages),
+        // 2. Start polling unified status (GPU usage + system info)
+        this.gpuService.watchStatus().subscribe({
+          next: (status) => {
+            this.systemInfo.set(status.system);
+            this.mergeUsage(staticGpus, status.gpus);
+          },
           error: (err) => {
-            console.error("[AppComponent] usage poll error:", err);
+            console.error("[AppComponent] status poll error:", err);
           },
         });
       },

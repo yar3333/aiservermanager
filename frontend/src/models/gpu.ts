@@ -21,3 +21,16 @@ export interface GpuUsage {
 
 /** Full GPU display record = static info merged with latest usage. */
 export type GpuWithUsage = Gpu & GpuUsage;
+
+/** Unified poll response: GPU usage + system info in one request. */
+export interface GpuStatusResponse {
+  gpus: GpuUsage[];
+  system: SystemInfo;
+}
+
+export interface SystemInfo {
+  cpuUsage: number;
+  memoryTotal: number;
+  memoryUsed: number;
+  memoryPercent: number;
+}

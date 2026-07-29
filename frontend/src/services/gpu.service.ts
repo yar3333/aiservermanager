@@ -2,7 +2,7 @@ import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Observable, timer } from "rxjs";
 import { switchMap, tap } from "rxjs/operators";
-import { Gpu, GpuUsage } from "../models/gpu";
+import { Gpu, GpuStatusResponse } from "../models/gpu";
 
 @Injectable({ providedIn: "root" })
 export class GpuService {
@@ -19,17 +19,17 @@ export class GpuService {
     );
   }
 
-  /** Fetch dynamic usage metrics. */
-  fetchUsage(): Observable<GpuUsage[]> {
-    return this.http.get<GpuUsage[]>(this.usageUrl).pipe(
+  /** Fetch unified status (GPU usage + system info). */
+  fetchStatus(): Observable<GpuStatusResponse> {
+    return this.http.get<GpuStatusResponse>(this.usageUrl).pipe(
       tap({
-        error: (err) => console.error("[GpuService] usage fetch error:", err),
+        error: (err) => console.error("[GpuService] status fetch error:", err),
       }),
     );
   }
 
-  /** Poll GPU usage every N ms, starting immediately. */
-  watchUsage(intervalMs = 3000): Observable<GpuUsage[]> {
-    return timer(0, intervalMs).pipe(switchMap(() => this.fetchUsage()));
+  /** Poll unified status every N ms, starting immediately. */
+  watchStatus(intervalMs = 3000): Observable<GpuStatusResponse> {
+    return timer(0, intervalMs).pipe(switchMap(() => this.fetchStatus()));
   }
 }
