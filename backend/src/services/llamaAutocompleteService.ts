@@ -238,7 +238,7 @@ export class LlamaAutocompleteService {
         }
         // Fallback: если list-devices пустой (некоторые сборки не возвращают AMD) — берём из GpuService
         if (devices.length === 0) {
-          const gpuDevices = getDeviceNamesFromGpu(this.gpuService);
+          const gpuDevices = getDeviceNamesFromGpu(this.gpuService).filter((x) => x.toLowerCase().startsWith("rocm"));
           if (gpuDevices.length > 0) {
             devices = gpuDevices;
             source = "GPU device";
