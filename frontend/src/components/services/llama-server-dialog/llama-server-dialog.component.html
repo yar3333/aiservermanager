@@ -361,11 +361,21 @@
           <input
             matInput
             formControlName="ctxSize"
-            type="number"
-            matTooltip="Size of the prompt context. 0 = loaded from model metadata"
+            type="text"
+            [matAutocomplete]="ctxSizeAuto"
+            (blur)="onCtxSizeInput($event)"
+            (keyup.enter)="onCtxSizeInput($event)"
+            placeholder="e.g. 8K, 3x16K, 20000"
+            matTooltip="Context size. Supports: 20000, 20K, 3x20K. 0 = from model metadata"
           />
           <mat-label>Context Size</mat-label>
         </mat-form-field>
+
+        <mat-autocomplete #ctxSizeAuto="matAutocomplete">
+          @for (p of ctxPresets(); track p.label) {
+            <mat-option [value]="p.label">{{ p.label }}</mat-option>
+          }
+        </mat-autocomplete>
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('batchSize')">
           <input
             matInput

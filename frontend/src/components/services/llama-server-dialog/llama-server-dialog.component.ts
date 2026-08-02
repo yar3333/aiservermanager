@@ -16,6 +16,7 @@ import { findFlag, flagBool, flagValueFloat, flagValueNum, flagValueStr } from "
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
 import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
+import { parseContextSize, formatContextSize, formatShort, CONTEXT_PRESETS } from "../../../utils/context-size";
 
 export interface LlamaServerDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -222,7 +223,7 @@ export class LlamaServerDialogComponent implements OnInit {
     cpuMoe: [DEFAULT_OPTIONS.cpuMoe],
     nCpuMoe: [DEFAULT_OPTIONS.nCpuMoe],
     // Context & KV Cache
-    ctxSize: [DEFAULT_OPTIONS.ctxSize],
+    ctxSize: [""],
     batchSize: [DEFAULT_OPTIONS.batchSize],
     ubatchSize: [DEFAULT_OPTIONS.ubatchSize],
     cacheTypeK: [DEFAULT_OPTIONS.cacheTypeK],
@@ -358,6 +359,10 @@ export class LlamaServerDialogComponent implements OnInit {
   /** Check whether a form control value differs from its compiled default. */
   isControlChanged(controlName: string): boolean {
     const val = this.form.get(controlName)?.value;
+    // ctxSize is stored as formatted string; compare parsed number with default.
+    if (controlName === "ctxSize") {
+      return +parseContextSize(val as string) !== DEFAULT_OPTIONS.ctxSize;
+    }
     return val !== undefined && isChanged(controlName, val);
   }
 
@@ -380,6 +385,28 @@ export class LlamaServerDialogComponent implements OnInit {
     return v?.includes("ngram") ?? false;
   });
   readonly showYarnParams = computed(() => this.ropeScalingValue() === "yarn");
+
+  /** Effective parallel slot count for preset computation (1 when parallel is auto/unset). */
+  readonly parallelSlots = computed(() => {
+    const v = this.form.get("parallel")?.value;
+    return typeof v === "number" && v > 0 ? v : 1;
+  });
+
+  /** Preset context-size options, computed from parallel slots. */
+  readonly ctxPresets = computed<{ label: string }[]>(() => {
+    const slots = this.parallelSlots();
+    return CONTEXT_PRESETS.map((p) => ({
+      label: formatContextSize(slots * p, slots),
+    }));
+  });
+
+  /** Normalize free-form ctxSize input on blur / Enter (parse → re-format for consistent display). */
+  onCtxSizeInput(event: Event): void {
+    const raw = (event.target as HTMLInputElement).value;
+    const parsed = parseContextSize(raw);
+    const formatted = formatContextSize(parsed, this.parallelSlots());
+    this.form.get("ctxSize")?.setValue(formatted, { emitEvent: false });
+  }
 
   ngOnInit(): void {
     this.form.controls.command.valueChanges
@@ -431,7 +458,9 @@ export class LlamaServerDialogComponent implements OnInit {
     f.cpuMoe.setValue(flags.includes("--cpu-moe") ? "on" : "off");
     f.nCpuMoe.setValue(flagValueNum(flags, "--n-cpu-moe", 0));
     // Context & KV Cache
-    f.ctxSize.setValue(flagValueNum(flags, "--ctx-size", DEFAULT_OPTIONS.ctxSize));
+    const rawCtx = flagValueNum(flags, "--ctx-size", DEFAULT_OPTIONS.ctxSize);
+    const slots = typeof f.parallel.value === "number" && f.parallel.value > 0 ? f.parallel.value : 1;
+    f.ctxSize.setValue(formatContextSize(rawCtx, slots));
     f.batchSize.setValue(flagValueNum(flags, "--batch-size", DEFAULT_OPTIONS.batchSize));
     f.ubatchSize.setValue(flagValueNum(flags, "--ubatch-size", DEFAULT_OPTIONS.ubatchSize));
     f.cacheTypeK.setValue(flagValueStr(flags, "--cache-type-k", DEFAULT_OPTIONS.cacheTypeK));
@@ -553,7 +582,7 @@ export class LlamaServerDialogComponent implements OnInit {
     this.addIf("--n-cpu-moe", c.nCpuMoe.value, DEFAULT_OPTIONS.nCpuMoe);
 
     // Context & KV Cache
-    this.addIf("--ctx-size", c.ctxSize.value, DEFAULT_OPTIONS.ctxSize);
+    this.addIf("--ctx-size", +parseContextSize(c.ctxSize.value ?? ""), DEFAULT_OPTIONS.ctxSize);
     this.addIf("--batch-size", c.batchSize.value, DEFAULT_OPTIONS.batchSize);
     this.addIf("--ubatch-size", c.ubatchSize.value, DEFAULT_OPTIONS.ubatchSize);
     this.addIf("--cache-type-k", c.cacheTypeK.value, DEFAULT_OPTIONS.cacheTypeK);
