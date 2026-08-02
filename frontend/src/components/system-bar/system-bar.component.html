@@ -46,4 +46,14 @@
       </div>
     </mat-card-content>
   </mat-card>
+
+  <!-- Server controls -->
+  <div class="server-controls">
+    <button mat-icon-button color="warn" (click)="reboot()" title="Reboot server">
+      <mat-icon>restart_alt</mat-icon>
+    </button>
+    <button mat-icon-button color="warn" (click)="shutdown()" title="Shutdown server">
+      <mat-icon>power_settings_new</mat-icon>
+    </button>
+  </div>
 </div>

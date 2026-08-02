@@ -2,10 +2,17 @@
   display: flex;
   gap: 16px;
   margin-bottom: 16px;
+  align-items: stretch;
 }
 
 .system-panel {
   flex: 1;
+}
+
+.server-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .panel-body {
