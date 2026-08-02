@@ -3,13 +3,14 @@ import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
+import { MatMenuModule } from "@angular/material/menu";
 import { SystemInfo } from "../../models/gpu";
 import { SystemService } from "../../services/system.service";
 
 @Component({
   selector: "app-system-bar",
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule, MatMenuModule],
   templateUrl: "./system-bar.component.html",
   styleUrls: ["./system-bar.component.scss"],
 })

@@ -49,11 +49,18 @@
 
   <!-- Server controls -->
   <div class="server-controls">
-    <button mat-icon-button color="warn" (click)="reboot()" title="Reboot server">
-      <mat-icon>restart_alt</mat-icon>
+    <button mat-icon-button color="warn" [matMenuTriggerFor]="menu" title="Server actions">
+      <mat-icon>more_vert</mat-icon>
     </button>
-    <button mat-icon-button color="warn" (click)="shutdown()" title="Shutdown server">
-      <mat-icon>power_settings_new</mat-icon>
-    </button>
+    <mat-menu #menu="matMenu" yPosition="below">
+      <button mat-menu-item (click)="reboot()">
+        <mat-icon>restart_alt</mat-icon>
+        <span>Reboot server</span>
+      </button>
+      <button mat-menu-item (click)="shutdown()">
+        <mat-icon>power_settings_new</mat-icon>
+        <span>Shutdown server</span>
+      </button>
+    </mat-menu>
   </div>
 </div>
