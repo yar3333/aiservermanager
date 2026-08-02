@@ -737,6 +737,7 @@
       [class.has-changed]="
         isSectionChanged(
           'modelDraft',
+          'specDraftDevice',
           'specDraftNMax',
           'nGpuLayersDraft',
           'specDraftCacheTypeK',
@@ -764,6 +765,22 @@
         [existingPaths]="existingDraftModelPaths()"
         [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
       />
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftDevice')">
+          <mat-select
+            formControlName="specDraftDevice"
+            multiple
+            placeholder="Select GPU devices for draft model"
+            matTooltip="Devices for offloading the draft model. Same options as main --device"
+          >
+            @for (dev of availableDevices(); track dev.path) {
+              <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Draft Device (multi-select)</mat-label>
+        </mat-form-field>
+      </div>
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftNMax')">

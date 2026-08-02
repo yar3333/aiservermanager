@@ -87,6 +87,7 @@ const DEFAULT_OPTIONS = {
   dynatempRange: 0.0,
   // Speculative
   modelDraft: "",
+  specDraftDevice: [] as string[],
   specDraftNMax: 3,
   nGpuLayersDraft: "auto",
   specDraftCacheTypeK: "f16",
@@ -258,6 +259,7 @@ export class LlamaServerDialogComponent implements OnInit {
     dynatempRange: [DEFAULT_OPTIONS.dynatempRange],
     // Speculative
     modelDraft: [""],
+    specDraftDevice: [[] as string[]],
     specDraftNMax: [DEFAULT_OPTIONS.specDraftNMax],
     nGpuLayersDraft: [DEFAULT_OPTIONS.nGpuLayersDraft],
     specDraftCacheTypeK: [DEFAULT_OPTIONS.specDraftCacheTypeK],
@@ -290,7 +292,13 @@ export class LlamaServerDialogComponent implements OnInit {
   // ── Device + Host autocomplete ──
 
   /** Available GPU device names from backend — reactive to binary (command) changes. */
-  readonly availableDevices = toSignal(
+  readonly availableDevices = computed(() => {
+    // Reuse the same device list for both main and draft device selectors.
+    const devices = this.availableDevicesRaw();
+    return devices;
+  });
+
+  private availableDevicesRaw = toSignal(
     this.form.controls.command.valueChanges.pipe(
       takeUntilDestroyed(),
       startWith(this.form.controls.command.value as string),
@@ -495,6 +503,15 @@ export class LlamaServerDialogComponent implements OnInit {
     f.dynatempRange.setValue(flagValueFloat(flags, "--dynatemp-range", DEFAULT_OPTIONS.dynatempRange));
     // Speculative
     f.modelDraft.setValue(flagValueStr(flags, "--model-draft", ""));
+    const specDeviceVal = findFlag(flags, "--spec-draft-device") ?? findFlag(flags, "--device-draft");
+    f.specDraftDevice.setValue(
+      specDeviceVal
+        ? specDeviceVal
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean)
+        : [],
+    );
     f.specDraftNMax.setValue(flagValueNum(flags, "--spec-draft-n-max", DEFAULT_OPTIONS.specDraftNMax));
     f.nGpuLayersDraft.setValue(flagValueStr(flags, "--n-gpu-layers-draft", DEFAULT_OPTIONS.nGpuLayersDraft));
     f.specDraftCacheTypeK.setValue(flagValueStr(flags, "--cache-type-k-draft", DEFAULT_OPTIONS.specDraftCacheTypeK));
@@ -625,6 +642,10 @@ export class LlamaServerDialogComponent implements OnInit {
 
     // Speculative
     this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
+    const specDeviceArr = c.specDraftDevice.value as string[];
+    if (specDeviceArr && specDeviceArr.length > 0) {
+      this._flags.push(`--spec-draft-device ${specDeviceArr.join(",")}`);
+    }
     this.addIf("--spec-draft-n-max", c.specDraftNMax.value, DEFAULT_OPTIONS.specDraftNMax);
     this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
     this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
