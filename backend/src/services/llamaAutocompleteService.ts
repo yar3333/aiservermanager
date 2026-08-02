@@ -229,11 +229,25 @@ export class LlamaAutocompleteService {
             source: ip === "0.0.0.0" ? "all interfaces" : ip === "127.0.0.1" ? "localhost" : "network interface",
           }));
 
-      case "device":
-        const devices = binary ? await listDevicesFromBinary(binary) : getDeviceNamesFromGpu(this.gpuService);
+      case "device": {
+        let devices: string[] = [];
+        let source = "GPU device";
+        if (binary) {
+          source = "llama-server";
+          devices = await listDevicesFromBinary(binary);
+        }
+        // Fallback: если list-devices пустой (некоторые сборки не возвращают AMD) — берём из GpuService
+        if (devices.length === 0) {
+          const gpuDevices = getDeviceNamesFromGpu(this.gpuService);
+          if (gpuDevices.length > 0) {
+            devices = gpuDevices;
+            source = "GPU device";
+          }
+        }
         return devices
           .filter((d) => !trimmed || d.toLowerCase().includes(lowerQuery))
-          .map((d) => ({ path: d, source: binary ? "llama-server" : "GPU device" }));
+          .map((d) => ({ path: d, source }));
+      }
 
       default:
         return [];
