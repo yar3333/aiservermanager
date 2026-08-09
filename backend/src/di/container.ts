@@ -5,6 +5,7 @@ import {
   PASSWORD_VERIFIER,
   GPU_SERVICE,
   SYSTEM_SERVICE,
+  SYSTEM_INFO_PROVIDER,
   GPU_DETECTOR,
   GPU_ENRICHER,
   GPU_USAGE_PROBE,
@@ -37,6 +38,9 @@ import { WindowsServiceController } from "../services/controllers/windowsService
 import { ServiceConfigController } from "../services/serviceConfigController";
 import { ManagedServicesController } from "../services/managedServicesController";
 import { LlamaAutocompleteService } from "../services/llamaAutocompleteService";
+import { SystemInfoProvider } from "../services/systemInfoProvider";
+import { SystemInfoLinuxProvider } from "../services/providers/systemInfoLinuxProvider";
+import { SystemInfoWindowsProvider } from "../services/providers/systemInfoWindowsProvider";
 
 const isWindows = process.platform === "win32";
 
@@ -97,6 +101,10 @@ export function createContainer(): Container {
 
   // Llama autocomplete service — path suggestions, hosts, devices
   container.bind<LlamaAutocompleteService>(LLAMA_AUTOCOMPLETE_SERVICE).to(LlamaAutocompleteService).inSingletonScope();
+
+  // System info providers — platform-specific strategies
+  container.bind<SystemInfoProvider>(SYSTEM_INFO_PROVIDER).to(SystemInfoLinuxProvider);
+  container.bind<SystemInfoProvider>(SYSTEM_INFO_PROVIDER).to(SystemInfoWindowsProvider);
 
   return container;
 }

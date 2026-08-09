@@ -34,3 +34,37 @@ export interface SystemInfo {
   memoryUsed: number;
   memoryPercent: number;
 }
+
+/* ------------------------------------------------------------------ */
+/*  System info dialog                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface OsRelease {
+  name: string;
+  version: string;
+  id: string;
+}
+
+export interface DiskInfo {
+  device: string;
+  mountPoint: string;
+  total: number;
+  used: number;
+  available: number;
+  usePercent: number;
+}
+
+export interface LogFileInfo {
+  path: string;
+  size: number;
+  exists: boolean;
+}
+
+export interface SystemInfoDetail {
+  os: OsRelease;
+  hostname: string;
+  kernel: string;
+  uptime: string;
+  disks: DiskInfo[];
+  logs: LogFileInfo[];
+}

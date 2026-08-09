@@ -1,0 +1,89 @@
+<div class="dialog-container">
+  <h2 mat-dialog-title>
+    <mat-icon>info</mat-icon>
+    System Info
+  </h2>
+
+  <mat-dialog-content>
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    } @else if (error()) {
+      <p class="dialog-error">{{ error() }}</p>
+    } @else if (info()) {
+      <div class="info-section">
+        <h3>Operating System</h3>
+        <div class="info-row">
+          <span class="info-label">Distro</span>
+          <span class="info-value">{{ info()!.os.name }}</span>
+        </div>
+        @if (info()!.os.version) {
+          <div class="info-row">
+            <span class="info-label">Version</span>
+            <span class="info-value">{{ info()!.os.version }}</span>
+          </div>
+        }
+        <div class="info-row">
+          <span class="info-label">Hostname</span>
+          <span class="info-value">{{ info()!.hostname }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Kernel</span>
+          <span class="info-value">{{ info()!.kernel }}</span>
+        </div>
+        @if (info()!.uptime) {
+          <div class="info-row">
+            <span class="info-label">Uptime</span>
+            <span class="info-value">{{ info()!.uptime }}</span>
+          </div>
+        }
+      </div>
+
+      <mat-divider class="section-divider"></mat-divider>
+
+      <div class="info-section">
+        <h3>Disks</h3>
+        @for (disk of info()!.disks; track disk.device) {
+          <div class="disk-row">
+            <div class="disk-header">
+              <span class="disk-device">{{ disk.device }}</span>
+              <span class="disk-mount">{{ disk.mountPoint }}</span>
+            </div>
+            <div class="disk-bar-bg">
+              <div
+                class="disk-bar-fill"
+                [style.width.%]="disk.usePercent"
+                [style.background]="disk.usePercent > 90 ? '#f44336' : disk.usePercent > 75 ? '#ff9800' : '#4caf50'"
+              ></div>
+            </div>
+            <div class="disk-details">
+              <span>{{ formatBytes(disk.available) }} free of {{ formatBytes(disk.total) }}</span>
+              <span>{{ disk.usePercent }}% used</span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <mat-divider class="section-divider"></mat-divider>
+
+      <div class="info-section">
+        <h3>System Logs</h3>
+        @for (log of info()!.logs; track log.path) {
+          <div class="log-row">
+            <span class="log-path">{{ log.path }}</span>
+            <span class="log-size">
+              @if (log.exists) {
+                {{ formatBytes(log.size) }}
+              } @else {
+                —
+              }
+            </span>
+          </div>
+        }
+      </div>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-raised-button color="primary" (click)="close()">OK</button>
+  </mat-dialog-actions>
+</div>

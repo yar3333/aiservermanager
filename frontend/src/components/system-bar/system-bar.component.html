@@ -53,6 +53,10 @@
       <mat-icon>more_vert</mat-icon>
     </button>
     <mat-menu #menu="matMenu" yPosition="below">
+      <button mat-menu-item (click)="openSystemInfo()">
+        <mat-icon>info</mat-icon>
+        <span>System info</span>
+      </button>
       <button mat-menu-item (click)="reboot()">
         <mat-icon>restart_alt</mat-icon>
         <span>Reboot server</span>

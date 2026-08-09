@@ -2,8 +2,9 @@ import "reflect-metadata";
 import request from "supertest";
 import express from "express";
 import { Container } from "inversify";
-import { GPU_SERVICE } from "../../di/types";
+import { GPU_SERVICE, SYSTEM_SERVICE } from "../../di/types";
 import { GpuService } from "../../services/gpuService";
+import { SystemService } from "../../services/systemService";
 import gpuRoutes from "../gpuRoutes";
 
 // Mock GpuService
@@ -14,9 +15,21 @@ const mockGpuService = {
   getUsage: mockGetUsage,
 } as unknown as GpuService;
 
+// Mock SystemService
+const mockGetSystemInfo = jest.fn().mockResolvedValue({
+  cpuUsage: 10,
+  memoryTotal: 16000000000,
+  memoryUsed: 8000000000,
+  memoryPercent: 50,
+});
+const mockSystemService = {
+  getSystemInfo: mockGetSystemInfo,
+} as unknown as SystemService;
+
 function createMockContainer(): Container {
   const container = new Container();
   container.bind<GpuService>(GPU_SERVICE).toConstantValue(mockGpuService);
+  container.bind<SystemService>(SYSTEM_SERVICE).toConstantValue(mockSystemService);
   return container;
 }
 
@@ -78,8 +91,9 @@ describe("GET /api/gpus/usage", () => {
 
     const res = await request(app).get("/api/gpus/usage");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].usage).toBe(50);
+    expect(res.body.gpus).toHaveLength(1);
+    expect(res.body.gpus[0].usage).toBe(50);
+    expect(res.body.system.cpuUsage).toBe(10);
   });
 
   it("returns 500 when service throws", async () => {

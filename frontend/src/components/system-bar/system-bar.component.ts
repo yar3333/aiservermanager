@@ -4,19 +4,26 @@ import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
 import { MatMenuModule } from "@angular/material/menu";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { SystemInfo } from "../../models/gpu";
 import { SystemService } from "../../services/system.service";
+import { SystemInfoDialogComponent } from "./system-info-dialog.component";
 
 @Component({
   selector: "app-system-bar",
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule, MatMenuModule],
+  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule, MatMenuModule, MatDialogModule],
   templateUrl: "./system-bar.component.html",
   styleUrls: ["./system-bar.component.scss"],
 })
 export class SystemBarComponent {
   readonly systemInfo = input.required<SystemInfo>();
   private systemService = inject(SystemService);
+  private dialog = inject(MatDialog);
+
+  openSystemInfo(): void {
+    this.dialog.open(SystemInfoDialogComponent, { disableClose: false });
+  }
 
   async reboot(): Promise<void> {
     if (confirm("Reboot the server?")) {

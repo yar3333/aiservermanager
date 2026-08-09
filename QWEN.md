@@ -36,6 +36,7 @@ aiservermanager/
 │       ├── routes/
 │       │   ├── gpuRoutes.ts          # GET / /usage /state
 │       │   ├── serviceRoutes.ts      # Services API + managed services CRUD
+│       │   ├── systemRoutes.ts       # GET /info (SystemInfoProvider), POST /reboot, POST /shutdown
 │       │   └── __tests__/
 │       ├── helpers/
 │       │   └── ExecTools.ts          # safeExec (platform-aware shell), safeExecPs1 (.ps1 files)
@@ -68,6 +69,11 @@ aiservermanager/
 │           │   ├── gpuUsageProbe.ts      # GpuUsageProbe стратегия
 │           │   ├── nvidiaSmiUsageProbe.ts
 │           │   └── amdLinuxUsageProbe.ts
+│           ├── systemInfoProvider.ts   # SystemInfoProvider стратегия + типы
+│           ├── providers/            # Platform-aware system info (Strategy)
+│           │   ├── systemInfoLinuxProvider.ts     # /etc/os-release, df, stat
+│           │   ├── systemInfoWindowsProvider.ts   # Win32 CIM (OS, disks, .evtx logs)
+│           │   └── __tests__/
 │           └── __tests__/
 └── frontend/
     └── src/
@@ -79,15 +85,19 @@ aiservermanager/
         ├── components/
         │   ├── gpu-table/            # Таблица GPU (вынесен из AppComponent)
         │   ├── journal-panel/        # Правая панель — журнал логов выбранного сервиса
+        │   ├── system-bar/           # System panel (CPU, RAM) + server actions menu
+        │   │   ├── system-bar.component.ts
+        │   │   └── system-info-dialog.component.ts # System info dialog (OS, disks, logs)
         │   └── services/             # Карточки управления сервисами
         │       ├── service-dialog/   # Диалог создания/редактирования llama-конфигов
         │       └── managed-services-dialog/ # Диалог выбора системных сервисов
         ├── models/
-        │   ├── gpu.ts                # Gpu, GpuUsage, GpuState
+        │   ├── gpu.ts                # Gpu, GpuUsage, SystemInfoDetail, DiskInfo, LogFileInfo
         │   └── service.ts            # ServiceStatus, ServiceAction, ServiceConfig
         └── services/
             ├── gpu.service.ts        # fetchGpus() + watchUsage()
             ├── service.service.ts    # Services API + managed services + journal
+            ├── system.service.ts     # getSystemInfo(), reboot(), shutdown()
             └── selected-service.service.ts # Shared signal: выбранный сервис для журнала
 ```
 
@@ -126,14 +136,17 @@ aiservermanager/
 
 Контейнер (`di/container.ts`) биндит компоненты в зависимости от `process.platform`:
 
-| Токен                | Windows                  | Linux                                          |
-| -------------------- | ------------------------ | ---------------------------------------------- |
-| `GPU_DETECTOR`       | NvidiaSmi + Wmi          | NvidiaSmi + AmdLinux                           |
-| `GPU_ENRICHER`       | —                        | Lspci + Vulkan                                 |
-| `GPU_USAGE_PROBE`    | NvidiaSmiUsageProbe      | NvidiaSmiUsageProbe + AmdLinuxUsageProbe       |
-| `SERVICE_CONTROLLER` | WindowsServiceController | SystemctlController + WindowsServiceController |
+| Токен                  | Windows                   | Linux                                               |
+| ---------------------- | ------------------------- | --------------------------------------------------- |
+| `GPU_DETECTOR`         | NvidiaSmi + Wmi           | NvidiaSmi + AmdLinux                                |
+| `GPU_ENRICHER`         | —                         | Lspci + Vulkan                                      |
+| `GPU_USAGE_PROBE`      | NvidiaSmiUsageProbe       | NvidiaSmiUsageProbe + AmdLinuxUsageProbe            |
+| `SERVICE_CONTROLLER`   | WindowsServiceController  | SystemctlController + WindowsServiceController      |
+| `SYSTEM_INFO_PROVIDER` | SystemInfoWindowsProvider | SystemInfoLinuxProvider + SystemInfoWindowsProvider |
 
 Все контроллеры сервиса биндятся всегда (multi-inject). `ServiceManager` выбирает активный через `isAvailable()` — на Windows работает `WindowsServiceController`, на Linux — `SystemctlController`.
+
+`SYSTEM_INFO_PROVIDER` — multi-inject, роут резолвит активный через `isAvailable()` и вызывает `getSystemInfo()`.
 
 **Linux** (`systemctl`):
 
@@ -172,6 +185,9 @@ aiservermanager/
 | `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                              |
 | `/api/services/managed`           | DELETE | `{ name }` — удалить сервис из выборки                              |
 | `/api/services/journal/:name`     | GET    | `JournalLine[]` — последние строки журнала сервиса (param: `lines`) |
+| `/api/system/info`                | GET    | `SystemInfoDetail` — OS, hostname, kernel, uptime, disks, logs      |
+| `/api/system/reboot`              | POST   | Reboot the server (Linux `sudo reboot` / Windows `shutdown /r`)     |
+| `/api/system/shutdown`            | POST   | Shutdown the server (Linux `sudo poweroff` / Windows `shutdown /s`) |
 | `/health`                         | GET    | `{ status: "ok", uptime: number }`                                  |
 
 **Custom** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
@@ -218,13 +234,44 @@ interface JournalLine {
   timestamp: string;
   message: string;
 }
+
+// System info (GET /api/system/info)
+interface OsRelease {
+  name: string;
+  version: string;
+  id: string;
+}
+
+interface DiskInfo {
+  device: string;
+  mountPoint: string;
+  total: number; // bytes
+  used: number;
+  available: number;
+  usePercent: number;
+}
+
+interface LogFileInfo {
+  path: string;
+  size: number; // bytes
+  exists: boolean;
+}
+
+interface SystemInfoDetail {
+  os: OsRelease;
+  hostname: string;
+  kernel: string;
+  uptime: string;
+  disks: DiskInfo[];
+  logs: LogFileInfo[];
+}
 ```
 
 Фронтенд мерджит `GpuInfo` + `GpuUsage` на клиенте (`GpuWithUsage`).
 
 ### Тесты backend
 
-Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (включая safeExecPs1 + PCI domain normalization).
+Jest 30 + ts-jest + supertest. 14 файлов тестов, 125 тестов.
 
 ## Frontend
 
@@ -240,6 +287,8 @@ Jest 30 + ts-jest + supertest. 8 файлов тестов, 63 теста (вк�
 - `AppComponent` — compose layout: toolbar + GPU block + Services block, draggable splitter для правой панели
 - `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor
 - `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
+- `SystemBarComponent` — панель CPU/RAM + menu (System Info, Reboot, Shutdown)
+- `SystemInfoDialogComponent` — диалог с информацией о системе (OS, hostname, kernel, uptime, disks, logs)
 - `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор managed) + **Add Service** (создание custom). `ServiceWithConfig` объединяет статус + config
 - `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора managed сервисов
 - `ServiceDialogComponent` — диалог создания/редактирования custom конфигов (name, command, flags)
@@ -269,7 +318,7 @@ readonly hasGpus = computed(() => this.gpus().length > 0);
 
 Предпочтение Signal, потом Promise и только в крайнем случае Observable.
 
-- **Strategy** — `GpuDetector` / `GpuEnricher` / `GpuUsageProbe` / `ServiceController` интерфейсы
+- **Strategy** — `GpuDetector` / `GpuEnricher` / `GpuUsageProbe` / `ServiceController` / `SystemInfoProvider` интерфейсы
 - **Two-phase** — bootstrap (static, cached) + polling (dynamic, per-request)
 - **DI** — InversifyJS, platform-aware bindings, multi-inject
 - **Signals** — Angular 22 reactive state management. `effect()` только в field initializer или конструкторе (NG0203: требует injection context). `takeUntilDestroyed()` аналогично — только в field initializer/конструкторе, иначе «macro task» ошибка.
