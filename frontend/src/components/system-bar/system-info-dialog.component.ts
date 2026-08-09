@@ -5,13 +5,22 @@ import { MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatDividerModule } from "@angular/material/divider";
 import { MatIconModule } from "@angular/material/icon";
+import { MatChipsModule } from "@angular/material/chips";
 import { SystemService } from "../../services/system.service";
 import { SystemInfoDetail } from "../../models/gpu";
 
 @Component({
   selector: "app-system-info-dialog",
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatDialogModule, MatProgressBarModule, MatDividerModule, MatIconModule],
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatProgressBarModule,
+    MatDividerModule,
+    MatIconModule,
+    MatChipsModule,
+  ],
   templateUrl: "./system-info-dialog.component.html",
   styleUrls: ["./system-info-dialog.component.scss"],
 })

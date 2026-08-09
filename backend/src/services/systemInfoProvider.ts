@@ -22,6 +22,17 @@ export interface LogFileInfo {
   exists: boolean;
 }
 
+/** Timeshift backup info (optional, only present on Linux with timeshift + sudo). */
+export interface TimeshiftInfo {
+  mode: "RSYNC" | "BTRFS";
+  device: string;
+  snapshots: number;
+  lastSnapshot: string;
+  totalSpace: number; // bytes
+  freeSpace: number; // bytes
+  schedules: string[];
+}
+
 /** Full system info returned to the client. */
 export interface SystemInfoDetail {
   os: OsRelease;
@@ -30,6 +41,7 @@ export interface SystemInfoDetail {
   uptime: string;
   disks: DiskInfo[];
   logs: LogFileInfo[];
+  timeshift?: TimeshiftInfo;
 }
 
 /**

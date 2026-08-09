@@ -65,6 +65,62 @@
 
       <mat-divider class="section-divider"></mat-divider>
 
+      @if (info()!.timeshift) {
+        <div class="info-section">
+          <h3>Timeshift Backup</h3>
+          <div class="timeshift-card">
+            <div class="timeshift-header">
+              <mat-chip-set>
+                <mat-chip class="mode-chip">{{ info()!.timeshift!.mode }}</mat-chip>
+                <mat-chip class="device-chip">{{ info()!.timeshift!.device }}</mat-chip>
+              </mat-chip-set>
+              <span class="timeshift-snapshots">{{ info()!.timeshift!.snapshots }} snapshots</span>
+            </div>
+            @if (info()!.timeshift!.lastSnapshot) {
+              <div class="timeshift-row">
+                <span class="timeshift-label">Last</span>
+                <span class="timeshift-value">{{ info()!.timeshift!.lastSnapshot | date: "medium" }}</span>
+              </div>
+            }
+            <div class="timeshift-disk-bar-bg">
+              <div
+                class="timeshift-disk-bar-fill"
+                [style.width.%]="
+                  info()!.timeshift!.totalSpace > 0
+                    ? ((info()!.timeshift!.totalSpace - info()!.timeshift!.freeSpace) / info()!.timeshift!.totalSpace) *
+                      100
+                    : 0
+                "
+                [style.background]="
+                  info()!.timeshift!.totalSpace > 0 &&
+                  (info()!.timeshift!.totalSpace - info()!.timeshift!.freeSpace) / info()!.timeshift!.totalSpace > 0.9
+                    ? '#f44336'
+                    : info()!.timeshift!.totalSpace > 0 &&
+                        (info()!.timeshift!.totalSpace - info()!.timeshift!.freeSpace) / info()!.timeshift!.totalSpace >
+                          0.75
+                      ? '#ff9800'
+                      : '#4caf50'
+                "
+              ></div>
+            </div>
+            <div class="timeshift-disk-details">
+              <span
+                >{{ formatBytes(info()!.timeshift!.freeSpace) }} free of
+                {{ formatBytes(info()!.timeshift!.totalSpace) }}</span
+              >
+              @if (info()!.timeshift!.schedules.length > 0) {
+                <mat-chip-set>
+                  @for (schedule of info()!.timeshift!.schedules; track schedule) {
+                    <mat-chip class="schedule-chip">{{ schedule }}</mat-chip>
+                  }
+                </mat-chip-set>
+              }
+            </div>
+          </div>
+        </div>
+        <mat-divider class="section-divider"></mat-divider>
+      }
+
       <div class="info-section">
         <h3>System Logs</h3>
         @for (log of info()!.logs; track log.path) {

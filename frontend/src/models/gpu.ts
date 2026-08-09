@@ -67,4 +67,15 @@ export interface SystemInfoDetail {
   uptime: string;
   disks: DiskInfo[];
   logs: LogFileInfo[];
+  timeshift?: TimeshiftInfo;
+}
+
+export interface TimeshiftInfo {
+  mode: "RSYNC" | "BTRFS";
+  device: string;
+  snapshots: number;
+  lastSnapshot: string;
+  totalSpace: number; // bytes
+  freeSpace: number; // bytes
+  schedules: string[];
 }
