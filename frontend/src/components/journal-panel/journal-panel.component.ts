@@ -107,9 +107,11 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
       next: (services) => {
         this.services.set(services);
 
-        // If no service is selected yet, pick the first one
-        if (!this.selectedService() && services.length > 0) {
-          this.selectedServiceService.select(services[0].name);
+        // Restore the persisted selection when it still exists; otherwise fall back to None.
+        const current = this.selectedService();
+        const exists = current === null || services.some((s) => s.name === current);
+        if (!this.selectedServiceService.hasSavedSelection || !exists) {
+          this.selectedServiceService.select(null);
         }
 
         this.loading.set(false);
