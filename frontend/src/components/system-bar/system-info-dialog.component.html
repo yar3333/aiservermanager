@@ -12,30 +12,27 @@
     } @else if (info()) {
       <div class="info-section">
         <h3>Operating System</h3>
-        <div class="info-row">
-          <span class="info-label">Distro</span>
-          <span class="info-value">{{ info()!.os.name }}</span>
-        </div>
-        @if (info()!.os.version) {
-          <div class="info-row">
-            <span class="info-label">Version</span>
-            <span class="info-value">{{ info()!.os.version }}</span>
+        <div class="info-card">
+          <div class="info-card-header">
+            <mat-chip-set>
+              <mat-chip class="hostname-chip">{{ info()!.hostname }}</mat-chip>
+              <mat-chip class="distro-chip">{{ info()!.os.name }}</mat-chip>
+            </mat-chip-set>
+            @if (info()!.uptime) {
+              <span class="os-uptime">{{ info()!.uptime }}</span>
+            }
           </div>
-        }
-        <div class="info-row">
-          <span class="info-label">Hostname</span>
-          <span class="info-value">{{ info()!.hostname }}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Kernel</span>
-          <span class="info-value">{{ info()!.kernel }}</span>
-        </div>
-        @if (info()!.uptime) {
+          @if (info()!.os.version) {
+            <div class="info-row">
+              <span class="info-label">Version</span>
+              <span class="info-value">{{ info()!.os.version }}</span>
+            </div>
+          }
           <div class="info-row">
-            <span class="info-label">Uptime</span>
-            <span class="info-value">{{ info()!.uptime }}</span>
+            <span class="info-label">Kernel</span>
+            <span class="info-value">{{ info()!.kernel }}</span>
           </div>
-        }
+        </div>
       </div>
 
       <mat-divider class="section-divider"></mat-divider>
@@ -68,8 +65,8 @@
       @if (info()!.timeshift) {
         <div class="info-section">
           <h3>Timeshift Backup</h3>
-          <div class="timeshift-card">
-            <div class="timeshift-header">
+          <div class="info-card">
+            <div class="info-card-header">
               <mat-chip-set>
                 <mat-chip class="mode-chip">{{ info()!.timeshift!.mode }}</mat-chip>
                 <mat-chip class="device-chip">{{ info()!.timeshift!.device }}</mat-chip>
