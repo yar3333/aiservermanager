@@ -381,22 +381,67 @@ export class LlamaServerDialogComponent implements OnInit {
 
   // ── Conditional signals ──
 
-  readonly fitValue = computed(() => this.form.get("fit")?.value as string);
-  readonly splitModeValue = computed(() => this.form.get("splitMode")?.value as string);
-  readonly specTypeValue = computed(() => this.form.get("specType")?.value as string);
-  readonly ropeScalingValue = computed(() => this.form.get("ropeScaling")?.value as string);
+  /**
+   * Reactive snapshot of the whole form value. `computed()` only re-evaluates when a
+   * signal it reads changes, so the value-* signals below must derive from this snapshot
+   * instead of `form.get(...).value` (a plain property read, not reactive) to update live.
+   */
+  private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.value });
 
+  readonly fitValue = computed(() => this.formValue()?.fit as string);
+  readonly splitModeValue = computed(() => this.formValue()?.splitMode as string);
+  readonly specTypeValue = computed(() => this.formValue()?.specType as string);
+  readonly ropeScalingValue = computed(() => this.formValue()?.ropeScaling as string);
+  readonly cpuMoeValue = computed(() => this.formValue()?.cpuMoe as string);
+  readonly cachePromptValue = computed(() => this.formValue()?.cachePrompt as string);
+  readonly reasoningValue = computed(() => this.formValue()?.reasoning as string);
+  readonly mirostatValue = computed(() => this.formValue()?.mirostat as number);
+  readonly hostValue = computed(() => this.formValue()?.host as string);
+
+  /** tensor-split only applies when splitting across GPUs. */
   readonly isTensorSplitDisabled = computed(() => this.splitModeValue() === "none");
+
+  /** fit-target / fit-ctx only apply when --fit is enabled. */
   readonly isFitTargetDisabled = computed(() => this.fitValue() === "off");
-  readonly showNgramParams = computed(() => {
-    const v = this.specTypeValue();
-    return v?.includes("ngram") ?? false;
+
+  /** --cpu-moe (all MoE layers) and --n-cpu-moe (first N) are alternatives. */
+  readonly isCpuMoeLayersDisabled = computed(() => this.cpuMoeValue() === "on");
+
+  /** --cache-reuse requires prompt caching to be enabled. */
+  readonly isCacheReuseDisabled = computed(() => this.cachePromptValue() === "off");
+
+  /** Reasoning budget/format are meaningless when reasoning is off. */
+  readonly isReasoningParamsDisabled = computed(() => this.reasoningValue() === "off");
+
+  /** Mirostat ignores top-k / top-p / typical-p at runtime. */
+  readonly isMirostatEnabled = computed(() => (this.mirostatValue() ?? 0) !== 0);
+
+  /** RoPE factors only apply when a scaling method is selected. */
+  readonly isRopeParamsDisabled = computed(() => this.ropeScalingValue() === "none");
+
+  /** Port is ignored when host binds to a UNIX socket. */
+  readonly isPortDisabled = computed(() => (this.hostValue() ?? "").trim().toLowerCase().endsWith(".sock"));
+
+  /** Draft block only makes sense for draft-* spec types. */
+  readonly showDraftParams = computed(() => (this.specTypeValue() ?? "").includes("draft"));
+
+  /** A separate draft model file is used only by draft-simple / draft-eagle3 (not draft-mtp). */
+  readonly showDraftModelFields = computed(() => {
+    const v = this.specTypeValue() ?? "";
+    return v.includes("draft") && !v.includes("mtp");
   });
+
+  /** ngram-mod params only for the ngram-mod variant. */
+  readonly showNgramModParams = computed(() => (this.specTypeValue() ?? "").includes("ngram-mod"));
+
+  /** ngram-simple params only for the ngram-simple variant. */
+  readonly showNgramSimpleParams = computed(() => (this.specTypeValue() ?? "").includes("ngram-simple"));
+
   readonly showYarnParams = computed(() => this.ropeScalingValue() === "yarn");
 
   /** Effective parallel slot count for preset computation (1 when parallel is auto/unset). */
   readonly parallelSlots = computed(() => {
-    const v = this.form.get("parallel")?.value;
+    const v = this.formValue()?.parallel;
     return typeof v === "number" && v > 0 ? v : 1;
   });
 
@@ -585,18 +630,24 @@ export class LlamaServerDialogComponent implements OnInit {
     if (deviceArr && deviceArr.length > 0) {
       this._flags.push(`--device ${deviceArr.join(",")}`);
     }
-    this.addIf("--tensor-split", c.tensorSplit.value, DEFAULT_OPTIONS.tensorSplit);
+    if (c.splitMode.value !== "none") {
+      this.addIf("--tensor-split", c.tensorSplit.value, DEFAULT_OPTIONS.tensorSplit);
+    }
     this.addIf("--model", c.model.value, DEFAULT_OPTIONS.model);
     this.addIf("--mmproj", c.mmproj.value, DEFAULT_OPTIONS.mmproj);
     this.addIf("--n-gpu-layers", c.nGpuLayers.value, DEFAULT_OPTIONS.nGpuLayers);
     this.addIf("--split-mode", c.splitMode.value, DEFAULT_OPTIONS.splitMode);
     this.addIf("--main-gpu", c.mainGpu.value, DEFAULT_OPTIONS.mainGpu);
-    this.addIf("--fit-target", c.fitTarget.value, DEFAULT_OPTIONS.fitTarget);
-    this.addIf("--fit-ctx", c.fitCtx.value, DEFAULT_OPTIONS.fitCtx);
+    if (c.fit.value === "on") {
+      this.addIf("--fit-target", c.fitTarget.value, DEFAULT_OPTIONS.fitTarget);
+      this.addIf("--fit-ctx", c.fitCtx.value, DEFAULT_OPTIONS.fitCtx);
+    }
     if (c.mlock.value === "on") this._flags.push("--mlock");
     this.addToggle(c.mmap.value as string, "--mmap", "--no-mmap", true);
     if (c.cpuMoe.value === "on") this._flags.push("--cpu-moe");
-    this.addIf("--n-cpu-moe", c.nCpuMoe.value, DEFAULT_OPTIONS.nCpuMoe);
+    if (c.cpuMoe.value !== "on") {
+      this.addIf("--n-cpu-moe", c.nCpuMoe.value, DEFAULT_OPTIONS.nCpuMoe);
+    }
 
     // Context & KV Cache
     this.addIf("--ctx-size", +parseContextSize(c.ctxSize.value ?? ""), DEFAULT_OPTIONS.ctxSize);
@@ -641,17 +692,22 @@ export class LlamaServerDialogComponent implements OnInit {
     this.addIf("--dynatemp-range", c.dynatempRange.value, DEFAULT_OPTIONS.dynatempRange);
 
     // Speculative
-    this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
-    const specDeviceArr = c.specDraftDevice.value as string[];
-    if (specDeviceArr && specDeviceArr.length > 0) {
-      this._flags.push(`--spec-draft-device ${specDeviceArr.join(",")}`);
-    }
-    this.addIf("--spec-draft-n-max", c.specDraftNMax.value, DEFAULT_OPTIONS.specDraftNMax);
-    this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
-    this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
-    this.addIf("--cache-type-v-draft", c.specDraftCacheTypeV.value, DEFAULT_OPTIONS.specDraftCacheTypeV);
-    this.addIf("--spec-type", c.specType.value, DEFAULT_OPTIONS.specType);
     const specType = c.specType.value as string;
+    this.addIf("--spec-type", specType, DEFAULT_OPTIONS.specType);
+    if (specType?.includes("draft")) {
+      this.addIf("--spec-draft-n-max", c.specDraftNMax.value, DEFAULT_OPTIONS.specDraftNMax);
+      // draft-mtp generates drafts with the model's built-in MTP head — no separate draft model.
+      if (!specType.includes("mtp")) {
+        this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
+        const specDeviceArr = c.specDraftDevice.value as string[];
+        if (specDeviceArr && specDeviceArr.length > 0) {
+          this._flags.push(`--spec-draft-device ${specDeviceArr.join(",")}`);
+        }
+        this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
+        this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
+        this.addIf("--cache-type-v-draft", c.specDraftCacheTypeV.value, DEFAULT_OPTIONS.specDraftCacheTypeV);
+      }
+    }
     if (specType?.includes("ngram")) {
       this.addIf("--spec-ngram-mod-n-min", c.specNgramModNMin.value, DEFAULT_OPTIONS.specNgramModNMin);
       this.addIf("--spec-ngram-mod-n-max", c.specNgramModNMax.value, DEFAULT_OPTIONS.specNgramModNMax);
@@ -675,7 +731,9 @@ export class LlamaServerDialogComponent implements OnInit {
     if (c.metrics.value === "on") this._flags.push("--metrics");
     this.addToggle(c.slots.value as string, "--slots", "--no-slots", true);
     this.addToggle(c.cachePrompt.value as string, "--cache-prompt", "--no-cache-prompt", true);
-    this.addIf("--cache-reuse", c.cacheReuse.value, DEFAULT_OPTIONS.cacheReuse);
+    if (c.cachePrompt.value === "on") {
+      this.addIf("--cache-reuse", c.cacheReuse.value, DEFAULT_OPTIONS.cacheReuse);
+    }
 
     // Reasoning
     this.addIf("--reasoning", c.reasoning.value, DEFAULT_OPTIONS.reasoning);

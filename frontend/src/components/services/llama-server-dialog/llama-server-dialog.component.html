@@ -30,159 +30,50 @@
       }
     </mat-autocomplete>
 
-    <!-- ═══════════ Basic Settings ═══════════ -->
-    <mat-expansion-panel
-      expanded
-      [class.has-changed]="
-        isSectionChanged(
-          'host',
-          'port',
-          'threads',
-          'parallel',
-          'flashAttn',
-          'fit',
-          'contBatching',
-          'contextShift',
-          'nPredict',
-          'alias',
-          'apiKeyFile'
-        )
-      "
-    >
+    <!-- ═══════════ Model ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('model', 'mmproj', 'alias')">
       <mat-expansion-panel-header>
-        <mat-panel-title>Basic Settings</mat-panel-title>
+        <mat-panel-title>Model</mat-panel-title>
       </mat-expansion-panel-header>
 
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('host')">
-          <input
-            matInput
-            formControlName="host"
-            type="text"
-            [matAutocomplete]="hostAuto"
-            matTooltip="IP address to listen (default: 127.0.0.1). Can bind to UNIX socket if ends with .sock"
-          />
-          <mat-label>Host</mat-label>
-        </mat-form-field>
-        <mat-autocomplete #hostAuto="matAutocomplete">
-          @for (hs of filteredHosts(); track hs.path) {
-            <mat-option [value]="hs.path">
-              <span class="auto-path">{{ hs.path }}</span>
-              <span class="auto-from">({{ hs.source }})</span>
-            </mat-option>
-          }
-        </mat-autocomplete>
-
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('port')">
-          <input matInput formControlName="port" type="number" matTooltip="Port to listen (default: 8080)" />
-          <mat-label>Port</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('threads')">
-          <input
-            matInput
-            formControlName="threads"
-            type="number"
-            matTooltip="Number of CPU threads to use during generation. -1 = auto-detect"
-          />
-          <mat-label>Threads</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('parallel')">
-          <input
-            matInput
-            formControlName="parallel"
-            type="number"
-            matTooltip="Number of server slots for parallel requests. -1 = auto"
-          />
-          <mat-label>Parallel Slots</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('flashAttn')">
-          <mat-select
-            formControlName="flashAttn"
-            matTooltip="Enable Flash Attention for faster inference with lower VRAM usage"
-          >
-            <mat-option value="on">on</mat-option>
-            <mat-option value="off">off</mat-option>
-            <mat-option value="auto">auto</mat-option>
-          </mat-select>
-          <mat-label>Flash Attention</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fit')">
-          <mat-select
-            formControlName="fit"
-            matTooltip="Adjust unset arguments to fit in device memory. Helps prevent OOM errors"
-          >
-            <mat-option value="on">on</mat-option>
-            <mat-option value="off">off</mat-option>
-          </mat-select>
-          <mat-label>Fit to VRAM</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contBatching')">
-          <mat-select
-            formControlName="contBatching"
-            matTooltip="Enable continuous (dynamic) batching for better throughput with multiple requests"
-          >
-            <mat-option value="on">on</mat-option>
-            <mat-option value="off">off</mat-option>
-          </mat-select>
-          <mat-label>Cont. Batching</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contextShift')">
-          <mat-select
-            formControlName="contextShift"
-            matTooltip="Enable context shift on infinite text generation. Shifts context window when full"
-          >
-            <mat-option value="on">on</mat-option>
-            <mat-option value="off">off</mat-option>
-          </mat-select>
-          <mat-label>Context Shift</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nPredict')">
-          <input
-            matInput
-            formControlName="nPredict"
-            type="number"
-            matTooltip="Maximum number of tokens to predict. -1 = infinity (unlimited generation)"
-          />
-          <mat-label>Max Tokens (n-predict)</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col-60" [class.changed]="isControlChanged('alias')">
-          <input
-            matInput
-            formControlName="alias"
-            type="text"
-            matTooltip="Set model name aliases (comma-separated). Used by API for model identification"
-          />
-          <mat-label>Model Alias</mat-label>
-        </mat-form-field>
-      </div>
+      <app-file-autocomplete
+        formControlName="model"
+        label="Model Path"
+        placeholder="/path/to/model.gguf"
+        [existingPaths]="existingModelPaths()"
+        [fieldClass]="isControlChanged('model') ? 'changed' : ''"
+      />
 
       <app-file-autocomplete
-        formControlName="apiKeyFile"
-        label="API Key File"
-        placeholder="/path/to/keys.ini"
-        [existingPaths]="existingApiKeyPaths()"
-        [fieldClass]="isControlChanged('apiKeyFile') ? 'changed' : ''"
+        formControlName="mmproj"
+        label="MMProj Path"
+        placeholder="/path/to/mmproj.gguf (optional)"
+        [existingPaths]="existingMmprojPaths()"
+        [fieldClass]="isControlChanged('mmproj') ? 'changed' : ''"
       />
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('alias')">
+        <input
+          matInput
+          formControlName="alias"
+          type="text"
+          matTooltip="Set model name aliases (comma-separated). Used by API for model identification"
+        />
+        <mat-label>Model Alias</mat-label>
+      </mat-form-field>
     </mat-expansion-panel>
 
-    <!-- ═══════════ Model & GPU ═══════════ -->
+    <!-- ═══════════ GPU & Memory ═══════════ -->
     <mat-expansion-panel
       expanded
       [class.has-changed]="
         isSectionChanged(
-          'model',
-          'mmproj',
           'nGpuLayers',
           'device',
           'tensorSplit',
           'splitMode',
           'mainGpu',
+          'fit',
           'fitTarget',
           'fitCtx',
           'mlock',
@@ -193,18 +84,10 @@
       "
     >
       <mat-expansion-panel-header>
-        <mat-panel-title>Model &amp; GPU</mat-panel-title>
+        <mat-panel-title>GPU &amp; Memory</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
-        <app-file-autocomplete
-          formControlName="model"
-          label="Model Path"
-          placeholder="/path/to/model.gguf"
-          [existingPaths]="existingModelPaths()"
-          [fieldClass]="isControlChanged('model') ? 'changed' : ''"
-          class="form-col-60"
-        />
         <mat-form-field appearance="outline" class="form-col-40" [class.changed]="isControlChanged('nGpuLayers')">
           <input
             matInput
@@ -214,17 +97,6 @@
           />
           <mat-label>GPU Layers</mat-label>
         </mat-form-field>
-      </div>
-
-      <app-file-autocomplete
-        formControlName="mmproj"
-        label="MMProj Path"
-        placeholder="/path/to/mmproj.gguf (optional)"
-        [existingPaths]="existingMmprojPaths()"
-        [fieldClass]="isControlChanged('mmproj') ? 'changed' : ''"
-      />
-
-      <div class="form-row">
         <mat-form-field appearance="outline" class="form-col-60" [class.changed]="isControlChanged('device')">
           <mat-select
             formControlName="device"
@@ -237,16 +109,6 @@
             }
           </mat-select>
           <mat-label>Device (multi-select)</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col-40" [class.changed]="isControlChanged('tensorSplit')">
-          <input
-            matInput
-            formControlName="tensorSplit"
-            placeholder="10,10,10"
-            [disabled]="isTensorSplitDisabled()"
-            matTooltip="Fraction of model to offload to each GPU (comma-separated proportions, e.g. 3,1)"
-          />
-          <mat-label>Tensor Split</mat-label>
         </mat-form-field>
       </div>
 
@@ -263,6 +125,20 @@
           </mat-select>
           <mat-label>Split Mode</mat-label>
         </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('tensorSplit') && !isTensorSplitDisabled()"
+        >
+          <input
+            matInput
+            formControlName="tensorSplit"
+            placeholder="10,10,10"
+            [disabled]="isTensorSplitDisabled()"
+            matTooltip="Fraction of model to offload to each GPU (comma-separated proportions, e.g. 3,1)"
+          />
+          <mat-label>Tensor Split</mat-label>
+        </mat-form-field>
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mainGpu')">
           <input
             matInput
@@ -274,8 +150,23 @@
         </mat-form-field>
       </div>
 
+      <div class="subsection-label">Memory</div>
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fitTarget')">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fit')">
+          <mat-select
+            formControlName="fit"
+            matTooltip="Adjust unset arguments to fit in device memory. Helps prevent OOM errors"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Fit to VRAM</mat-label>
+        </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('fitTarget') && !isFitTargetDisabled()"
+        >
           <input
             matInput
             formControlName="fitTarget"
@@ -285,7 +176,11 @@
           />
           <mat-label>Fit Target (MiB)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fitCtx')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('fitCtx') && !isFitTargetDisabled()"
+        >
           <input
             matInput
             formControlName="fitCtx"
@@ -325,11 +220,16 @@
           </mat-select>
           <mat-label>CPU MoE</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nCpuMoe')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('nCpuMoe') && !isCpuMoeLayersDisabled()"
+        >
           <input
             matInput
             formControlName="nCpuMoe"
             type="number"
+            [disabled]="isCpuMoeLayersDisabled()"
             matTooltip="Keep MoE weights of first N layers in CPU. 0 = disabled"
           />
           <mat-label>N CPU MoE Layers</mat-label>
@@ -486,29 +386,44 @@
           </mat-select>
           <mat-label>Scaling Method</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeScale')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('ropeScale') && !isRopeParamsDisabled()"
+        >
           <input
             matInput
             formControlName="ropeScale"
             type="number"
+            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE context scaling factor. Expands context by factor of N"
           />
           <mat-label>Scale Factor</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeFreqBase')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('ropeFreqBase') && !isRopeParamsDisabled()"
+        >
           <input
             matInput
             formControlName="ropeFreqBase"
             type="number"
+            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE base frequency for NTK-aware scaling. 0 = loaded from model"
           />
           <mat-label>Freq Base</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ropeFreqScale')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('ropeFreqScale') && !isRopeParamsDisabled()"
+        >
           <input
             matInput
             formControlName="ropeFreqScale"
             type="number"
+            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE frequency scaling factor. Expands context by factor of 1/N. 0 = from model"
           />
           <mat-label>Freq Scale</mat-label>
@@ -567,6 +482,82 @@
       }
     </mat-expansion-panel>
 
+    <!-- ═══════════ Generation ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged('threads', 'parallel', 'flashAttn', 'contBatching', 'contextShift', 'nPredict')
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Generation</mat-panel-title>
+        <mat-panel-description>Runtime and batching defaults</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('threads')">
+          <input
+            matInput
+            formControlName="threads"
+            type="number"
+            matTooltip="Number of CPU threads to use during generation. -1 = auto-detect"
+          />
+          <mat-label>Threads</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('parallel')">
+          <input
+            matInput
+            formControlName="parallel"
+            type="number"
+            matTooltip="Number of server slots for parallel requests. -1 = auto"
+          />
+          <mat-label>Parallel Slots</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nPredict')">
+          <input
+            matInput
+            formControlName="nPredict"
+            type="number"
+            matTooltip="Maximum number of tokens to predict. -1 = infinity (unlimited generation)"
+          />
+          <mat-label>Max Tokens (n-predict)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('flashAttn')">
+          <mat-select
+            formControlName="flashAttn"
+            matTooltip="Enable Flash Attention for faster inference with lower VRAM usage"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+            <mat-option value="auto">auto</mat-option>
+          </mat-select>
+          <mat-label>Flash Attention</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contBatching')">
+          <mat-select
+            formControlName="contBatching"
+            matTooltip="Enable continuous (dynamic) batching for better throughput with multiple requests"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Cont. Batching</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('contextShift')">
+          <mat-select
+            formControlName="contextShift"
+            matTooltip="Enable context shift on infinite text generation. Shifts context window when full"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Context Shift</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
     <!-- ═══════════ Sampling Defaults ═══════════ -->
     <mat-expansion-panel
       [class.has-changed]="
@@ -613,20 +604,30 @@
           />
           <mat-label>Seed</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topK')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('topK') && !isMirostatEnabled()"
+        >
           <input
             matInput
             formControlName="topK"
             type="number"
+            [disabled]="isMirostatEnabled()"
             matTooltip="Top-K sampling: limit to K most likely tokens. 0 = disabled. Default: 40"
           />
           <mat-label>Top-K</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topP')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('topP') && !isMirostatEnabled()"
+        >
           <input
             matInput
             formControlName="topP"
             type="number"
+            [disabled]="isMirostatEnabled()"
             matTooltip="Top-P (nucleus) sampling: cumulative probability threshold. 1.0 = disabled. Default: 0.95"
           />
           <mat-label>Top-P</mat-label>
@@ -643,11 +644,16 @@
           />
           <mat-label>Min-P</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('typicalP')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('typicalP') && !isMirostatEnabled()"
+        >
           <input
             matInput
             formControlName="typicalP"
             type="number"
+            [disabled]="isMirostatEnabled()"
             matTooltip="Locally typical sampling parameter p. 1.0 = disabled"
           />
           <mat-label>Typical-P</mat-label>
@@ -757,73 +763,12 @@
         <mat-panel-description>Draft model and speculative decoding options</mat-panel-description>
       </mat-expansion-panel-header>
 
-      <div class="subsection-label">Draft Model</div>
-      <app-file-autocomplete
-        formControlName="modelDraft"
-        label="Draft Model Path"
-        placeholder="/path/to/draft-model.gguf"
-        [existingPaths]="existingDraftModelPaths()"
-        [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
-      />
-
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftDevice')">
-          <mat-select
-            formControlName="specDraftDevice"
-            multiple
-            placeholder="Select GPU devices for draft model"
-            matTooltip="Devices for offloading the draft model. Same options as main --device"
-          >
-            @for (dev of availableDevices(); track dev.path) {
-              <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
-            }
-          </mat-select>
-          <mat-label>Draft Device (multi-select)</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftNMax')">
-          <input
-            matInput
-            formControlName="specDraftNMax"
-            type="number"
-            matTooltip="Max number of tokens to draft for speculative decoding. Default: 3"
-          />
-          <mat-label>Draft N Max</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nGpuLayersDraft')">
-          <input
-            matInput
-            formControlName="nGpuLayersDraft"
-            type="number"
-            matTooltip="Max draft model layers to store in VRAM. 999 = all layers"
-          />
-          <mat-label>Draft GPU Layers</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftCacheTypeK')">
-          <mat-select formControlName="specDraftCacheTypeK" matTooltip="KV cache data type for K for the draft model">
-            @for (t of kvCacheTypes; track t) {
-              <mat-option [value]="t">{{ t }}</mat-option>
-            }
-          </mat-select>
-          <mat-label>Draft Cache Type K</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftCacheTypeV')">
-          <mat-select formControlName="specDraftCacheTypeV" matTooltip="KV cache data type for V for the draft model">
-            @for (t of kvCacheTypes; track t) {
-              <mat-option [value]="t">{{ t }}</mat-option>
-            }
-          </mat-select>
-          <mat-label>Draft Cache Type V</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="subsection-label">Spec Type</div>
-      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('specType')">
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+        [class.changed]="isControlChanged('specType')"
+      >
         <mat-select
           formControlName="specType"
           matTooltip="Type of speculative decoding. draft-* uses draft model, ngram-* uses n-gram lookup"
@@ -838,9 +783,102 @@
         <mat-label>Spec Type</mat-label>
       </mat-form-field>
 
-      @if (showNgramParams()) {
-        <div class="subsection-label">Ngram Parameters</div>
-        <div class="sub-section-hint">Parameters for ngram-mod variant</div>
+      @if (showDraftParams() && !showDraftModelFields()) {
+        <div class="sub-section-hint">
+          draft-mtp generates drafts with the model's built-in MTP head — no separate draft model
+        </div>
+      }
+
+      @if (showDraftParams()) {
+        <div class="subsection-label">Draft Model</div>
+
+        @if (showDraftModelFields()) {
+          <app-file-autocomplete
+            formControlName="modelDraft"
+            label="Draft Model Path"
+            placeholder="/path/to/draft-model.gguf"
+            [existingPaths]="existingDraftModelPaths()"
+            [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
+          />
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftDevice')">
+              <mat-select
+                formControlName="specDraftDevice"
+                multiple
+                placeholder="Select GPU devices for draft model"
+                matTooltip="Devices for offloading the draft model. Same options as main --device"
+              >
+                @for (dev of availableDevices(); track dev.path) {
+                  <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
+                }
+              </mat-select>
+              <mat-label>Draft Device (multi-select)</mat-label>
+            </mat-form-field>
+          </div>
+        }
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftNMax')">
+            <input
+              matInput
+              formControlName="specDraftNMax"
+              type="number"
+              matTooltip="Max number of tokens to draft for speculative decoding. Default: 3"
+            />
+            <mat-label>Draft N Max</mat-label>
+          </mat-form-field>
+          @if (showDraftModelFields()) {
+            <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nGpuLayersDraft')">
+              <input
+                matInput
+                formControlName="nGpuLayersDraft"
+                type="number"
+                matTooltip="Max draft model layers to store in VRAM. 999 = all layers"
+              />
+              <mat-label>Draft GPU Layers</mat-label>
+            </mat-form-field>
+          }
+        </div>
+
+        @if (showDraftModelFields()) {
+          <div class="form-row">
+            <mat-form-field
+              appearance="outline"
+              class="form-col"
+              [class.changed]="isControlChanged('specDraftCacheTypeK')"
+            >
+              <mat-select
+                formControlName="specDraftCacheTypeK"
+                matTooltip="KV cache data type for K for the draft model"
+              >
+                @for (t of kvCacheTypes; track t) {
+                  <mat-option [value]="t">{{ t }}</mat-option>
+                }
+              </mat-select>
+              <mat-label>Draft Cache Type K</mat-label>
+            </mat-form-field>
+            <mat-form-field
+              appearance="outline"
+              class="form-col"
+              [class.changed]="isControlChanged('specDraftCacheTypeV')"
+            >
+              <mat-select
+                formControlName="specDraftCacheTypeV"
+                matTooltip="KV cache data type for V for the draft model"
+              >
+                @for (t of kvCacheTypes; track t) {
+                  <mat-option [value]="t">{{ t }}</mat-option>
+                }
+              </mat-select>
+              <mat-label>Draft Cache Type V</mat-label>
+            </mat-form-field>
+          </div>
+        }
+      }
+
+      @if (showNgramModParams()) {
+        <div class="subsection-label">Ngram Mod Parameters</div>
         <div class="form-row">
           <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specNgramModNMin')">
             <input
@@ -874,7 +912,10 @@
             <mat-label>Ngram Mod Match</mat-label>
           </mat-form-field>
         </div>
-        <div class="sub-section-hint">Parameters for ngram-simple variant</div>
+      }
+
+      @if (showNgramSimpleParams()) {
+        <div class="subsection-label">Ngram Simple Parameters</div>
         <div class="form-row">
           <mat-form-field
             appearance="outline"
@@ -944,15 +985,60 @@
       </mat-form-field>
     </mat-expansion-panel>
 
-    <!-- ═══════════ Server Settings ═══════════ -->
+    <!-- ═══════════ Server & Network ═══════════ -->
     <mat-expansion-panel
-      [class.has-changed]="isSectionChanged('timeout', 'threadsHttp', 'metrics', 'slots', 'cachePrompt', 'cacheReuse')"
+      [class.has-changed]="
+        isSectionChanged(
+          'host',
+          'port',
+          'timeout',
+          'threadsHttp',
+          'apiKeyFile',
+          'metrics',
+          'slots',
+          'cachePrompt',
+          'cacheReuse'
+        )
+      "
     >
       <mat-expansion-panel-header>
-        <mat-panel-title>Server Settings</mat-panel-title>
+        <mat-panel-title>Server &amp; Network</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('host')">
+          <input
+            matInput
+            formControlName="host"
+            type="text"
+            [matAutocomplete]="hostAuto"
+            matTooltip="IP address to listen (default: 127.0.0.1). Can bind to UNIX socket if ends with .sock"
+          />
+          <mat-label>Host</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #hostAuto="matAutocomplete">
+          @for (hs of filteredHosts(); track hs.path) {
+            <mat-option [value]="hs.path">
+              <span class="auto-path">{{ hs.path }}</span>
+              <span class="auto-from">({{ hs.source }})</span>
+            </mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('port') && !isPortDisabled()"
+        >
+          <input
+            matInput
+            formControlName="port"
+            type="number"
+            [disabled]="isPortDisabled()"
+            matTooltip="Port to listen (default: 8080). Ignored when host is a UNIX socket"
+          />
+          <mat-label>Port</mat-label>
+        </mat-form-field>
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('timeout')">
           <input
             matInput
@@ -971,16 +1057,15 @@
           />
           <mat-label>HTTP Threads</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cacheReuse')">
-          <input
-            matInput
-            formControlName="cacheReuse"
-            type="number"
-            matTooltip="Min chunk size to attempt reusing from cache via KV shifting. Requires prompt caching"
-          />
-          <mat-label>Cache Reuse</mat-label>
-        </mat-form-field>
       </div>
+
+      <app-file-autocomplete
+        formControlName="apiKeyFile"
+        label="API Key File"
+        placeholder="/path/to/keys.ini"
+        [existingPaths]="existingApiKeyPaths()"
+        [fieldClass]="isControlChanged('apiKeyFile') ? 'changed' : ''"
+      />
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('metrics')">
@@ -1004,6 +1089,20 @@
           </mat-select>
           <mat-label>Prompt Cache</mat-label>
         </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('cacheReuse') && !isCacheReuseDisabled()"
+        >
+          <input
+            matInput
+            formControlName="cacheReuse"
+            type="number"
+            [disabled]="isCacheReuseDisabled()"
+            matTooltip="Min chunk size to attempt reusing from cache via KV shifting. Requires prompt caching"
+          />
+          <mat-label>Cache Reuse</mat-label>
+        </mat-form-field>
       </div>
     </mat-expansion-panel>
 
@@ -1026,18 +1125,28 @@
           </mat-select>
           <mat-label>Reasoning</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningBudget')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('reasoningBudget') && !isReasoningParamsDisabled()"
+        >
           <input
             matInput
             formControlName="reasoningBudget"
             type="number"
+            [disabled]="isReasoningParamsDisabled()"
             matTooltip="Token budget for thinking. -1 = unlimited, 0 = immediate end, N>0 = token limit"
           />
           <mat-label>Reasoning Budget</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningFormat')">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('reasoningFormat') && !isReasoningParamsDisabled()"
+        >
           <mat-select
             formControlName="reasoningFormat"
+            [disabled]="isReasoningParamsDisabled()"
             matTooltip="Format for reasoning output. none=raw, deepseek=reasoning_content field, deepseek-legacy=keep think tags"
           >
             <mat-option value="auto">auto</mat-option>
