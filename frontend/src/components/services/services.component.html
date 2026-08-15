@@ -80,12 +80,23 @@
             </td>
             <td class="service-actions-cell">
               <div [style.visibility]="svc.hasConfig ? 'visible' : 'hidden'">
-                <button mat-icon-button color="primary" (click)="editService(svc)">
-                  <mat-icon>edit</mat-icon>
+                <button mat-icon-button [matMenuTriggerFor]="serviceMenu" title="Service actions">
+                  <mat-icon>more_vert</mat-icon>
                 </button>
-                <button mat-icon-button color="warn" (click)="deleteService(svc.name)">
-                  <mat-icon>delete</mat-icon>
-                </button>
+                <mat-menu #serviceMenu="matMenu" yPosition="below">
+                  <button mat-menu-item (click)="editService(svc)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Edit</span>
+                  </button>
+                  <button mat-menu-item (click)="cloneService(svc)">
+                    <mat-icon>content_copy</mat-icon>
+                    <span>Clone</span>
+                  </button>
+                  <button mat-menu-item (click)="deleteService(svc.name)">
+                    <mat-icon>delete</mat-icon>
+                    <span>Delete</span>
+                  </button>
+                </mat-menu>
               </div>
             </td>
           </tr>

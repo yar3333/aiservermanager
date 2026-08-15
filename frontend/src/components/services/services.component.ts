@@ -142,6 +142,21 @@ export class ServicesComponent implements OnInit {
     this.openDialog(svc.config, svc.config?.type);
   }
 
+  cloneService(svc: ServiceWithConfig): void {
+    if (!svc.config) return;
+    const cloneConfig: ServiceConfig = { ...svc.config, name: this.uniqueCloneName(svc.name) };
+    this.openDialog(cloneConfig, cloneConfig.type, true);
+  }
+
+  /** Suggest a name for the clone that doesn't collide with existing configs. */
+  private uniqueCloneName(name: string): string {
+    const existing = new Set(this.configs().map((c) => c.name));
+    if (!existing.has(`${name}-copy`)) return `${name}-copy`;
+    let i = 2;
+    while (existing.has(`${name}-copy-${i}`)) i++;
+    return `${name}-copy-${i}`;
+  }
+
   async deleteService(name: string): Promise<void> {
     this.selectedServiceService.select(name);
     try {
@@ -156,55 +171,61 @@ export class ServicesComponent implements OnInit {
     return cfg.flags.length > 0;
   }
 
-  private openDialog(config: ServiceConfig | null, forceType?: ServiceType): void {
+  private openDialog(config: ServiceConfig | null, forceType?: ServiceType, clone = false): void {
     const type = forceType ?? config?.type ?? "generic";
 
     if (type === "llama-server") {
-      const data: LlamaServerDialogData = { config, allConfigs: this.configs() };
+      const data: LlamaServerDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(LlamaServerDialogComponent, { data, minWidth: "800px" });
-      this.handleDialogResult(ref, config);
+      this.handleDialogResult(ref, config, clone);
     } else {
-      const data: ServiceDialogData = { config, allConfigs: this.configs() };
+      const data: ServiceDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
-      this.handleDialogResult(ref, config);
+      this.handleDialogResult(ref, config, clone);
     }
   }
 
   private handleDialogResult(
     ref: MatDialogRef<ServiceDialogComponent | LlamaServerDialogComponent>,
     config: ServiceConfig | null,
+    clone = false,
   ): void {
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (!result) return;
 
-      const oldName = config?.name ?? null;
-      const isNameChange = oldName !== null && oldName !== result.name;
-
       try {
-        if (isNameChange) {
-          // Capture old service state before destruction
-          const oldService = this.unified().find((s) => s.name === oldName);
-          const wasRunning = oldService?.running ?? false;
-          const wasEnabled = oldService?.enabled ?? false;
-
-          // Delete old service (stops + uninstalls + removes config)
-          await firstValueFrom(this.serviceService.deleteConfig(oldName!));
-
-          // Create new service with new name
+        if (clone) {
+          // Clone: create a new service, keep the original untouched.
           await firstValueFrom(this.serviceService.saveConfig(result));
-
-          // Restore enabled state
-          if (wasEnabled) {
-            await firstValueFrom(this.serviceService.control(result.name, "enable"));
-          }
-
-          // Restore running state
-          if (wasRunning) {
-            await firstValueFrom(this.serviceService.control(result.name, "start"));
-          }
         } else {
-          // Create or update (no name change)
-          await firstValueFrom(this.serviceService.saveConfig(result));
+          const oldName = config?.name ?? null;
+          const isNameChange = oldName !== null && oldName !== result.name;
+
+          if (isNameChange) {
+            // Capture old service state before destruction
+            const oldService = this.unified().find((s) => s.name === oldName);
+            const wasRunning = oldService?.running ?? false;
+            const wasEnabled = oldService?.enabled ?? false;
+
+            // Delete old service (stops + uninstalls + removes config)
+            await firstValueFrom(this.serviceService.deleteConfig(oldName!));
+
+            // Create new service with new name
+            await firstValueFrom(this.serviceService.saveConfig(result));
+
+            // Restore enabled state
+            if (wasEnabled) {
+              await firstValueFrom(this.serviceService.control(result.name, "enable"));
+            }
+
+            // Restore running state
+            if (wasRunning) {
+              await firstValueFrom(this.serviceService.control(result.name, "start"));
+            }
+          } else {
+            // Create or update (no name change)
+            await firstValueFrom(this.serviceService.saveConfig(result));
+          }
         }
       } catch (err) {
         this.showError(`Save: ${String(err)}`);

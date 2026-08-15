@@ -23,6 +23,8 @@ export interface LlamaServerDialogData {
   config: ServiceConfig | null;
   /** All user-created configs (for command quick-select). */
   allConfigs?: ServiceConfig[];
+  /** Clone mode: prefill from an existing config but create a new service (name stays editable). */
+  clone?: boolean;
 }
 
 const DEFAULT_OPTIONS = {
@@ -164,6 +166,7 @@ export class LlamaServerDialogComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
 
   readonly isEdit = this.data.config !== null;
+  readonly isClone = this.data.clone === true;
 
   readonly kvCacheTypes = KV_CACHE_TYPES;
 

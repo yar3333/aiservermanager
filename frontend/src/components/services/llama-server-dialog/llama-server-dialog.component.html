@@ -1,10 +1,10 @@
-<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} llama-server service</h2>
+<h2 mat-dialog-title>{{ isClone ? "Clone" : isEdit ? "Edit" : "Add" }} llama-server service</h2>
 
 <mat-dialog-content>
   <form [formGroup]="form" class="llama-form">
     <!-- Service identity -->
     <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
-      <input matInput formControlName="name" placeholder="e.g. llama-qwen3_6-27b-q8" [disabled]="isEdit" />
+      <input matInput formControlName="name" placeholder="e.g. llama-qwen3_6-27b-q8" [disabled]="isEdit && !isClone" />
       <mat-label>Service Name</mat-label>
       @if (form.controls.name.errors?.["required"]) {
         <mat-error>Required</mat-error>
@@ -1164,6 +1164,6 @@
 <mat-dialog-actions align="end">
   <button mat-stroked-button (click)="cancel()">Cancel</button>
   <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
-    {{ isEdit ? "Save" : "Create" }}
+    {{ isEdit && !isClone ? "Save" : "Create" }}
   </button>
 </mat-dialog-actions>

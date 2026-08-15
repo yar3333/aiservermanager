@@ -12,6 +12,8 @@ export interface ServiceDialogData {
   config: ServiceConfig | null;
   /** All user-created configs (for command quick-select). */
   allConfigs?: ServiceConfig[];
+  /** Clone mode: prefill from an existing config but create a new service (name stays editable). */
+  clone?: boolean;
 }
 
 const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
@@ -37,6 +39,7 @@ export class ServiceDialogComponent {
   private data: ServiceDialogData = inject(MAT_DIALOG_DATA);
 
   readonly isEdit = this.data.config !== null;
+  readonly isClone = this.data.clone === true;
 
   form = this.fb.group({
     name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],

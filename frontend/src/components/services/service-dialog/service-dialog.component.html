@@ -1,9 +1,9 @@
-<h2 mat-dialog-title>{{ isEdit ? "Edit" : "Add" }} custom service</h2>
+<h2 mat-dialog-title>{{ isClone ? "Clone" : isEdit ? "Edit" : "Add" }} custom service</h2>
 
 <mat-dialog-content>
   <form [formGroup]="form" class="dialog-form">
     <mat-form-field appearance="outline" class="full-width">
-      <input matInput formControlName="name" placeholder="e.g. llama-server" [disabled]="isEdit" />
+      <input matInput formControlName="name" placeholder="e.g. llama-server" [disabled]="isEdit && !isClone" />
       <mat-label>Service Name</mat-label>
       @if (nameControl.errors?.["required"]) {
         <mat-error>Required</mat-error>
@@ -46,6 +46,6 @@
 <mat-dialog-actions align="end">
   <button mat-stroked-button (click)="cancel()">Cancel</button>
   <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
-    {{ isEdit ? "Save" : "Create" }}
+    {{ isEdit && !isClone ? "Save" : "Create" }}
   </button>
 </mat-dialog-actions>
