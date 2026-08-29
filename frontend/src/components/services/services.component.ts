@@ -8,7 +8,8 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { SelectedServiceService } from "../../services/selected-service.service";
-import { ServiceAction, ServiceConfig, ServiceStatus, ServiceType } from "../../models/service";
+import { ServiceListService } from "../../services/service-list.service";
+import { ServiceAction, ServiceConfig, ServiceType } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
@@ -38,11 +39,13 @@ export interface ServiceWithConfig {
 })
 export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
+  private serviceList = inject(ServiceListService);
   protected selectedServiceService = inject(SelectedServiceService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
 
-  readonly services = signal<ServiceStatus[]>([]);
+  /** Managed services — shared store, refreshed here so the journal dropdown stays in sync. */
+  readonly services = this.serviceList.services;
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
   /** Name + action currently being processed — prevents double-click. */
@@ -85,12 +88,8 @@ export class ServicesComponent implements OnInit {
   async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [services, configs] = await Promise.all([
-        firstValueFrom(this.serviceService.fetchServices()),
-        firstValueFrom(this.serviceService.fetchConfigs()),
-      ]);
-      this.services.set(services);
-      this.configs.set(configs);
+      await this.serviceList.refresh();
+      this.configs.set(await firstValueFrom(this.serviceService.fetchConfigs()));
     } catch (err) {
       console.error("[ServicesComponent] load error:", err);
     } finally {

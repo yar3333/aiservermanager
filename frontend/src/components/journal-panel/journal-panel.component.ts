@@ -20,7 +20,8 @@ import { FormsModule } from "@angular/forms";
 import { timer, Subscription } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { SelectedServiceService } from "../../services/selected-service.service";
-import { JournalLine, ServiceStatus } from "../../models/service";
+import { ServiceListService } from "../../services/service-list.service";
+import { JournalLine } from "../../models/service";
 
 /** Threshold (px): if scrollTop is within this distance of the bottom, treat as "scrolled to bottom". */
 const AUTOSCROLL_THRESHOLD = 40;
@@ -43,18 +44,21 @@ const AUTOSCROLL_THRESHOLD = 40;
 export class JournalPanelComponent implements OnDestroy, AfterViewInit {
   private serviceService = inject(ServiceService);
   private selectedServiceService = inject(SelectedServiceService);
+  private serviceList = inject(ServiceListService);
   private cdr = inject(ChangeDetectorRef);
 
   @ViewChild("journalBody") journalBody?: ElementRef<HTMLElement>;
 
-  readonly services = signal<ServiceStatus[]>([]);
+  /** Managed services for the dropdown — shared store, refreshed by the services component. */
+  readonly services = this.serviceList.services;
+  readonly servicesLoaded = this.serviceList.loaded;
+
   readonly journalLines = signal<JournalLine[]>([]);
-  readonly loading = signal(true);
   readonly journalLoading = signal(false);
-  readonly error = signal<string | null>(null);
+  readonly journalError = signal<string | null>(null);
+  readonly error = computed(() => this.serviceList.error() ?? this.journalError());
 
   private journalSub?: Subscription;
-  readonly servicesLoaded = signal(false);
 
   /** Currently selected service name — synced with the shared signal. */
   selectedService = computed<string | null>(() => this.selectedServiceService.selectedService());
@@ -74,6 +78,15 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
   });
 
   constructor() {
+    // Keep the selection valid: reset to None if the selected service disappears from the list.
+    effect(() => {
+      if (!this.servicesLoaded()) return;
+      const current = this.selectedService();
+      if (current !== null && !this.services().some((s) => s.name === current)) {
+        this.selectedServiceService.select(null);
+      }
+    });
+
     // Watch shared signal reactively — catches changes from dropdown, row click, edit, delete, etc.
     effect(() => {
       if (!this.servicesLoaded()) return;
@@ -81,7 +94,7 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
 
       if (name) {
         this.journalLines.set([]);
-        this.error.set(null);
+        this.journalError.set(null);
         this.restartPolling();
       } else {
         this.stopPolling();
@@ -89,7 +102,7 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
       }
     });
 
-    this.loadServices();
+    this.serviceList.refresh();
   }
 
   ngAfterViewInit(): void {
@@ -99,29 +112,6 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
 
   ngOnDestroy(): void {
     this.stopPolling();
-  }
-
-  private loadServices(): void {
-    this.loading.set(true);
-    this.serviceService.fetchServices().subscribe({
-      next: (services) => {
-        this.services.set(services);
-
-        // Restore the persisted selection when it still exists; otherwise fall back to None.
-        const current = this.selectedService();
-        const exists = current === null || services.some((s) => s.name === current);
-        if (!this.selectedServiceService.hasSavedSelection || !exists) {
-          this.selectedServiceService.select(null);
-        }
-
-        this.loading.set(false);
-        this.servicesLoaded.set(true);
-      },
-      error: (err) => {
-        this.error.set(err.message);
-        this.loading.set(false);
-      },
-    });
   }
 
   onServiceChange(name: string | null): void {
@@ -155,7 +145,7 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
         const wasAtBottom = this.isScrolledToBottom();
 
         this.journalLines.set(lines);
-        this.error.set(null);
+        this.journalError.set(null);
         this.journalLoading.set(false);
 
         // After DOM update, restore scroll position
@@ -167,7 +157,7 @@ export class JournalPanelComponent implements OnDestroy, AfterViewInit {
         });
       },
       error: (err) => {
-        this.error.set(err.message);
+        this.journalError.set(err.message);
         this.journalLoading.set(false);
         this.cdr.markForCheck();
       },

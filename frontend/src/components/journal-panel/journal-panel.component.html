@@ -2,7 +2,7 @@
   <mat-card-content>
     <div class="journal-header">
       <h2>Journal</h2>
-      @if (!loading() && services().length > 0) {
+      @if (servicesLoaded() && services().length > 0) {
         <mat-select
           [ngModel]="selectedService()"
           (ngModelChange)="onServiceChange($event)"

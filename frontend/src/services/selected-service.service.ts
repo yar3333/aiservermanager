@@ -8,9 +8,6 @@ const STORAGE_KEY = "journal-selected-service";
 export class SelectedServiceService {
   readonly selectedService = signal<string | null>(this.readSaved());
 
-  /** Whether a selection was persisted before (distinguishes "None" from "never selected"). */
-  readonly hasSavedSelection = localStorage.getItem(STORAGE_KEY) !== null;
-
   select(name: string | null): void {
     this.selectedService.set(name);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(name));
