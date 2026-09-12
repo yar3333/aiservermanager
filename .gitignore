@@ -8,3 +8,4 @@ frontend/dist/
 .env
 .angular/
 *.tsbuildinfo
+release/

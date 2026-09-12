@@ -24,6 +24,10 @@ app.use(express.json());
 const publicPath = path.join(__dirname, "../public/browser");
 app.use(express.static(publicPath));
 
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
+
 // SPA fallback — serve index.html for all non-API routes
 app.use((_req, res, next) => {
   // Let API routes pass through; only SPA fallback for non-/api paths
@@ -34,10 +38,6 @@ app.use((_req, res, next) => {
 // ── Public API routes ──
 
 app.use("/api/auth", authRoutes(container));
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", uptime: process.uptime() });
-});
 
 // ── Protected API routes — require JWT ──
 

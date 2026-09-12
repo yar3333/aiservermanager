@@ -7,7 +7,8 @@
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "build": "cd backend && npm run build && cd ../frontend && npm run build",
     "start": "cd backend && npm start",
-    "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\""
+    "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
+    "package": "node scripts/package-npm.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
