@@ -74,22 +74,20 @@ Published to npm as **`aiservermanager`**. End users run it without cloning or i
 npx --yes aiservermanager@latest
 ```
 
-The release flow is automated by the `publish` job in `.github/workflows/publish.yml` (build → test → package → `npm publish`). To release a new version:
+The release flow is automated by `.github/workflows/publish.yml` (build → test → package → `npm publish`). To ship a new version:
 
-1. Bump the version in the root `package.json` (must match the tag), e.g. `0.1.0` → `0.1.1` for a patch.
-2. Commit the bump, then tag and push **both in one push**. A tag-only push pointing at a commit that already has a workflow run is skipped by Actions — the tag must travel with a new commit:
-   ```bash
-   git add package.json && git commit -m "v0.1.1"
-   git tag v0.1.1
-   git push origin master refs/tags/v0.1.1
-   ```
-3. If the publish job was skipped or you want to re-publish: **Actions → Build and Publish to npm → Run workflow** (manual trigger).
-4. Verify:
-   ```bash
-   npm view aiservermanager
-   ```
+```bash
+npm version patch                          # 0.1.1 → 0.1.2: bumps, commits, creates tag v0.1.2
+git push origin master refs/tags/v0.1.2   # push the commit and the tag together
+```
 
-**One-time setup**: a GitHub environment named **NPM** with the secret `NPM_TOKEN` (npm access token with publish permission).
+Notes:
+
+- Actions skips a tag-only push pointing at a commit that already ran — always push the new commit and the tag in the same push.
+- If publish was skipped or you want to re-publish: **Actions → Build and Publish to npm → Run workflow**.
+- One-time setup: GitHub environment **NPM** with the secret `NPM_TOKEN` (npm access token with publish permission).
+
+Verify: `npm view aiservermanager`
 
 ## License
 
