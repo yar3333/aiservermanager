@@ -24,7 +24,7 @@ Monorepo with two packages:
 
 ## Prerequisites
 
-- **Node.js** 20+
+- **Node.js** 24+
 - **Linux**: `sudo apt install libpam0g-dev` (for PAM bindings)
 
 ## Quick Start
@@ -33,6 +33,10 @@ Monorepo with two packages:
 # Linux need PAM library
 sudo apt install libpam0g-dev
 
+# Run from npm without cloning the repo
+npx --yes aiservermanager@latest
+
+# ...or run from the source checkout
 # Install dependencies for all packages
 npm run install:all
 
@@ -46,7 +50,7 @@ npm run build
 npm start
 ```
 
-The server listens on `PORT=4242` and `HOST=127.0.0.1` by default.
+The server listens on `PORT=4243` and `HOST=127.0.0.1` by default.
 Override with environment variables (HOST and PORT).
 
 ## GPU Detection Pipeline
@@ -61,6 +65,33 @@ Override with environment variables (HOST and PORT).
 **Polling** (every request):
 
 - Usage probes collect dynamic metrics (utilization %, temperature, VRAM used) and merge them with the cached static info by `pciBusId`.
+
+## Release
+
+Published to npm as **`aiservermanager`**. End users run it without cloning or installing:
+
+```bash
+npx --yes aiservermanager@latest
+```
+
+The release flow is fully automated by the `publish` job in `.github/workflows/publish.yml` (build → test → package → `npm publish`). To release a new version:
+
+1. Bump the version in the root `package.json` (must match the tag), e.g. `0.1.0` → `0.1.1` for a patch.
+2. Commit and push:
+   ```bash
+   git add package.json && git commit -m "v0.1.1" && git push
+   ```
+3. Tag and push the tag — this triggers the publish:
+   ```bash
+   git tag v0.1.1
+   git push origin v0.1.1
+   ```
+4. Verify:
+   ```bash
+   npm view aiservermanager
+   ```
+
+**One-time setup**: a GitHub environment named **NPM** with the secret `NPM_TOKEN` (npm access token with publish permission).
 
 ## License
 
