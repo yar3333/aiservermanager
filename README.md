@@ -25,9 +25,13 @@ Monorepo with two packages:
 ## Prerequisites
 
 - **Node.js** 24+
-- **Linux**: `sudo apt install libpam0g-dev` (for PAM bindings)
+- On Linux:
+  - `sudo apt install libpam0g-dev` (for PAM bindings)
+  - passwordless `sudo` for the dashboard user (the server runs `systemctl`, `journalctl`, `reboot`, `poweroff` etc. via sudo; grant it by running `sudo visudo -f /etc/sudoers.d/aiservermanager` and adding the line `<username> ALL=(root) NOPASSWD: ALL`)
 
 ## Quick Start
+
+Run from npm without cloning the repo:
 
 ```bash
 # Linux need PAM library
@@ -35,8 +39,11 @@ sudo apt install libpam0g-dev
 
 # Run from npm without cloning the repo
 npx --yes aiservermanager@latest
+```
 
-# ...or run from the source checkout
+Or run from the source checkout:
+
+```bash
 # Install dependencies for all packages
 npm run install:all
 
@@ -74,20 +81,12 @@ Published to npm as **`aiservermanager`**. End users run it without cloning or i
 npx --yes aiservermanager@latest
 ```
 
-The release flow is automated by `.github/workflows/publish.yml` (build → test → package → `npm publish`). To ship a new version:
+The release flow is automated by `.github/workflows/publish.yml`:
 
 ```bash
-npm version patch                          # 0.1.1 → 0.1.2: bumps, commits, creates tag v0.1.2
-git push origin master refs/tags/v0.1.2   # push the commit and the tag together
+npm version patch               # "patch", "minor" or "major"
+git push origin master --tags   # push the commit and the tags
 ```
-
-Notes:
-
-- Actions skips a tag-only push pointing at a commit that already ran — always push the new commit and the tag in the same push.
-- If publish was skipped or you want to re-publish: **Actions → Build and Publish to npm → Run workflow**.
-- One-time setup: GitHub environment **NPM** with the secret `NPM_TOKEN` (npm access token with publish permission).
-
-Verify: `npm view aiservermanager`
 
 ## License
 
