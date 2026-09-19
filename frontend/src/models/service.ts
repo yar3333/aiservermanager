@@ -25,6 +25,8 @@ export interface ServiceConfig {
   command: string;
   /** CLI arguments as raw strings */
   flags: string[];
+  /** Extra environment variables passed to the service process (KEY → value). */
+  environment?: Record<string, string>;
 }
 
 /** A single journal log line from the backend. */

@@ -139,7 +139,32 @@ export class WindowsServiceController implements ServiceController {
     return status;
   }
 
-  async install(name: string, execStart: string): Promise<ServiceStatus> {
+  /**
+   * Persist environment variables for a Windows service in
+   * HKLM\SYSTEM\CurrentControlSet\Services\<name>\Environment (REG_MULTI_SZ).
+   * The Service Control Manager merges these into the service process
+   * environment when the service starts. Returns an error message, or null.
+   */
+  private async setServiceEnvironment(name: string, environment?: Record<string, string>): Promise<string | null> {
+    const entries = Object.entries(environment ?? {})
+      .filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
+      .map(([key, value]) => `${key}=${value.replace(/[\r\n]+/g, " ")}`);
+
+    const regKey = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${name}`;
+
+    if (entries.length === 0) {
+      // No variables — drop a stale value so the service does not inherit old env (best-effort)
+      await ExecTools.safeExecWithCode(`reg delete "${regKey}" /v Environment /f`);
+      return null;
+    }
+
+    const result: ExecResultWithCode = await ExecTools.safeExecWithCode(
+      `reg add "${regKey}" /v Environment /t REG_MULTI_SZ /d "${entries.join("\\0")}" /f`,
+    );
+    return result.exitCode === 0 ? null : `Failed to set environment variables: ${result.stderr.trim()}`;
+  }
+
+  async install(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
     const SC = WindowsServiceController.SC;
     const isAdmin = await this.checkIsAdmin();
     if (!isAdmin) {
@@ -150,6 +175,12 @@ export class WindowsServiceController implements ServiceController {
         installed: false,
         error: "Server is not running as Administrator. Restart with elevated privileges to install system services.",
       };
+    }
+
+    // Persist environment variables before (re)creating the service
+    const envError = await this.setServiceEnvironment(name, environment);
+    if (envError) {
+      return { name, running: false, enabled: false, installed: false, error: envError };
     }
 
     // sc.exe create with demand start (disabled) — install only, no auto-start
@@ -178,8 +209,8 @@ export class WindowsServiceController implements ServiceController {
     return this.getStatus(name);
   }
 
-  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
-    const status = await this.install(name, execStart);
+  async installAndEnable(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart, environment);
     if (status.error) return status;
 
     // Enable (set to auto start)

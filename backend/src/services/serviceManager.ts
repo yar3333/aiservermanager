@@ -78,7 +78,7 @@ export class ServiceManager {
         if (!cfg) return;
 
         const execStart = buildExecStart(cfg);
-        const result = await controller.install(status.name, execStart);
+        const result = await controller.install(status.name, execStart, cfg.environment);
 
         // If install failed, cache the error
         if (result.error) {

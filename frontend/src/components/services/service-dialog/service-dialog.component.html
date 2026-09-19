@@ -40,6 +40,18 @@
       ></textarea>
       <mat-label>CLI Flags (one per line)</mat-label>
     </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <textarea
+        matInput
+        formControlName="envText"
+        rows="4"
+        wrap="off"
+        class="env-textarea"
+        placeholder="HF_HOME=/data/huggingface&#10;CUDA_VISIBLE_DEVICES=0,1&#10;MY_API_KEY=secret"
+      ></textarea>
+      <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
+    </mat-form-field>
   </form>
 </mat-dialog-content>
 

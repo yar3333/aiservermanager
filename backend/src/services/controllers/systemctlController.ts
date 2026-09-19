@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
+import { buildEnvironmentLines } from "../../models/ServiceConfig";
 import { JournalLine, ServiceController } from "../serviceController";
 import { ConfigManager } from "../configManager";
 
@@ -116,29 +117,34 @@ export class SystemctlController implements ServiceController {
   /**
    * Build the systemd unit file content for a custom service.
    */
-  private buildUnitContent(name: string, execStart: string): string {
-    return `[Unit]
-Description=ai server manager service (${name})
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=${execStart}
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-`;
+  private buildUnitContent(name: string, execStart: string, environment?: Record<string, string>): string {
+    const envLines = environment ? buildEnvironmentLines(environment) : [];
+    const lines = [
+      "[Unit]",
+      `Description=ai server manager service (${name})`,
+      "After=network.target",
+      "",
+      "[Service]",
+      "Type=simple",
+      `ExecStart=${execStart}`,
+      ...envLines,
+      "Restart=on-failure",
+      "RestartSec=5",
+      "",
+      "[Install]",
+      "WantedBy=multi-user.target",
+      "",
+    ];
+    return lines.join("\n");
   }
 
   /**
    * Write the unit file and reload the daemon. Does NOT enable.
    */
-  async install(name: string, execStart: string): Promise<ServiceStatus> {
+  async install(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
     const sudo = "sudo ";
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
-    const unitContent = this.buildUnitContent(name, execStart);
+    const unitContent = this.buildUnitContent(name, execStart, environment);
 
     try {
       if (this.hasCustomConfig(name)) {
@@ -181,8 +187,8 @@ WantedBy=multi-user.target
     return this.getStatus(name);
   }
 
-  async installAndEnable(name: string, execStart: string): Promise<ServiceStatus> {
-    const status = await this.install(name, execStart);
+  async installAndEnable(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart, environment);
     if (status.error) return status;
 
     const enableResult = await ExecTools.safeExecWithCode(`sudo systemctl enable ${name}`);

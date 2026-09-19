@@ -54,6 +54,18 @@ export class ServiceConfigController {
       return { ok: false, error: "Command path is required" };
     }
 
+    // Validate environment variables
+    if (cfg.environment) {
+      for (const [key, value] of Object.entries(cfg.environment)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+          return { ok: false, error: `Invalid environment variable name: "${key}"` };
+        }
+        if (/[\r\n]/.test(value)) {
+          return { ok: false, error: `Environment variable "${key}" contains a newline` };
+        }
+      }
+    }
+
     // Save config file
     this.configManager.save(cfg);
 
@@ -67,7 +79,7 @@ export class ServiceConfigController {
       const wasInstalled = priorStatus.installed;
       const wasEnabled = wasInstalled && priorStatus.enabled;
 
-      const result = await controller.install(cfg.name, execStart);
+      const result = await controller.install(cfg.name, execStart, cfg.environment);
       if (result.error) {
         // Config was saved but service install failed — keep config for retry
         return { ok: false, error: result.error };

@@ -45,6 +45,7 @@ export class ServiceDialogComponent {
     name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
     command: [this.data.config?.command ?? "", Validators.required],
     flagsText: [""],
+    envText: [""],
   });
 
   get nameControl() {
@@ -87,6 +88,14 @@ export class ServiceDialogComponent {
     if (this.data.config?.flags?.length) {
       this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n") + "\n");
     }
+    if (this.data.config?.environment) {
+      const envLines = Object.entries(this.data.config.environment)
+        .map(([key, value]) => `${key}=${value}`)
+        .join("\n");
+      if (envLines) {
+        this.form.get("envText")!.setValue(envLines + "\n");
+      }
+    }
   }
 
   save(): void {
@@ -100,11 +109,21 @@ export class ServiceDialogComponent {
       }
     }
 
+    const environment: Record<string, string> = {};
+    for (const line of (this.form.get("envText")!.value as string).split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx <= 0) continue;
+      environment[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1);
+    }
+
     const cfg: ServiceConfig = {
       name: (this.nameControl.value as string).trim(),
       type: "generic" as ServiceType,
       command: (this.commandControl.value as string).trim(),
       flags,
+      environment,
     };
 
     this.dialogRef.close(cfg);

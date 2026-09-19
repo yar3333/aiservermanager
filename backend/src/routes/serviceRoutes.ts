@@ -90,6 +90,7 @@ export default function serviceRoutes(container: Container) {
         type: body.type,
         command: body.command,
         flags: body.flags ?? [],
+        environment: body.environment ?? {},
       };
 
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
