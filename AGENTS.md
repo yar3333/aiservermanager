@@ -281,6 +281,7 @@ Jest 30 + ts-jest + supertest. 14 файлов тестов, 125 тестов.
 - **Angular Material 22** (Toolbar, Table, ProgressBar, Card, Chips, Button)
 - **RxJS** — два независимых стрима: `fetchGpus()` (1 раз) + `watchUsage()` (poll 3s)
 - **Zone.js** с `eventCoalescing: true`
+- **Jest 30** + **jest-preset-angular 17** (тесты: `cd frontend && npm test`)
 
 ### Компоненты
 
@@ -306,13 +307,14 @@ readonly hasGpus = computed(() => this.gpus().length > 0);
 
 ## Команды
 
-| Команда                     | Описание                                           |
-| --------------------------- | -------------------------------------------------- |
-| `npm run install:all`       | Установить зависимости root + backend + frontend   |
-| `npm run dev`               | `ng build --watch` + `ts-node-dev` параллельно     |
-| `npm run build`             | `tsc` (backend) + `ng build` → `../backend/public` |
-| `cd backend && npm run dev` | Только backend (ts-node-dev --respawn)             |
-| `cd backend && npm test`    | Jest --verbose                                     |
+| Команда                     | Описание                                                |
+| --------------------------- | ------------------------------------------------------- |
+| `npm run install:all`       | Установить зависимости root + backend + frontend        |
+| `npm run dev`               | `ng build --watch` + `ts-node-dev` параллельно          |
+| `npm run build`             | `tsc` (backend) + `ng build` → `../backend/public`      |
+| `cd backend && npm run dev` | Только backend (ts-node-dev --respawn)                  |
+| `cd backend && npm test`    | Jest --verbose                                          |
+| `cd frontend && npm test`   | Jest (jest-preset-angular), watch: `npm run test:watch` |
 
 ## Паттерны
 
