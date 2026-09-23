@@ -149,7 +149,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.error.set(null);
 
         // 2. Start polling unified status (GPU usage + system info)
-        this.gpuService.watchStatus(300000).subscribe({
+        this.gpuService.watchStatus(3000).subscribe({
           next: (status) => {
             this.systemInfo.set(status.system);
             this.mergeUsage(status.gpus);
