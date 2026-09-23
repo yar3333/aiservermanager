@@ -144,16 +144,17 @@ function getNetworkHosts(): string[] {
   return [...new Set([...ips, "0.0.0.0", "127.0.0.1"])];
 }
 
-/** Resolve device names from GPU static info. */
+/** Resolve device names from GPU static info (user-defined GPU label text). */
 function getDeviceNamesFromGpu(gpuService: GpuService | null): string[] {
   if (!gpuService) return [];
   const cachedGpus = (gpuService as any).cachedGpus;
   if (!cachedGpus) return [];
   const devices: string[] = [];
   for (const gpu of cachedGpus) {
-    if (gpu.engineCudaName) devices.push(gpu.engineCudaName);
-    if (gpu.engineRocmName) devices.push(gpu.engineRocmName);
-    if (gpu.engineVulkanName) devices.push(gpu.engineVulkanName);
+    for (const d of gpu.gpuLabel.split(",")) {
+      const name = d.trim();
+      if (name) devices.push(name);
+    }
   }
   return devices;
 }
@@ -238,7 +239,7 @@ export class LlamaAutocompleteService {
         }
         // Fallback: если list-devices пустой (некоторые сборки не возвращают AMD) — берём из GpuService
         if (devices.length === 0) {
-          const gpuDevices = getDeviceNamesFromGpu(this.gpuService).filter((x) => x.toLowerCase().startsWith("rocm"));
+          const gpuDevices = getDeviceNamesFromGpu(this.gpuService);
           if (gpuDevices.length > 0) {
             devices = gpuDevices;
             source = "GPU device";

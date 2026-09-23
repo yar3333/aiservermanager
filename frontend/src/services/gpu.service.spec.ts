@@ -10,9 +10,7 @@ const GPU: Gpu = {
   vendor: "NVIDIA",
   brand: "MSI",
   name: "RTX 4090",
-  engineCudaName: "cuda0",
-  engineRocmName: "",
-  engineVulkanName: "vulkan0",
+  gpuLabel: "cuda0, vulkan0",
   vramTotal: 24,
   pciBusId: "01:00.0",
 };
@@ -66,5 +64,13 @@ describe("GpuService", () => {
     httpMock.expectOne("/api/gpus/usage").flush(STATUS);
 
     jest.useRealTimers();
+  });
+
+  it("saves the GPU label via PUT to /api/gpus/gpu-label/:pciBusId", () => {
+    service.saveGpuLabel("01:00.0", "cuda0, rocm0").subscribe((result) => expect(result).toEqual({ ok: true }));
+    const req = httpMock.expectOne("/api/gpus/gpu-label/01%3A00.0");
+    expect(req.request.method).toBe("PUT");
+    expect(req.request.body).toEqual({ gpuLabel: "cuda0, rocm0" });
+    req.flush({ ok: true });
   });
 });

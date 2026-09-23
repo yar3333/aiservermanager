@@ -1,16 +1,18 @@
 import "reflect-metadata";
 import { Container } from "inversify";
-import { GPU_DETECTOR, GPU_ENRICHER, GPU_SERVICE, GPU_USAGE_PROBE } from "../../di/types";
+import { GPU_DETECTOR, GPU_ENRICHER, GPU_LABEL_MANAGER, GPU_SERVICE, GPU_USAGE_PROBE } from "../../di/types";
 import { GpuDetector } from "../detectors/gpuDetector";
 import { GpuEnricher } from "../enrichers/gpuEnricher";
 import { GpuUsageProbe } from "../probes/gpuUsageProbe";
 import { GpuService } from "../gpuService";
+import { GpuLabelManager } from "../gpuLabelManager";
 import { GpuInfo, GpuUsage } from "../../models/GpuInfo";
 
 function createTestContainer(
   detectors: PartialMockDetector[] = [],
   enrichers: PartialMockEnricher[] = [],
   probes: PartialMockProbe[] = [],
+  gpuLabel: Partial<Pick<GpuLabelManager, "getAll" | "set">> = {},
 ): Container {
   const container = new Container();
 
@@ -23,6 +25,12 @@ function createTestContainer(
   for (const p of probes) {
     container.bind<GpuUsageProbe>(GPU_USAGE_PROBE).toConstantValue(p as unknown as GpuUsageProbe);
   }
+
+  container.bind<GpuLabelManager>(GPU_LABEL_MANAGER).toConstantValue({
+    getAll: jest.fn().mockReturnValue({}),
+    set: jest.fn(),
+    ...gpuLabel,
+  } as unknown as GpuLabelManager);
 
   container.bind<GpuService>(GPU_SERVICE).to(GpuService);
 
@@ -63,9 +71,7 @@ const gpu1: GpuInfo = {
   vendor: "NVIDIA",
   brand: "NVIDIA",
   name: "GeForce RTX 3080",
-  engineCudaName: "",
-  engineRocmName: "",
-  engineVulkanName: "",
+  gpuLabel: "",
   vramTotal: 10,
   pciBusId: "1:00.0",
 };
@@ -75,9 +81,7 @@ const gpu1Lean: GpuInfo = {
   vendor: "NVIDIA",
   brand: "NVIDIA",
   name: "GeForce RTX 3080",
-  engineCudaName: "",
-  engineRocmName: "",
-  engineVulkanName: "",
+  gpuLabel: "",
   vramTotal: 0,
   pciBusId: "1:00.0",
 };
@@ -87,9 +91,7 @@ const gpu2: GpuInfo = {
   vendor: "AMD",
   brand: "RADEON",
   name: "Radeon RX 6800",
-  engineCudaName: "",
-  engineRocmName: "",
-  engineVulkanName: "",
+  gpuLabel: "",
   vramTotal: 16,
   pciBusId: "2:00.0",
 };
@@ -195,16 +197,46 @@ describe("GpuService", () => {
       expect(result).toEqual([]);
     });
 
-    it("assigns engine names", async () => {
+    it("applies saved GPU labels from config by pciBusId", async () => {
       const det = makeMockDetector();
-      det.detect.mockResolvedValue([gpu1, gpu2]);
+      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
+      const labelManager = {
+        getAll: jest.fn().mockReturnValue({ "1:00.0": "cuda0, control-gpu" }),
+        set: jest.fn(),
+      };
+
+      container = createTestContainer([det], [], [], labelManager);
+      const service = container.get<GpuService>(GPU_SERVICE);
+      const result = await service.getStaticGpus();
+
+      expect(result[0].gpuLabel).toBe("cuda0, control-gpu");
+    });
+
+    it("leaves GPU label empty when no saved config exists", async () => {
+      const det = makeMockDetector();
+      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
 
       container = createTestContainer([det]);
       const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getStaticGpus();
 
-      expect(result[0].engineCudaName).toBe("cuda0");
-      expect(result[1].engineRocmName).toBe("rocm0");
+      expect(result[0].gpuLabel).toBe("");
+    });
+
+    it("persists GPU label and updates the cached GPU", async () => {
+      const det = makeMockDetector();
+      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
+      const labelManager = { getAll: jest.fn().mockReturnValue({}), set: jest.fn() };
+
+      container = createTestContainer([det], [], [], labelManager);
+      const service = container.get<GpuService>(GPU_SERVICE);
+      await service.getStaticGpus();
+
+      service.setGpuLabel("1:00.0", "  cuda0  ");
+
+      expect(labelManager.set).toHaveBeenCalledWith("1:00.0", "  cuda0  ");
+      const result = await service.getStaticGpus();
+      expect(result[0].gpuLabel).toBe("cuda0");
     });
   });
 

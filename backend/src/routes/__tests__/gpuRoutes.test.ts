@@ -10,9 +10,11 @@ import gpuRoutes from "../gpuRoutes";
 // Mock GpuService
 const mockGetStaticGpus = jest.fn();
 const mockGetUsage = jest.fn();
+const mockSetGpuLabel = jest.fn();
 const mockGpuService = {
   getStaticGpus: mockGetStaticGpus,
   getUsage: mockGetUsage,
+  setGpuLabel: mockSetGpuLabel,
 } as unknown as GpuService;
 
 // Mock SystemService
@@ -50,9 +52,7 @@ describe("GET /api/gpus", () => {
         vendor: "NVIDIA",
         brand: "NVIDIA",
         name: "GeForce RTX 3080",
-        engineCudaName: "cuda0",
-        engineRocmName: "",
-        engineVulkanName: "",
+        gpuLabel: "cuda0",
         vramTotal: 10,
         pciBusId: "1:00.0",
       },
@@ -102,5 +102,37 @@ describe("GET /api/gpus/usage", () => {
     const res = await request(app).get("/api/gpus/usage");
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("probe failed");
+  });
+});
+
+describe("PUT /api/gpus/gpu-label/:pciBusId", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("saves trimmed GPU label and returns ok", async () => {
+    const res = await request(app).put("/api/gpus/gpu-label/1:00.0").send({ gpuLabel: "  cuda0, rocm0  " });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(mockSetGpuLabel).toHaveBeenCalledWith("1:00.0", "cuda0, rocm0");
+  });
+
+  it("treats missing GPU label as empty (removes the entry)", async () => {
+    const res = await request(app).put("/api/gpus/gpu-label/1:00.0").send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(mockSetGpuLabel).toHaveBeenCalledWith("1:00.0", "");
+  });
+
+  it("returns 500 when service throws", async () => {
+    mockSetGpuLabel.mockImplementation(() => {
+      throw new Error("write failed");
+    });
+
+    const res = await request(app).put("/api/gpus/gpu-label/1:00.0").send({ gpuLabel: "cuda0" });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("write failed");
   });
 });

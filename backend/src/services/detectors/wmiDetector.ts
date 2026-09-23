@@ -56,9 +56,7 @@ export class WmiDetector implements GpuDetector {
           vendor: classifyVendor(name),
           brand: resolveBrand(name),
           name,
-          engineCudaName: "",
-          engineRocmName: "",
-          engineVulkanName: "",
+          gpuLabel: "",
           vramTotal: Math.round(vramBytes / (1024 * 1024 * 1024)),
           pciBusId: (data.pci as string) ?? (data.PNPDeviceID as string) ?? "",
         };

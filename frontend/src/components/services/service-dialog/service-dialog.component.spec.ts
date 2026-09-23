@@ -55,6 +55,7 @@ describe("ServiceDialogComponent", () => {
       type: "generic",
       command: "/bin/llama-server",
       flags: ["--model m.gguf", "--port 8080"],
+      environment: {},
     });
   });
 

@@ -59,7 +59,7 @@
           </mat-card>
         } @else {
           <app-system-bar [systemInfo]="systemInfo()" />
-          <app-gpu-table [gpus]="gpus()" />
+          <app-gpu-table [gpus]="gpus()" (gpuLabelChange)="onGpuLabelChange($event)" />
         }
 
         <app-services />

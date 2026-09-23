@@ -66,8 +66,10 @@ Override with environment variables (HOST and PORT).
 
 1. **Detectors** — `nvidia-smi`, `rocm-smi`, WMI (Windows), registry lookups
 2. **Deduplication** — by `vendor:pciBusId` (fallback: `vendor:name`), highest-score entry wins
-3. **Enrichers** — `lspci` branding, `vulkaninfo` details
-4. **Engine naming** — assigns `cuda0`, `rocm0`, `vulkan0` for llama.cpp
+3. **Enrichers** — `lspci` branding
+4. **GPU labels** — user-defined text per GPU loaded from `~/.config/aiservermanager/gpu-label.conf`
+   (one `pciBusId=text` line per GPU). Edit it directly in the **GPU Label** column of the GPU table —
+   no auto-detection of `cuda0`/`rocm0`/`vulkan0` numbers.
 
 **Polling** (every request):
 

@@ -55,9 +55,7 @@ export class NvidiaSmiDetector implements GpuDetector {
         vendor: "NVIDIA",
         brand: "NVIDIA",
         name,
-        engineCudaName: "",
-        engineRocmName: "",
-        engineVulkanName: "",
+        gpuLabel: "",
         vramTotal: Math.round(vramTotalMiB / 1024),
         pciBusId: busId,
       });

@@ -149,10 +149,10 @@ export class AppComponent implements OnInit, OnDestroy {
         this.error.set(null);
 
         // 2. Start polling unified status (GPU usage + system info)
-        this.gpuService.watchStatus().subscribe({
+        this.gpuService.watchStatus(300000).subscribe({
           next: (status) => {
             this.systemInfo.set(status.system);
-            this.mergeUsage(staticGpus, status.gpus);
+            this.mergeUsage(status.gpus);
           },
           error: (err) => {
             console.error("[AppComponent] status poll error:", err);
@@ -167,14 +167,19 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  private mergeUsage(staticGpus: Gpu[], usages: GpuUsage[]): void {
+  /**
+   * Overlay dynamic usage metrics onto the current GPU list.
+   * Operates on the live `gpus` signal (not the original static snapshot) so
+   * locally-updated fields — e.g. an optimistic `gpuLabel` edit — survive the poll.
+   */
+  private mergeUsage(usages: GpuUsage[]): void {
     const usageMap = new Map<string, GpuUsage>();
     for (const u of usages) {
       usageMap.set(u.key, u);
     }
 
-    this.gpus.set(
-      staticGpus.map((gpu) => {
+    this.gpus.update((current) =>
+      current.map((gpu) => {
         const match = usageMap.get(gpu.pciBusId);
         return {
           ...gpu,
@@ -185,5 +190,16 @@ export class AppComponent implements OnInit, OnDestroy {
         };
       }),
     );
+  }
+
+  /** Optimistic local update + persist the user-defined GPU label on the server. */
+  onGpuLabelChange(change: { pciBusId: string; gpuLabel: string }): void {
+    this.gpus.update((gpus) =>
+      gpus.map((g) => (g.pciBusId === change.pciBusId ? { ...g, gpuLabel: change.gpuLabel } : g)),
+    );
+
+    this.gpuService.saveGpuLabel(change.pciBusId, change.gpuLabel).subscribe({
+      error: (err) => console.error("[AppComponent] GPU label save error:", err),
+    });
   }
 }

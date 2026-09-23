@@ -38,7 +38,6 @@ export function staticScore(gpu: GpuInfo): number {
   let s = 0;
   if (gpu.pciBusId) s += 2;
   if (gpu.vramTotal > 0) s += 1;
-  if (gpu.engineVulkanName) s += 1;
   if (gpu.brand && gpu.brand !== gpu.vendor) s += 1; // enricher filled a real brand
   return s;
 }

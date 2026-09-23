@@ -29,7 +29,12 @@ export class GpuService {
   }
 
   /** Poll unified status every N ms, starting immediately. */
-  watchStatus(intervalMs = 3000): Observable<GpuStatusResponse> {
+  watchStatus(intervalMs: number): Observable<GpuStatusResponse> {
     return timer(0, intervalMs).pipe(switchMap(() => this.fetchStatus()));
+  }
+
+  /** Persist the user-defined label for a GPU (identified by pciBusId). */
+  saveGpuLabel(pciBusId: string, gpuLabel: string): Observable<unknown> {
+    return this.http.put(`${this.staticUrl}/gpu-label/${encodeURIComponent(pciBusId)}`, { gpuLabel });
   }
 }

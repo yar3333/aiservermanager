@@ -9,6 +9,7 @@ import {
   GPU_DETECTOR,
   GPU_ENRICHER,
   GPU_USAGE_PROBE,
+  GPU_LABEL_MANAGER,
   SERVICE_MANAGER,
   SERVICE_CONTROLLER,
   SERVICE_CONFIG_CONTROLLER,
@@ -27,7 +28,7 @@ import { AmdLinuxDetector } from "../services/detectors/amdLinuxDetector";
 import { WmiDetector } from "../services/detectors/wmiDetector";
 import { GpuEnricher } from "../services/enrichers/gpuEnricher";
 import { LspciEnricher } from "../services/enrichers/lspciEnricher";
-import { VulkanEnricher } from "../services/enrichers/vulkanEnricher";
+import { GpuLabelManager } from "../services/gpuLabelManager";
 import { GpuUsageProbe } from "../services/probes/gpuUsageProbe";
 import { NvidiaSmiUsageProbe } from "../services/probes/nvidiaSmiUsageProbe";
 import { AmdLinuxUsageProbe } from "../services/probes/amdLinuxUsageProbe";
@@ -74,8 +75,10 @@ export function createContainer(): Container {
   // Enrichers — Linux only, enrich static info
   if (!isWindows) {
     container.bind<GpuEnricher>(GPU_ENRICHER).to(LspciEnricher);
-    container.bind<GpuEnricher>(GPU_ENRICHER).to(VulkanEnricher);
   }
+
+  // GPU label manager — per-GPU user-defined text (gpu-label.conf)
+  container.bind<GpuLabelManager>(GPU_LABEL_MANAGER).to(GpuLabelManager).inSingletonScope();
 
   // Usage probes — dynamic metrics (usage, temperature, vramUsed)
   container.bind<GpuUsageProbe>(GPU_USAGE_PROBE).to(NvidiaSmiUsageProbe);

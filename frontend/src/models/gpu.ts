@@ -4,9 +4,8 @@ export interface Gpu {
   vendor: string;
   brand: string;
   name: string;
-  engineCudaName: string;
-  engineRocmName: string;
-  engineVulkanName: string;
+  /** User-defined GPU label text (editable, persisted per GPU by pciBusId). */
+  gpuLabel: string;
   vramTotal: number;
   pciBusId: string;
 }
