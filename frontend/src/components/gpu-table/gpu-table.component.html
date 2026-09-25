@@ -3,12 +3,12 @@
     <table mat-table [dataSource]="gpus()" class="gpu-table">
       <!-- Device number (gpuIndex) -->
       <ng-container matColumnDef="index">
-        <td mat-cell *matCellDef="let gpu" title="#">{{ gpu.gpuIndex }}</td>
+        <td mat-cell *matCellDef="let gpu" class="index-cell" title="#">{{ gpu.gpuIndex }}</td>
       </ng-container>
 
       <!-- Name -->
       <ng-container matColumnDef="name">
-        <td mat-cell *matCellDef="let gpu" [title]="nameHint(gpu)">
+        <td mat-cell *matCellDef="let gpu" title="Name">
           <mat-chip class="gpu-name" [ngClass]="getVendorCssClass(gpu)">
             {{ makeGpuNameShort(gpu.name) + " / " + gpu.brand }}
           </mat-chip>

@@ -50,11 +50,6 @@ describe("GpuTableComponent", () => {
     expect(component.colorForTemp(80)).toBe("#f44336");
   });
 
-  it("builds the name hint from the runtime device number", () => {
-    expect(component.nameHint(makeGpu({ gpuIndex: 2 }))).toBe("Device 2");
-    expect(component.nameHint(makeGpu({ gpuIndex: 0 }))).toBe("Device 0");
-  });
-
   it("shortens AMD Radeon RX names", () => {
     expect(component.makeGpuNameShort("AMD Radeon RX 7900 XTX")).toBe("RX 7900 XTX");
     expect(component.makeGpuNameShort("RTX 4090")).toBe("RTX 4090");

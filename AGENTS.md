@@ -289,7 +289,7 @@ Jest 30 + ts-jest + supertest. 17 файлов тестов, 155 тестов.
 ### Компоненты
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block, draggable splitter для правой панели
-- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка `#` показывает runtime-номер устройства (`gpuIndex`); при наведении на название — hint `Device N`. Список приходит от бэкенда уже отсортированным по `gpuIndex`
+- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка `#` показывает runtime-номер устройства (`gpuIndex`), нулевой горизонтальный padding. Список приходит от бэкенда уже отсортированным по `gpuIndex`
 - `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
 - `SystemBarComponent` — панель CPU/RAM + menu (System Info, Reboot, Shutdown)
 - `SystemInfoDialogComponent` — диалог с информацией о системе (OS, hostname, kernel, uptime, disks, logs)

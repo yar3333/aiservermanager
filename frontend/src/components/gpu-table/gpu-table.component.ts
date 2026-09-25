@@ -43,11 +43,6 @@ export class GpuTableComponent {
     return "#f44336";
   }
 
-  /** Hover hint for the GPU name cell: the runtime device number (HIP/CUDA). */
-  nameHint(gpu: GpuWithUsage): string {
-    return `Device ${gpu.gpuIndex}`;
-  }
-
   makeGpuNameShort(name: string): string {
     name = name.replace(/^AMD Radeon RX /, "RX ");
     return name;
