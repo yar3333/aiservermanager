@@ -65,7 +65,7 @@ aiservermanager/
 │           │   └── __tests__/
 │           ├── resolvers/            # Runtime device number (gpuIndex)
 │           │   ├── gpuIndexResolver.ts         # GpuIndexResolver стратегия
-│           │   ├── sysfsRenderIndexResolver.ts # /sys/class/drm render-порядок (Linux)
+│           │   ├── pciBusOrderIndexResolver.ts # порядковый номер по PCIe-адресу (BDF)
 │           │   ├── listOrderIndexResolver.ts   # Порядок списка детекторов (fallback)
 │           │   └── __tests__/
 │           ├── probes/               # Dynamic metrics polling
@@ -126,7 +126,7 @@ aiservermanager/
 1. **Детекторы** выполняются последовательно. Каждый проверяет `isAvailable()`, затем `detect()`.
 2. **Дедупликация** по `vendor:pciBusId` (fallback: `vendor:name`). При коллизии сохраняется запись с большим score: `pciBusId` +2, `vramTotal` +1, brand ≠ vendor +1.
 3. **Enrichers** выполняются параллельно (`Promise.all`), мутируют `GpuInfo[]` in-place.
-4. **Определение номера устройства (`gpuIndex`)**: index resolvers исполняются в порядке DI-биндингов; побеждает первый, назначивший хотя бы один номер. Linux — `SysfsRenderIndexResolver`: перечисляет `/sys/class/drm/cardN` с render-узлом (карты без render-узла — BMC iGPU, ASPEED — отбрасываются); номер = позиция в порядке карточек = порядок probe ядра = порядок HIP. Fallback (Windows, нет совпадений) — `ListOrderIndexResolver`: порядковый номер в списке детектора.
+4. **Определение номера устройства (`gpuIndex`)**: index resolvers исполняются в порядке DI-биндингов; побеждает первый, назначивший хотя бы один номер. Основной — `PciBusOrderIndexResolver` (все платформы): список сортируется по числовому значению PCIe-адреса (BDF: шина → устройство → функция), номер = позиция (0, 1, 2, ...); GPU без распознанного адреса получают хвостовые номера в порядке списка детектора. Это намеренно НЕ порядок probe ядра / HIP (напр., шины 83/86/C3/C6 пробаются как C3/C6/83/86). Fallback — `ListOrderIndexResolver`: порядковый номер в списке детектора.
 5. **Сортировка**: итоговый список сортируется по `gpuIndex`.
 
 ### Usage probes
@@ -144,7 +144,7 @@ aiservermanager/
 | ---------------------- | ------------------------- | --------------------------------------------------- |
 | `GPU_DETECTOR`         | NvidiaSmi + Wmi           | NvidiaSmi + AmdLinux                                |
 | `GPU_ENRICHER`         | —                         | Lspci                                               |
-| `GPU_INDEX_RESOLVER`   | ListOrder                 | Sysfs + ListOrder                                   |
+| `GPU_INDEX_RESOLVER`   | PciBusOrder + ListOrder   | PciBusOrder + ListOrder                             |
 | `GPU_USAGE_PROBE`      | NvidiaSmiUsageProbe       | NvidiaSmiUsageProbe + AmdLinuxUsageProbe            |
 | `SERVICE_CONTROLLER`   | WindowsServiceController  | SystemctlController + WindowsServiceController      |
 | `SYSTEM_INFO_PROVIDER` | SystemInfoWindowsProvider | SystemInfoLinuxProvider + SystemInfoWindowsProvider |
@@ -208,7 +208,7 @@ interface GpuInfo {
   vendor: string; // "NVIDIA" | "AMD" | "Intel" | "Unknown"
   brand: string; // "MSI" | "ASROCK" | "GIGABYTE" | производитель платы
   name: string;
-  gpuIndex: number; // runtime-номер устройства (HIP/CUDA); на Linux — из порядка /sys/class/drm render-узлов
+  gpuIndex: number; // порядковый номер — позиция в списке, отсортированном по PCIe-адресу (BDF)
   vramTotal: number; // GB
   pciBusId: string; // e.g. "01:00.0"
 }
@@ -289,7 +289,7 @@ Jest 30 + ts-jest + supertest. 17 файлов тестов, 155 тестов.
 ### Компоненты
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block, draggable splitter для правой панели
-- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка `#` показывает runtime-номер устройства (`gpuIndex`), нулевой горизонтальный padding. Список приходит от бэкенда уже отсортированным по `gpuIndex`
+- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка `#` показывает номер устройства (`gpuIndex` — порядковый по PCIe-шине), нулевой горизонтальный padding. Список приходит от бэкенда уже отсортированным по `gpuIndex`
 - `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
 - `SystemBarComponent` — панель CPU/RAM + menu (System Info, Reboot, Shutdown)
 - `SystemInfoDialogComponent` — диалог с информацией о системе (OS, hostname, kernel, uptime, disks, logs)

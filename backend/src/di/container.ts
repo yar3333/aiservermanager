@@ -29,7 +29,7 @@ import { WmiDetector } from "../services/detectors/wmiDetector";
 import { GpuEnricher } from "../services/enrichers/gpuEnricher";
 import { LspciEnricher } from "../services/enrichers/lspciEnricher";
 import { GpuIndexResolver } from "../services/resolvers/gpuIndexResolver";
-import { SysfsRenderIndexResolver } from "../services/resolvers/sysfsRenderIndexResolver";
+import { PciBusOrderIndexResolver } from "../services/resolvers/pciBusOrderIndexResolver";
 import { ListOrderIndexResolver } from "../services/resolvers/listOrderIndexResolver";
 import { GpuUsageProbe } from "../services/probes/gpuUsageProbe";
 import { NvidiaSmiUsageProbe } from "../services/probes/nvidiaSmiUsageProbe";
@@ -79,9 +79,9 @@ export function createContainer(): Container {
     container.bind<GpuEnricher>(GPU_ENRICHER).to(LspciEnricher);
   }
 
-  // Index resolvers — assign the runtime device number (gpuIndex);
-  // first resolver that matches wins (sysfs on Linux, list order elsewhere)
-  container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).to(SysfsRenderIndexResolver);
+  // Index resolvers — assign the device number (gpuIndex);
+  // first resolver that matches wins (PCIe bus order, list order as fallback)
+  container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).to(PciBusOrderIndexResolver);
   container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).to(ListOrderIndexResolver);
 
   // Usage probes — dynamic metrics (usage, temperature, vramUsed)

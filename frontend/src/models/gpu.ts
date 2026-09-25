@@ -5,7 +5,7 @@ export interface Gpu {
   vendor: string;
   brand: string;
   name: string;
-  /** Runtime device number (HIP/CUDA) — used for sorting and the hover hint. */
+  /** Device number — sequential position in the list sorted by PCIe bus (BDF). */
   gpuIndex: number;
   vramTotal: number;
   pciBusId: string;

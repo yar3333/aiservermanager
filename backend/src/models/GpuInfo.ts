@@ -6,11 +6,11 @@ export interface GpuInfo {
   brand: string;
   name: string;
   /**
-   * Runtime device number — the value used in HIP_VISIBLE_DEVICES /
-   * CUDA_VISIBLE_DEVICES. Assigned at bootstrap by an index resolver
-   * (kernel probe order on Linux); 0 when unresolved.
-   * On mixed-vendor systems this is the global probe order, not a
-   * vendor-local HIP/CUDA index.
+   * Device number — sequential position in the list sorted by PCIe address
+   * (BDF: bus, device, function). Assigned at bootstrap by an index
+   * resolver; 0 when unresolved.
+   * Deliberately not the kernel probe order (HIP/KFD agents), which can
+   * differ from BDF order.
    */
   gpuIndex: number;
   vramTotal: number;
