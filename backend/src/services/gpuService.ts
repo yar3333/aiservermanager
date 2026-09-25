@@ -1,16 +1,16 @@
-import { inject, injectable, multiInject } from "inversify";
+import { injectable, multiInject } from "inversify";
 import { GpuInfo, GpuUsage } from "../models/GpuInfo";
-import { GPU_DETECTOR, GPU_ENRICHER, GPU_LABEL_MANAGER, GPU_USAGE_PROBE } from "../di/types";
+import { GPU_DETECTOR, GPU_ENRICHER, GPU_INDEX_RESOLVER, GPU_USAGE_PROBE } from "../di/types";
 import { GpuDetector } from "./detectors/gpuDetector";
 import { GpuEnricher } from "./enrichers/gpuEnricher";
 import { GpuUsageProbe } from "./probes/gpuUsageProbe";
-import { GpuLabelManager } from "./gpuLabelManager";
+import { GpuIndexResolver } from "./resolvers/gpuIndexResolver";
 import { deduplicateGpus } from "./helpers/gpuDedup";
 
 /**
  * Orchestrates GPU detection and usage polling.
  *
- * Bootstrap (runs once): detectors → dedup → enrichers → saved GPU labels.
+ * Bootstrap (runs once): detectors → dedup → enrichers → index resolvers → sort.
  * Usage polling (every request): probes → GpuUsage[].
  *
  * Two access patterns:
@@ -22,19 +22,19 @@ export class GpuService {
   private readonly detectors: GpuDetector[];
   private readonly enrichers: GpuEnricher[];
   private readonly probes: GpuUsageProbe[];
-  private readonly gpuLabelManager: GpuLabelManager;
+  private readonly indexResolvers: GpuIndexResolver[];
   private cachedGpus: GpuInfo[] | null = null;
 
   constructor(
     @multiInject(GPU_DETECTOR) detectors: GpuDetector[],
     @multiInject(GPU_ENRICHER) enrichers: GpuEnricher[],
     @multiInject(GPU_USAGE_PROBE) probes: GpuUsageProbe[],
-    @inject(GPU_LABEL_MANAGER) gpuLabelManager: GpuLabelManager,
+    @multiInject(GPU_INDEX_RESOLVER) indexResolvers: GpuIndexResolver[],
   ) {
     this.detectors = detectors;
     this.enrichers = enrichers;
     this.probes = probes;
-    this.gpuLabelManager = gpuLabelManager;
+    this.indexResolvers = indexResolvers;
   }
 
   /**
@@ -60,35 +60,27 @@ export class GpuService {
   }
 
   /**
-   * Full pipeline: detectors → dedup → enrichers → saved GPU labels.
+   * Full pipeline: detectors → dedup → enrichers → index resolvers → sort.
    */
   private async bootstrap(): Promise<GpuInfo[]> {
     const gpus = await this.runDetectors();
     const deduped = deduplicateGpus(gpus);
     await this.runEnrichers(deduped);
-    this.applySavedGpuLabels(deduped);
+    await this.resolveIndices(deduped);
+    deduped.sort((a, b) => a.gpuIndex - b.gpuIndex);
     return deduped;
   }
 
-  /** Overwrite gpu.gpuLabel with user-defined values from the config file. */
-  private applySavedGpuLabels(gpus: GpuInfo[]): void {
-    const saved = this.gpuLabelManager.getAll();
-    for (const gpu of gpus) {
-      if (gpu.pciBusId && saved[gpu.pciBusId] !== undefined) {
-        gpu.gpuLabel = saved[gpu.pciBusId];
-      }
-    }
-  }
-
   /**
-   * Persist the user-defined label for a GPU (identified by pciBusId)
-   * and refresh the cached entry so a running backend serves the new value.
+   * Assign the runtime device number (gpuIndex) via the first resolver
+   * that matches at least one GPU.
    */
-  setGpuLabel(pciBusId: string, gpuLabel: string): void {
-    this.gpuLabelManager.set(pciBusId, gpuLabel);
-    const gpu = this.cachedGpus?.find((g) => g.pciBusId === pciBusId);
-    if (gpu) {
-      gpu.gpuLabel = gpuLabel.trim();
+  private async resolveIndices(gpus: GpuInfo[]): Promise<void> {
+    if (gpus.length === 0) return;
+
+    for (const resolver of this.indexResolvers) {
+      if (!(await resolver.isAvailable())) continue;
+      if ((await resolver.resolve(gpus)) > 0) break;
     }
   }
 

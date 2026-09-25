@@ -8,7 +8,7 @@ function makeGpu(overrides: Partial<GpuWithUsage> = {}): GpuWithUsage {
     vendor: "NVIDIA",
     brand: "MSI",
     name: "RTX 4090",
-    gpuLabel: "cuda0, vulkan0",
+    gpuIndex: 0,
     vramTotal: 24,
     pciBusId: "01:00.0",
     key: "01:00.0",
@@ -50,49 +50,9 @@ describe("GpuTableComponent", () => {
     expect(component.colorForTemp(80)).toBe("#f44336");
   });
 
-  it("shows the saved GPU label as the input value", () => {
-    expect(component.editValue(makeGpu({ gpuLabel: "rocm0" }))).toBe("rocm0");
-    expect(component.editValue(makeGpu({ gpuLabel: "" }))).toBe("");
-  });
-
-  it("emits gpuLabelChange on commit when the value changed", () => {
-    const gpu = makeGpu({ gpuLabel: "" });
-    const spy = jest.fn();
-    component.gpuLabelChange.subscribe(spy);
-
-    component.onEditInput(gpu, { target: { value: "cuda0" } } as unknown as Event);
-    component.commitEdit(gpu);
-
-    expect(spy).toHaveBeenCalledWith({ pciBusId: "01:00.0", gpuLabel: "cuda0" });
-  });
-
-  it("does not emit when the value is unchanged after trimming", () => {
-    const gpu = makeGpu({ gpuLabel: "cuda0" });
-    const spy = jest.fn();
-    component.gpuLabelChange.subscribe(spy);
-
-    component.onEditInput(gpu, { target: { value: "  cuda0  " } } as unknown as Event);
-    component.commitEdit(gpu);
-
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("does not emit when nothing was typed", () => {
-    const gpu = makeGpu();
-    const spy = jest.fn();
-    component.gpuLabelChange.subscribe(spy);
-
-    component.commitEdit(gpu);
-
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("clears the edit buffer after commit", () => {
-    const gpu = makeGpu({ gpuLabel: "" });
-    component.onEditInput(gpu, { target: { value: "cuda0" } } as unknown as Event);
-    component.commitEdit(gpu);
-
-    expect(component.editValue(gpu)).toBe("");
+  it("builds the name hint from the runtime device number", () => {
+    expect(component.nameHint(makeGpu({ gpuIndex: 2 }))).toBe("Device 2");
+    expect(component.nameHint(makeGpu({ gpuIndex: 0 }))).toBe("Device 0");
   });
 
   it("shortens AMD Radeon RX names", () => {
@@ -106,5 +66,9 @@ describe("GpuTableComponent", () => {
     const other = component.getVendorCssClass(makeGpu({ vendor: "Intel" }));
     expect(other["gpu-vendor-other"]).toBe(true);
     expect(other["gpu-vendor-nvidia"]).toBe(false);
+  });
+
+  it("does not display a gpuLabel column", () => {
+    expect(component.displayedColumns).not.toContain("gpuLabel");
   });
 });

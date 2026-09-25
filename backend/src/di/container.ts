@@ -9,7 +9,7 @@ import {
   GPU_DETECTOR,
   GPU_ENRICHER,
   GPU_USAGE_PROBE,
-  GPU_LABEL_MANAGER,
+  GPU_INDEX_RESOLVER,
   SERVICE_MANAGER,
   SERVICE_CONTROLLER,
   SERVICE_CONFIG_CONTROLLER,
@@ -28,7 +28,9 @@ import { AmdLinuxDetector } from "../services/detectors/amdLinuxDetector";
 import { WmiDetector } from "../services/detectors/wmiDetector";
 import { GpuEnricher } from "../services/enrichers/gpuEnricher";
 import { LspciEnricher } from "../services/enrichers/lspciEnricher";
-import { GpuLabelManager } from "../services/gpuLabelManager";
+import { GpuIndexResolver } from "../services/resolvers/gpuIndexResolver";
+import { SysfsRenderIndexResolver } from "../services/resolvers/sysfsRenderIndexResolver";
+import { ListOrderIndexResolver } from "../services/resolvers/listOrderIndexResolver";
 import { GpuUsageProbe } from "../services/probes/gpuUsageProbe";
 import { NvidiaSmiUsageProbe } from "../services/probes/nvidiaSmiUsageProbe";
 import { AmdLinuxUsageProbe } from "../services/probes/amdLinuxUsageProbe";
@@ -77,8 +79,10 @@ export function createContainer(): Container {
     container.bind<GpuEnricher>(GPU_ENRICHER).to(LspciEnricher);
   }
 
-  // GPU label manager — per-GPU user-defined text (gpu-label.conf)
-  container.bind<GpuLabelManager>(GPU_LABEL_MANAGER).to(GpuLabelManager).inSingletonScope();
+  // Index resolvers — assign the runtime device number (gpuIndex);
+  // first resolver that matches wins (sysfs on Linux, list order elsewhere)
+  container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).to(SysfsRenderIndexResolver);
+  container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).to(ListOrderIndexResolver);
 
   // Usage probes — dynamic metrics (usage, temperature, vramUsed)
   container.bind<GpuUsageProbe>(GPU_USAGE_PROBE).to(NvidiaSmiUsageProbe);

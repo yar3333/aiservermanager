@@ -96,26 +96,6 @@
   font-size: 0.95rem;
 }
 
-/* GPU label edit field — compact, vertically centered in the table row */
-.gpu-label-cell {
-}
-
-.gpu-label-field {
-  width: 100%;
-  min-width: 160px;
-
-  ::ng-deep .mat-mdc-form-field-infix {
-    min-height: 0;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  ::ng-deep .mdc-text-field--outlined {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
 .mat-row {
   transition: background 0.2s ease;
   height: 44px;

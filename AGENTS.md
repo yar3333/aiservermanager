@@ -48,7 +48,6 @@ aiservermanager/
 │           ├── managedServicesManager.ts  # Persist user-selected service names (JSON file)
 │           ├── managedServicesController.ts # Discover available + manage selection
 │           ├── configManager.ts      # File I/O for ~/.config/aiservermanager/services/*.conf
-│           ├── gpuLabelManager.ts  # Per-GPU user label (~/.config/.../gpu-label.conf), keyed by pciBusId
 │           ├── controllers/          # Platform-aware service control
 │           │   ├── systemctlController.ts    # systemctl (Linux)
 │           │   └── windowsServiceController.ts # SC cmdlet (Windows)
@@ -63,6 +62,11 @@ aiservermanager/
 │           ├── enrichers/            # Enrich static info
 │           │   ├── gpuEnricher.ts    # GpuEnricher стратегия
 │           │   ├── lspciEnricher.ts  # lspci brand (Linux)
+│           │   └── __tests__/
+│           ├── resolvers/            # Runtime device number (gpuIndex)
+│           │   ├── gpuIndexResolver.ts         # GpuIndexResolver стратегия
+│           │   ├── sysfsRenderIndexResolver.ts # /sys/class/drm render-порядок (Linux)
+│           │   ├── listOrderIndexResolver.ts   # Порядок списка детекторов (fallback)
 │           │   └── __tests__/
 │           ├── probes/               # Dynamic metrics polling
 │           │   ├── gpuUsageProbe.ts      # GpuUsageProbe стратегия
@@ -111,7 +115,7 @@ aiservermanager/
 
 ### Двухфазная модель данных
 
-**Bootstrap (один раз)**: детекторы → дедуп → enrichers → saved GPU labels → кэш `GpuInfo[]`.
+**Bootstrap (один раз)**: детекторы → дедуп → enrichers → index resolvers → сортировка по `gpuIndex` → кэш `GpuInfo[]`.
 
 **Polling (каждый запрос)**: usage probes → merge по `pciBusId` → `GpuState[]`.
 
@@ -122,7 +126,8 @@ aiservermanager/
 1. **Детекторы** выполняются последовательно. Каждый проверяет `isAvailable()`, затем `detect()`.
 2. **Дедупликация** по `vendor:pciBusId` (fallback: `vendor:name`). При коллизии сохраняется запись с большим score: `pciBusId` +2, `vramTotal` +1, brand ≠ vendor +1.
 3. **Enrichers** выполняются параллельно (`Promise.all`), мутируют `GpuInfo[]` in-place.
-4. **Применение GPU-меток пользователя**: значения из `~/.config/aiservermanager/gpu-label.conf` (`<pciBusId>=<текст>`) накладываются по `pciBusId`. Автоопределения нет — текст задаёт пользователь в UI (колонка GPU Label).
+4. **Определение номера устройства (`gpuIndex`)**: index resolvers исполняются в порядке DI-биндингов; побеждает первый, назначивший хотя бы один номер. Linux — `SysfsRenderIndexResolver`: перечисляет `/sys/class/drm/cardN` с render-узлом (карты без render-узла — BMC iGPU, ASPEED — отбрасываются); номер = позиция в порядке карточек = порядок probe ядра = порядок HIP. Fallback (Windows, нет совпадений) — `ListOrderIndexResolver`: порядковый номер в списке детектора.
+5. **Сортировка**: итоговый список сортируется по `gpuIndex`.
 
 ### Usage probes
 
@@ -138,7 +143,8 @@ aiservermanager/
 | Токен                  | Windows                   | Linux                                               |
 | ---------------------- | ------------------------- | --------------------------------------------------- |
 | `GPU_DETECTOR`         | NvidiaSmi + Wmi           | NvidiaSmi + AmdLinux                                |
-| `GPU_ENRICHER`         | —                         | Lspci + Vulkan                                      |
+| `GPU_ENRICHER`         | —                         | Lspci                                               |
+| `GPU_INDEX_RESOLVER`   | ListOrder                 | Sysfs + ListOrder                                   |
 | `GPU_USAGE_PROBE`      | NvidiaSmiUsageProbe       | NvidiaSmiUsageProbe + AmdLinuxUsageProbe            |
 | `SERVICE_CONTROLLER`   | WindowsServiceController  | SystemctlController + WindowsServiceController      |
 | `SYSTEM_INFO_PROVIDER` | SystemInfoWindowsProvider | SystemInfoLinuxProvider + SystemInfoWindowsProvider |
@@ -172,9 +178,8 @@ aiservermanager/
 
 | Endpoint                          | Method | Описание                                                            |
 | --------------------------------- | ------ | ------------------------------------------------------------------- |
-| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация (1 раз при инициализации)      |
+| `/api/gpus`                       | GET    | `GpuInfo[]` — статическая информация, отсортирована по `gpuIndex` (1 раз при инициализации) |
 | `/api/gpus/usage`                 | GET    | `GpuUsage[]` — динамические метрики (поллинг каждые 3с)             |
-| `/api/gpus/gpu-label/:pciBusId`   | PUT    | `{ gpuLabel }` — сохранить метку GPU (по pciBusId); пустая строка удаляет запись |
 | `/api/services`                   | GET    | `ServiceStatus[]` — статус управляемых сервисов                     |
 | `/api/services/control`           | POST   | `{ name, action }` → `ServiceStatus` — start/stop/enable/disable    |
 | `/api/services/config`            | GET    | `ServiceConfig[]` — custom configs                                  |
@@ -203,7 +208,7 @@ interface GpuInfo {
   vendor: string; // "NVIDIA" | "AMD" | "Intel" | "Unknown"
   brand: string; // "MSI" | "ASROCK" | "GIGABYTE" | производитель платы
   name: string;
-  gpuLabel: string; // пользовательский текст ("cuda0, rocm0, vulkan0" и т.п.), хранится в gpu-label.conf
+  gpuIndex: number; // runtime-номер устройства (HIP/CUDA); на Linux — из порядка /sys/class/drm render-узлов
   vramTotal: number; // GB
   pciBusId: string; // e.g. "01:00.0"
 }
@@ -269,7 +274,7 @@ interface SystemInfoDetail {
 
 ### Тесты backend
 
-Jest 30 + ts-jest + supertest. 14 файлов тестов, 125 тестов.
+Jest 30 + ts-jest + supertest. 17 файлов тестов, 155 тестов.
 
 ## Frontend
 
@@ -284,7 +289,7 @@ Jest 30 + ts-jest + supertest. 14 файлов тестов, 125 тестов.
 ### Компоненты
 
 - `AppComponent` — compose layout: toolbar + GPU block + Services block, draggable splitter для правой панели
-- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка GPU Label — редактируемый input: commit по Enter/blur, событие `gpuLabelChange` → сохранение через `PUT /api/gpus/gpu-label/:pciBusId`
+- `GpuTableComponent` — таблица GPU с input-сигналом `gpus()`. Визуализация bars (usage, vram), цветовые чипы по vendor. Колонка `#` показывает runtime-номер устройства (`gpuIndex`); при наведении на название — hint `Device N`. Список приходит от бэкенда уже отсортированным по `gpuIndex`
 - `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
 - `SystemBarComponent` — панель CPU/RAM + menu (System Info, Reboot, Shutdown)
 - `SystemInfoDialogComponent` — диалог с информацией о системе (OS, hostname, kernel, uptime, disks, logs)

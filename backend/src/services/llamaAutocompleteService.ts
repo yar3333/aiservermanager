@@ -1,5 +1,6 @@
 import { readdir, stat } from "fs/promises";
 import { join, dirname, sep } from "path";
+import { GpuInfo } from "../models/GpuInfo";
 import { GpuService } from "./gpuService";
 import { ExecTools } from "../helpers/ExecTools";
 
@@ -144,19 +145,15 @@ function getNetworkHosts(): string[] {
   return [...new Set([...ips, "0.0.0.0", "127.0.0.1"])];
 }
 
-/** Resolve device names from GPU static info (user-defined GPU label text). */
+/**
+ * Resolve device names from GPU static info — runtime device number per
+ * vendor ("rocm0", "cuda1", ...), as used in llama.cpp --device.
+ */
 function getDeviceNamesFromGpu(gpuService: GpuService | null): string[] {
   if (!gpuService) return [];
   const cachedGpus = (gpuService as any).cachedGpus;
   if (!cachedGpus) return [];
-  const devices: string[] = [];
-  for (const gpu of cachedGpus) {
-    for (const d of gpu.gpuLabel.split(",")) {
-      const name = d.trim();
-      if (name) devices.push(name);
-    }
-  }
-  return devices;
+  return cachedGpus.map((gpu: GpuInfo) => `${gpu.vendor === "AMD" ? "rocm" : "cuda"}${gpu.gpuIndex}`);
 }
 
 /**

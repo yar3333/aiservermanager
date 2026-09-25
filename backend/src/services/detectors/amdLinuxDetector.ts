@@ -91,7 +91,7 @@ export class AmdLinuxDetector implements GpuDetector {
       vendor: "AMD",
       brand: "RADEON",
       name: `AMD GPU ${index}`,
-      gpuLabel: "",
+      gpuIndex: 0,
       vramTotal: 0,
       pciBusId: "",
     };

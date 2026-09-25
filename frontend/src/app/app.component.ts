@@ -168,9 +168,8 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Overlay dynamic usage metrics onto the current GPU list.
-   * Operates on the live `gpus` signal (not the original static snapshot) so
-   * locally-updated fields — e.g. an optimistic `gpuLabel` edit — survive the poll.
+   * Overlay dynamic usage metrics onto the current GPU list, preserving
+   * the bootstrap order (sorted by gpuIndex) and all static fields.
    */
   private mergeUsage(usages: GpuUsage[]): void {
     const usageMap = new Map<string, GpuUsage>();
@@ -190,16 +189,5 @@ export class AppComponent implements OnInit, OnDestroy {
         };
       }),
     );
-  }
-
-  /** Optimistic local update + persist the user-defined GPU label on the server. */
-  onGpuLabelChange(change: { pciBusId: string; gpuLabel: string }): void {
-    this.gpus.update((gpus) =>
-      gpus.map((g) => (g.pciBusId === change.pciBusId ? { ...g, gpuLabel: change.gpuLabel } : g)),
-    );
-
-    this.gpuService.saveGpuLabel(change.pciBusId, change.gpuLabel).subscribe({
-      error: (err) => console.error("[AppComponent] GPU label save error:", err),
-    });
   }
 }

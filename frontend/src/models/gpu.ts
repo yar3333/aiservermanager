@@ -1,11 +1,12 @@
 /** Static GPU information — loaded once on init. */
 export interface Gpu {
+  /** Detector's own enumeration order (not the runtime device number). */
   index: number;
   vendor: string;
   brand: string;
   name: string;
-  /** User-defined GPU label text (editable, persisted per GPU by pciBusId). */
-  gpuLabel: string;
+  /** Runtime device number (HIP/CUDA) — used for sorting and the hover hint. */
+  gpuIndex: number;
   vramTotal: number;
   pciBusId: string;
 }

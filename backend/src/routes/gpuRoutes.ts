@@ -32,18 +32,5 @@ export default function gpuRoutes(container: Container) {
     }
   });
 
-  /** Save the user-defined label for a GPU (identified by pciBusId). */
-  router.put("/gpu-label/:pciBusId", (req, res) => {
-    try {
-      const { pciBusId } = req.params;
-      const gpuLabel = typeof req.body?.gpuLabel === "string" ? req.body.gpuLabel.trim() : "";
-      const gpuService = container.get<GpuService>(GPU_SERVICE);
-      gpuService.setGpuLabel(pciBusId, gpuLabel);
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
-    }
-  });
-
   return router;
 }

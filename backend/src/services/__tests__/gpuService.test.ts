@@ -1,18 +1,18 @@
 import "reflect-metadata";
 import { Container } from "inversify";
-import { GPU_DETECTOR, GPU_ENRICHER, GPU_LABEL_MANAGER, GPU_SERVICE, GPU_USAGE_PROBE } from "../../di/types";
+import { GPU_DETECTOR, GPU_ENRICHER, GPU_INDEX_RESOLVER, GPU_SERVICE, GPU_USAGE_PROBE } from "../../di/types";
 import { GpuDetector } from "../detectors/gpuDetector";
 import { GpuEnricher } from "../enrichers/gpuEnricher";
 import { GpuUsageProbe } from "../probes/gpuUsageProbe";
+import { GpuIndexResolver } from "../resolvers/gpuIndexResolver";
 import { GpuService } from "../gpuService";
-import { GpuLabelManager } from "../gpuLabelManager";
 import { GpuInfo, GpuUsage } from "../../models/GpuInfo";
 
 function createTestContainer(
   detectors: PartialMockDetector[] = [],
   enrichers: PartialMockEnricher[] = [],
   probes: PartialMockProbe[] = [],
-  gpuLabel: Partial<Pick<GpuLabelManager, "getAll" | "set">> = {},
+  indexResolvers: PartialMockResolver[] = [],
 ): Container {
   const container = new Container();
 
@@ -25,12 +25,9 @@ function createTestContainer(
   for (const p of probes) {
     container.bind<GpuUsageProbe>(GPU_USAGE_PROBE).toConstantValue(p as unknown as GpuUsageProbe);
   }
-
-  container.bind<GpuLabelManager>(GPU_LABEL_MANAGER).toConstantValue({
-    getAll: jest.fn().mockReturnValue({}),
-    set: jest.fn(),
-    ...gpuLabel,
-  } as unknown as GpuLabelManager);
+  for (const r of indexResolvers) {
+    container.bind<GpuIndexResolver>(GPU_INDEX_RESOLVER).toConstantValue(r as unknown as GpuIndexResolver);
+  }
 
   container.bind<GpuService>(GPU_SERVICE).to(GpuService);
 
@@ -52,6 +49,11 @@ type PartialMockProbe = {
   probe: jest.Mock;
 };
 
+type PartialMockResolver = {
+  isAvailable: jest.Mock;
+  resolve: jest.Mock;
+};
+
 function makeMockDetector(): PartialMockDetector {
   return {
     isAvailable: jest.fn().mockResolvedValue(true),
@@ -66,12 +68,20 @@ function makeMockProbe(): PartialMockProbe {
   };
 }
 
+/** Resolver mock that assigns nothing (simulates no match). */
+function makeMockResolver(assigned = 0): PartialMockResolver {
+  return {
+    isAvailable: jest.fn().mockResolvedValue(true),
+    resolve: jest.fn().mockResolvedValue(assigned),
+  };
+}
+
 const gpu1: GpuInfo = {
   index: 0,
   vendor: "NVIDIA",
   brand: "NVIDIA",
   name: "GeForce RTX 3080",
-  gpuLabel: "",
+  gpuIndex: 0,
   vramTotal: 10,
   pciBusId: "1:00.0",
 };
@@ -81,7 +91,7 @@ const gpu1Lean: GpuInfo = {
   vendor: "NVIDIA",
   brand: "NVIDIA",
   name: "GeForce RTX 3080",
-  gpuLabel: "",
+  gpuIndex: 0,
   vramTotal: 0,
   pciBusId: "1:00.0",
 };
@@ -91,7 +101,7 @@ const gpu2: GpuInfo = {
   vendor: "AMD",
   brand: "RADEON",
   name: "Radeon RX 6800",
-  gpuLabel: "",
+  gpuIndex: 0,
   vramTotal: 16,
   pciBusId: "2:00.0",
 };
@@ -196,47 +206,85 @@ describe("GpuService", () => {
 
       expect(result).toEqual([]);
     });
+  });
 
-    it("applies saved GPU labels from config by pciBusId", async () => {
+  describe("index resolution", () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("assigns gpuIndex via the first resolver that matches and sorts by it", async () => {
+      // Detector reports GPUs in BDF order (not HIP order)
       const det = makeMockDetector();
-      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
-      const labelManager = {
-        getAll: jest.fn().mockReturnValue({ "1:00.0": "cuda0, control-gpu" }),
-        set: jest.fn(),
+      det.detect.mockResolvedValue([
+        { ...gpu1, pciBusId: "83:00.0" },
+        { ...gpu1, index: 1, pciBusId: "86:00.0" },
+        { ...gpu1, index: 2, pciBusId: "C3:00.0" },
+        { ...gpu1, index: 3, pciBusId: "C6:00.0" },
+      ]);
+
+      // Sysfs-style resolver: card order = HIP order
+      const sysfsResolver = {
+        isAvailable: jest.fn().mockResolvedValue(true),
+        resolve: jest.fn((gpus: GpuInfo[]) => {
+          const order: Record<string, number> = { "C3:00.0": 0, "C6:00.0": 1, "83:00.0": 2, "86:00.0": 3 };
+          gpus.forEach((g) => {
+            g.gpuIndex = order[g.pciBusId] ?? 0;
+          });
+          return Promise.resolve(gpus.length);
+        }),
+      };
+      const fallbackResolver = makeMockResolver();
+
+      container = createTestContainer([det], [], [], [sysfsResolver as unknown as PartialMockResolver, fallbackResolver]);
+      const service = container.get<GpuService>(GPU_SERVICE);
+      const result = await service.getStaticGpus();
+
+      expect(result.map((g) => g.pciBusId)).toEqual(["C3:00.0", "C6:00.0", "83:00.0", "86:00.0"]);
+      expect(result.map((g) => g.gpuIndex)).toEqual([0, 1, 2, 3]);
+      // Fallback resolver must not run once the first one matched
+      expect(fallbackResolver.resolve).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the next resolver when one matches nothing", async () => {
+      const det = makeMockDetector();
+      det.detect.mockResolvedValue([{ ...gpu1 }, { ...gpu1, index: 1, pciBusId: "2:00.0" }]);
+
+      const noMatchResolver = makeMockResolver(0);
+      const listOrderResolver = {
+        isAvailable: jest.fn().mockResolvedValue(true),
+        resolve: jest.fn((gpus: GpuInfo[]) => {
+          gpus.forEach((g, i) => {
+            g.gpuIndex = i;
+          });
+          return Promise.resolve(gpus.length);
+        }),
       };
 
-      container = createTestContainer([det], [], [], labelManager);
+      container = createTestContainer([det], [], [], [
+        noMatchResolver,
+        listOrderResolver as unknown as PartialMockResolver,
+      ]);
       const service = container.get<GpuService>(GPU_SERVICE);
       const result = await service.getStaticGpus();
 
-      expect(result[0].gpuLabel).toBe("cuda0, control-gpu");
+      expect(noMatchResolver.resolve).toHaveBeenCalled();
+      expect(listOrderResolver.resolve).toHaveBeenCalled();
+      expect(result.map((g) => g.gpuIndex)).toEqual([0, 1]);
     });
 
-    it("leaves GPU label empty when no saved config exists", async () => {
+    it("skips resolvers that are not available", async () => {
       const det = makeMockDetector();
-      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
+      det.detect.mockResolvedValue([gpu1]);
 
-      container = createTestContainer([det]);
-      const service = container.get<GpuService>(GPU_SERVICE);
-      const result = await service.getStaticGpus();
+      const unavailableResolver = makeMockResolver(5);
+      unavailableResolver.isAvailable.mockResolvedValue(false);
 
-      expect(result[0].gpuLabel).toBe("");
-    });
-
-    it("persists GPU label and updates the cached GPU", async () => {
-      const det = makeMockDetector();
-      det.detect.mockResolvedValue([{ ...gpu1, gpuLabel: "" }]);
-      const labelManager = { getAll: jest.fn().mockReturnValue({}), set: jest.fn() };
-
-      container = createTestContainer([det], [], [], labelManager);
+      container = createTestContainer([det], [], [], [unavailableResolver]);
       const service = container.get<GpuService>(GPU_SERVICE);
       await service.getStaticGpus();
 
-      service.setGpuLabel("1:00.0", "  cuda0  ");
-
-      expect(labelManager.set).toHaveBeenCalledWith("1:00.0", "  cuda0  ");
-      const result = await service.getStaticGpus();
-      expect(result[0].gpuLabel).toBe("cuda0");
+      expect(unavailableResolver.resolve).not.toHaveBeenCalled();
     });
   });
 

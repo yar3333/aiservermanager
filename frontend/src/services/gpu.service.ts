@@ -32,9 +32,4 @@ export class GpuService {
   watchStatus(intervalMs: number): Observable<GpuStatusResponse> {
     return timer(0, intervalMs).pipe(switchMap(() => this.fetchStatus()));
   }
-
-  /** Persist the user-defined label for a GPU (identified by pciBusId). */
-  saveGpuLabel(pciBusId: string, gpuLabel: string): Observable<unknown> {
-    return this.http.put(`${this.staticUrl}/gpu-label/${encodeURIComponent(pciBusId)}`, { gpuLabel });
-  }
 }
