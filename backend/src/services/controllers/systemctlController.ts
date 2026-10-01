@@ -128,8 +128,9 @@ export class SystemctlController implements ServiceController {
       "Type=simple",
       `ExecStart=${execStart}`,
       ...envLines,
-      "Restart=on-failure",
-      "RestartSec=5",
+      "Restart=no",
+      //"Restart=on-failure",
+      //"RestartSec=5",
       "",
       "[Install]",
       "WantedBy=multi-user.target",
@@ -187,7 +188,11 @@ export class SystemctlController implements ServiceController {
     return this.getStatus(name);
   }
 
-  async installAndEnable(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
+  async installAndEnable(
+    name: string,
+    execStart: string,
+    environment?: Record<string, string>,
+  ): Promise<ServiceStatus> {
     const status = await this.install(name, execStart, environment);
     if (status.error) return status;
 
