@@ -428,12 +428,6 @@ export class LlamaServerDialogComponent implements OnInit {
   /** Draft block only makes sense for draft-* spec types. */
   readonly showDraftParams = computed(() => (this.specTypeValue() ?? "").includes("draft"));
 
-  /** A separate draft model file is used only by draft-simple / draft-eagle3 (not draft-mtp). */
-  readonly showDraftModelFields = computed(() => {
-    const v = this.specTypeValue() ?? "";
-    return v.includes("draft") && !v.includes("mtp");
-  });
-
   /** ngram-mod params only for the ngram-mod variant. */
   readonly showNgramModParams = computed(() => (this.specTypeValue() ?? "").includes("ngram-mod"));
 
@@ -699,17 +693,14 @@ export class LlamaServerDialogComponent implements OnInit {
     this.addIf("--spec-type", specType, DEFAULT_OPTIONS.specType);
     if (specType?.includes("draft")) {
       this.addIf("--spec-draft-n-max", c.specDraftNMax.value, DEFAULT_OPTIONS.specDraftNMax);
-      // draft-mtp generates drafts with the model's built-in MTP head — no separate draft model.
-      if (!specType.includes("mtp")) {
-        this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
-        const specDeviceArr = c.specDraftDevice.value as string[];
-        if (specDeviceArr && specDeviceArr.length > 0) {
-          this._flags.push(`--spec-draft-device ${specDeviceArr.join(",")}`);
-        }
-        this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
-        this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
-        this.addIf("--cache-type-v-draft", c.specDraftCacheTypeV.value, DEFAULT_OPTIONS.specDraftCacheTypeV);
+      this.addIf("--model-draft", c.modelDraft.value, DEFAULT_OPTIONS.modelDraft);
+      const specDeviceArr = c.specDraftDevice.value as string[];
+      if (specDeviceArr && specDeviceArr.length > 0) {
+        this._flags.push(`--spec-draft-device ${specDeviceArr.join(",")}`);
       }
+      this.addIf("--n-gpu-layers-draft", c.nGpuLayersDraft.value, DEFAULT_OPTIONS.nGpuLayersDraft);
+      this.addIf("--cache-type-k-draft", c.specDraftCacheTypeK.value, DEFAULT_OPTIONS.specDraftCacheTypeK);
+      this.addIf("--cache-type-v-draft", c.specDraftCacheTypeV.value, DEFAULT_OPTIONS.specDraftCacheTypeV);
     }
     if (specType?.includes("ngram")) {
       this.addIf("--spec-ngram-mod-n-min", c.specNgramModNMin.value, DEFAULT_OPTIONS.specNgramModNMin);

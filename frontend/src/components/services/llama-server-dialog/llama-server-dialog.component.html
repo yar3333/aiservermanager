@@ -783,40 +783,32 @@
         <mat-label>Spec Type</mat-label>
       </mat-form-field>
 
-      @if (showDraftParams() && !showDraftModelFields()) {
-        <div class="sub-section-hint">
-          draft-mtp generates drafts with the model's built-in MTP head — no separate draft model
-        </div>
-      }
-
       @if (showDraftParams()) {
         <div class="subsection-label">Draft Model</div>
 
-        @if (showDraftModelFields()) {
-          <app-file-autocomplete
-            formControlName="modelDraft"
-            label="Draft Model Path"
-            placeholder="/path/to/draft-model.gguf"
-            [existingPaths]="existingDraftModelPaths()"
-            [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
-          />
+        <app-file-autocomplete
+          formControlName="modelDraft"
+          label="Draft Model Path"
+          placeholder="/path/to/draft-model.gguf"
+          [existingPaths]="existingDraftModelPaths()"
+          [fieldClass]="isControlChanged('modelDraft') ? 'changed' : ''"
+        />
 
-          <div class="form-row">
-            <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftDevice')">
-              <mat-select
-                formControlName="specDraftDevice"
-                multiple
-                placeholder="Select GPU devices for draft model"
-                matTooltip="Devices for offloading the draft model. Same options as main --device"
-              >
-                @for (dev of availableDevices(); track dev.path) {
-                  <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
-                }
-              </mat-select>
-              <mat-label>Draft Device (multi-select)</mat-label>
-            </mat-form-field>
-          </div>
-        }
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftDevice')">
+            <mat-select
+              formControlName="specDraftDevice"
+              multiple
+              placeholder="Select GPU devices for draft model"
+              matTooltip="Devices for offloading the draft model. Same options as main --device"
+            >
+              @for (dev of availableDevices(); track dev.path) {
+                <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
+              }
+            </mat-select>
+            <mat-label>Draft Device (multi-select)</mat-label>
+          </mat-form-field>
+        </div>
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specDraftNMax')">
@@ -828,21 +820,18 @@
             />
             <mat-label>Draft N Max</mat-label>
           </mat-form-field>
-          @if (showDraftModelFields()) {
-            <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nGpuLayersDraft')">
-              <input
-                matInput
-                formControlName="nGpuLayersDraft"
-                type="number"
-                matTooltip="Max draft model layers to store in VRAM. 999 = all layers"
-              />
-              <mat-label>Draft GPU Layers</mat-label>
-            </mat-form-field>
-          }
+          <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('nGpuLayersDraft')">
+            <input
+              matInput
+              formControlName="nGpuLayersDraft"
+              type="number"
+              matTooltip="Max draft model layers to store in VRAM. 999 = all layers"
+            />
+            <mat-label>Draft GPU Layers</mat-label>
+          </mat-form-field>
         </div>
 
-        @if (showDraftModelFields()) {
-          <div class="form-row">
+        <div class="form-row">
             <mat-form-field
               appearance="outline"
               class="form-col"
@@ -874,9 +863,7 @@
               <mat-label>Draft Cache Type V</mat-label>
             </mat-form-field>
           </div>
-        }
       }
-
       @if (showNgramModParams()) {
         <div class="subsection-label">Ngram Mod Parameters</div>
         <div class="form-row">
