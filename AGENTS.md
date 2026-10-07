@@ -319,6 +319,12 @@ readonly hasGpus = computed(() => this.gpus().length > 0);
 | `cd backend && npm test`    | Jest --verbose                                          |
 | `cd frontend && npm test`   | Jest (jest-preset-angular), watch: `npm run test:watch` |
 
+### Выпуск версии
+
+1. Закоммитить изменения фичи.
+2. `npm version patch` (или `minor`/`major`) в корне — обновит `version` в `package.json` и создаст git-коммит + тег `vX.Y.Z`.
+3. `git push origin master --tags` — пуш тега запускает GitHub Actions workflow `publish.yml` (Build and Publish to npm).
+
 ## Паттерны
 
 Предпочтение Signal, потом Promise и только в крайнем случае Observable.
