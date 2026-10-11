@@ -771,7 +771,7 @@
       >
         <mat-select
           formControlName="specType"
-          matTooltip="Type of speculative decoding. draft-* uses draft model, ngram-* uses n-gram lookup"
+          matTooltip="Type of speculative decoding. draft-* uses draft model, ngram-* uses n-gram lookup; draft-mtp,ngram-mod runs both (recent llama.cpp builds)"
         >
           <mat-option value="none">none</mat-option>
           <mat-option value="draft-simple">draft-simple</mat-option>
@@ -779,6 +779,7 @@
           <mat-option value="draft-mtp">draft-mtp</mat-option>
           <mat-option value="ngram-simple">ngram-simple</mat-option>
           <mat-option value="ngram-mod">ngram-mod</mat-option>
+          <mat-option value="draft-mtp,ngram-mod">draft-mtp,ngram-mod</mat-option>
         </mat-select>
         <mat-label>Spec Type</mat-label>
       </mat-form-field>

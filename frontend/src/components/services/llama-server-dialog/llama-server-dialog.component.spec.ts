@@ -92,3 +92,64 @@ describe("LlamaServerDialogComponent (Additional section)", () => {
     expect(component.parseEnvironment()).toEqual({ KEY1: "val1", KEY2: "val2" });
   });
 });
+
+describe("LlamaServerDialogComponent (composite spec-type)", () => {
+  let fixture: ComponentFixture<LlamaServerDialogComponent>;
+  let component: LlamaServerDialogComponent;
+  let dialogRef: { close: jest.Mock };
+
+  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = []) {
+    dialogRef = { close: jest.fn() };
+    const data: LlamaServerDialogData = { config, allConfigs };
+    TestBed.configureTestingModule({
+      imports: [LlamaServerDialogComponent],
+      providers: [
+        { provide: MatDialogRef, useValue: dialogRef },
+        { provide: MAT_DIALOG_DATA, useValue: data },
+        { provide: ServiceService, useValue: { getLlamaAutocomplete: jest.fn().mockReturnValue(of([])) } },
+      ],
+    });
+    fixture = TestBed.createComponent(LlamaServerDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  }
+
+  it("emits both draft and ngram-mod flags for draft-mtp,ngram-mod", () => {
+    create({ name: "llama-spec", type: "llama-server", command: "/bin/llama-server", flags: [] });
+    component.form.controls.specType.setValue("draft-mtp,ngram-mod");
+    component.form.controls.modelDraft.setValue("/models/draft.gguf");
+    component.form.controls.specNgramModNMin.setValue(64);
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toContain("--spec-type draft-mtp,ngram-mod");
+    expect(saved.flags).toContain("--model-draft /models/draft.gguf");
+    expect(saved.flags).toContain("--spec-ngram-mod-n-min 64");
+  });
+
+  it("shows draft and ngram-mod sections for the composite type", () => {
+    create({ name: "llama-spec", type: "llama-server", command: "/bin/llama-server", flags: [] });
+    component.form.controls.specType.setValue("draft-mtp,ngram-mod");
+    expect(component.showDraftParams()).toBe(true);
+    expect(component.showNgramModParams()).toBe(true);
+    expect(component.showNgramSimpleParams()).toBe(false);
+  });
+
+  it("round-trips a composite spec-type from an existing config", () => {
+    create({
+      name: "llama-spec",
+      type: "llama-server",
+      command: "/bin/llama-server",
+      flags: [
+        "--spec-type draft-mtp,ngram-mod",
+        "--model-draft /models/draft.gguf",
+        "--spec-ngram-mod-n-min 64",
+      ],
+    });
+    expect(component.form.controls.specType.value).toBe("draft-mtp,ngram-mod");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toContain("--spec-type draft-mtp,ngram-mod");
+    expect(saved.flags).toContain("--model-draft /models/draft.gguf");
+    expect(saved.flags).toContain("--spec-ngram-mod-n-min 64");
+  });
+});
