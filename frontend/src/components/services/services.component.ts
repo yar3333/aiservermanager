@@ -13,6 +13,7 @@ import { ServiceAction, ServiceConfig, ServiceType } from "../../models/service"
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
+import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog/vllm-dialog.component";
 import { MatIconModule } from "@angular/material/icon";
 
 /** Merged service status + optional config for custom services. */
@@ -177,6 +178,10 @@ export class ServicesComponent implements OnInit {
       const data: LlamaServerDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(LlamaServerDialogComponent, { data, minWidth: "800px" });
       this.handleDialogResult(ref, config, clone);
+    } else if (type === "vllm") {
+      const data: VllmDialogData = { config, allConfigs: this.configs(), clone };
+      const ref = this.dialog.open(VllmDialogComponent, { data, minWidth: "800px" });
+      this.handleDialogResult(ref, config, clone);
     } else {
       const data: ServiceDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
@@ -185,7 +190,7 @@ export class ServicesComponent implements OnInit {
   }
 
   private handleDialogResult(
-    ref: MatDialogRef<ServiceDialogComponent | LlamaServerDialogComponent>,
+    ref: MatDialogRef<LlamaServerDialogComponent | ServiceDialogComponent | VllmDialogComponent>,
     config: ServiceConfig | null,
     clone = false,
   ): void {

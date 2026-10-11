@@ -37,6 +37,11 @@
   font-size: 12px;
 }
 
+.flags-textarea,
+.env-textarea {
+  overflow-x: auto;
+}
+
 mat-dialog-content {
   padding-top: 10px !important;
   max-height: 80vh;

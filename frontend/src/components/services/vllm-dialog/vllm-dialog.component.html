@@ -1,0 +1,583 @@
+<h2 mat-dialog-title>{{ isClone ? "Clone" : isEdit ? "Edit" : "Add" }} vllm service</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="vllm-form">
+    <!-- Service identity -->
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
+      <input matInput formControlName="name" placeholder="e.g. vllm-qwen-bf16-4gpu" [disabled]="isEdit && !isClone" />
+      <mat-label>Service Name</mat-label>
+      @if (form.controls.name.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      } @else if (form.controls.name.errors?.["pattern"]) {
+        <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('command')">
+      <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/vllm/run.sh" />
+      <mat-label>Command (launcher or binary)</mat-label>
+      @if (form.controls.command.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-autocomplete #commandAuto="matAutocomplete">
+      @for (ec of filteredCommands(); track ec.command) {
+        <mat-option [value]="ec.command">
+          <span class="auto-path">{{ ec.command }}</span>
+          <span class="auto-from">({{ ec.from }})</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
+
+    <!-- ═══════════ Model ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('model', 'tokenizer', 'dtype')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Model</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('model')">
+        <input
+          matInput
+          formControlName="model"
+          [matAutocomplete]="modelAuto"
+          placeholder="unsloth/Qwen3.8-27B or /path/to/model"
+          matTooltip="Model to serve. HF repo id or local path. Passed as the positional argument to 'vllm serve'"
+        />
+        <mat-label>Model (serve)</mat-label>
+        @if (form.controls.model.errors?.["required"]) {
+          <mat-error>Required</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-autocomplete #modelAuto="matAutocomplete">
+        @for (p of existingModelPaths(); track p) {
+          <mat-option [value]="p">
+            <span class="auto-path">{{ p }}</span>
+            <span class="auto-from">(existing config)</span>
+          </mat-option>
+        }
+      </mat-autocomplete>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('tokenizer')">
+          <input
+            matInput
+            formControlName="tokenizer"
+            type="text"
+            matTooltip="Tokenizer path (HF repo id or local). Defaults to the model path"
+          />
+          <mat-label>Tokenizer</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('dtype')">
+          <mat-select formControlName="dtype" matTooltip="Data type for model weights and activations">
+            @for (t of dtypeOptions; track t) {
+              <mat-option [value]="t">{{ t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Dtype</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Parallelism & Memory ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'tensorParallelSize',
+          'pipelineParallelSize',
+          'maxParallelLoadingWorkers',
+          'gpuMemoryUtilization',
+          'swapSpace',
+          'cpuOffloadGb',
+          'device',
+          'attentionBackend'
+        )
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Parallelism &amp; Memory</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('tensorParallelSize')"
+        >
+          <input
+            matInput
+            formControlName="tensorParallelSize"
+            type="number"
+            matTooltip="Number of tensor-parallel replicas (GPUs sharding each model copy). 1 = single GPU"
+          />
+          <mat-label>Tensor Parallel Size</mat-label>
+        </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('pipelineParallelSize')"
+        >
+          <input
+            matInput
+            formControlName="pipelineParallelSize"
+            type="number"
+            matTooltip="Number of pipeline-parallel replicas (model split in stages across GPU groups)"
+          />
+          <mat-label>Pipeline Parallel Size</mat-label>
+        </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('maxParallelLoadingWorkers')"
+        >
+          <input
+            matInput
+            formControlName="maxParallelLoadingWorkers"
+            type="number"
+            matTooltip="Max number of parallel workers for safetensors loading. 0 = default"
+          />
+          <mat-label>Loading Workers</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('gpuMemoryUtilization')"
+        >
+          <input
+            matInput
+            formControlName="gpuMemoryUtilization"
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            matTooltip="Fraction of GPU memory to reserve for the model and KV cache (0.0–1.0)"
+          />
+          <mat-label>GPU Memory Utilization</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('swapSpace')">
+          <input matInput formControlName="swapSpace" type="number" matTooltip="CPU offload space per GPU (GiB)" />
+          <mat-label>Swap Space (GiB)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('cpuOffloadGb')">
+          <input
+            matInput
+            formControlName="cpuOffloadGb"
+            type="number"
+            matTooltip="Space to offload model weights to CPU (GiB). 0 = disabled"
+          />
+          <mat-label>CPU Offload (GiB)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('device')">
+          <input
+            matInput
+            formControlName="device"
+            type="text"
+            placeholder="auto"
+            matTooltip="Device(s) for vLLM execution, e.g. 'auto', 'cuda:0,1' or 'rocm'"
+          />
+          <mat-label>Device</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('attentionBackend')">
+          <mat-select
+            formControlName="attentionBackend"
+            matTooltip="Attention kernel backend override. TRITON_ATTN is the tested choice on ROCm (4x RX 7900 XTX). Empty = auto"
+          >
+            <mat-option value="">(auto)</mat-option>
+            @for (b of attentionBackends; track b) {
+              <mat-option [value]="b">{{ b }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Attention Backend</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Context & Scheduling ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged('maxModelLen', 'maxNumSeqs', 'maxNumBatchedTokens', 'blockSize', 'enableChunkedPrefill')
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Context &amp; Scheduling</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('maxModelLen')">
+          <input
+            matInput
+            formControlName="maxModelLen"
+            type="number"
+            matTooltip="Model context length. 0 = model's max. Large values need more KV cache"
+          />
+          <mat-label>Max Model Len</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('maxNumSeqs')">
+          <input
+            matInput
+            formControlName="maxNumSeqs"
+            type="number"
+            matTooltip="Maximum number of sequences per iteration (concurrent requests)"
+          />
+          <mat-label>Max Num Seqs</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('enableChunkedPrefill')">
+          <mat-select
+            formControlName="enableChunkedPrefill"
+            matTooltip="Split long prompts into chunks for continuous batching. auto = decided by vLLM"
+          >
+            <mat-option value="auto">auto</mat-option>
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Chunked Prefill</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('maxNumBatchedTokens')"
+        >
+          <input
+            matInput
+            formControlName="maxNumBatchedTokens"
+            type="number"
+            matTooltip="Max number of tokens per batch (prefill+decode budget). 0 = default"
+          />
+          <mat-label>Max Batched Tokens</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('blockSize')">
+          <input
+            matInput
+            formControlName="blockSize"
+            type="number"
+            matTooltip="Token block size for the paged KV cache. 0 = default (platform-specific)"
+          />
+          <mat-label>Block Size</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Speculative Decoding ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'specMethod',
+          'specTokens',
+          'specDraftModel',
+          'specDraftTensorParallelSize',
+          'specNumDraftTokens'
+        )
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Speculative Decoding</mat-panel-title>
+        <mat-panel-description>Draft method and speculative options</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specMethod')">
+          <mat-select
+            formControlName="specMethod"
+            matTooltip="Speculative decoding method. draft-model variants use a separate draft model"
+          >
+            @for (m of specMethods; track m.value) {
+              <mat-option [value]="m.value">{{ m.label }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Spec Method</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('specTokens')">
+          <input
+            matInput
+            formControlName="specTokens"
+            type="number"
+            matTooltip="Number of speculative tokens (proposal length). 0 = method default"
+          />
+          <mat-label>Spec Tokens</mat-label>
+        </mat-form-field>
+      </div>
+
+      @if (showSpecDraftParams()) {
+        <div class="subsection-label">Draft Model</div>
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-col-60" [class.changed]="isControlChanged('specDraftModel')">
+            <input
+              matInput
+              formControlName="specDraftModel"
+              type="text"
+              placeholder="/path/to/draft-model or HF repo id"
+              matTooltip="Draft model for speculative decoding (draft-model methods)"
+            />
+            <mat-label>Draft Model</mat-label>
+          </mat-form-field>
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specDraftTensorParallelSize')"
+          >
+            <input
+              matInput
+              formControlName="specDraftTensorParallelSize"
+              type="number"
+              matTooltip="Tensor parallel size of the draft model. 0 = same as main model"
+            />
+            <mat-label>Draft TP Size</mat-label>
+          </mat-form-field>
+          <mat-form-field
+            appearance="outline"
+            class="form-col"
+            [class.changed]="isControlChanged('specNumDraftTokens')"
+          >
+            <input
+              matInput
+              formControlName="specNumDraftTokens"
+              type="number"
+              matTooltip="Number of tokens the draft model proposes in one step. 0 = default"
+            />
+            <mat-label>Num Spec Tokens</mat-label>
+          </mat-form-field>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Sampling Defaults ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged('temperature', 'topP', 'topK', 'minP', 'seed', 'repetitionPenalty', 'maxNumSeq')
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Sampling Defaults</mat-panel-title>
+        <mat-panel-description>Default sampling parameters for generation</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('temperature')">
+          <input matInput formControlName="temperature" type="number" matTooltip="Default temperature. 1.0 = default" />
+          <mat-label>Temperature</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topP')">
+          <input matInput formControlName="topP" type="number" step="0.05" matTooltip="Nucleus sampling. 1.0 = default" />
+          <mat-label>Top-P</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('topK')">
+          <input
+            matInput
+            formControlName="topK"
+            type="number"
+            matTooltip="Top-K sampling. -1 = disabled (default)"
+          />
+          <mat-label>Top-K</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('minP')">
+          <input
+            matInput
+            formControlName="minP"
+            type="number"
+            step="0.05"
+            matTooltip="Min-P sampling threshold. 0.0 = disabled (default)"
+          />
+          <mat-label>Min-P</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('seed')">
+          <input matInput formControlName="seed" type="number" matTooltip="RNG seed. -1 = random (default)" />
+          <mat-label>Seed</mat-label>
+        </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('repetitionPenalty')"
+        >
+          <input
+            matInput
+            formControlName="repetitionPenalty"
+            type="number"
+            step="0.05"
+            matTooltip="Penalty for repeating tokens. 1.0 = disabled (default)"
+          />
+          <mat-label>Repetition Penalty</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('maxNumSeq')">
+          <input
+            matInput
+            formControlName="maxNumSeq"
+            type="number"
+            matTooltip="Maximum number of tokens per sequence. 0 = model default"
+          />
+          <mat-label>Max Tokens (seq)</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Tools & Chat ═══════════ -->
+    <mat-expansion-panel
+      [class.has-changed]="
+        isSectionChanged(
+          'trustRemoteCode',
+          'enableAutoToolChoice',
+          'toolCallParser',
+          'reasoningParser',
+          'enablePrefixCaching'
+        )
+      "
+    >
+      <mat-expansion-panel-header>
+        <mat-panel-title>Tools &amp; Chat</mat-panel-title>
+        <mat-panel-description>Tool calling, reasoning and cache options</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-checkbox formControlName="trustRemoteCode" [class.changed]="isControlChanged('trustRemoteCode')">
+          Trust Remote Code
+        </mat-checkbox>
+        <mat-checkbox
+          formControlName="enableAutoToolChoice"
+          [class.changed]="isControlChanged('enableAutoToolChoice')"
+        >
+          Enable Auto Tool Choice
+        </mat-checkbox>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('toolCallParser')"
+        >
+          <mat-select
+            formControlName="toolCallParser"
+            [disabled]="isToolCallParserDisabled()"
+            matTooltip="Parser for tool calls. Requires --enable-auto-tool-choice"
+          >
+            @for (p of toolCallParsers; track p) {
+              <mat-option [value]="p">{{ p || "(none)" }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Tool Call Parser</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningParser')">
+          <mat-select
+            formControlName="reasoningParser"
+            matTooltip="Parser separating reasoning content from final content in chat completions"
+          >
+            @for (p of reasoningParsers; track p) {
+              <mat-option [value]="p">{{ p || "(none)" }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Reasoning Parser</mat-label>
+        </mat-form-field>
+        <mat-form-field
+          appearance="outline"
+          class="form-col"
+          [class.changed]="isControlChanged('enablePrefixCaching')"
+        >
+          <mat-select
+            formControlName="enablePrefixCaching"
+            matTooltip="Cache prefixes of prompts to speed up repeated requests. auto = decided by vLLM"
+          >
+            <mat-option value="auto">auto</mat-option>
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Prefix Caching</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Server & Network ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('host', 'port', 'apiKey')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Server &amp; Network</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('host')">
+          <input
+            matInput
+            formControlName="host"
+            type="text"
+            [matAutocomplete]="hostAuto"
+            matTooltip="IP address to listen (default: 127.0.0.1)"
+          />
+          <mat-label>Host</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #hostAuto="matAutocomplete">
+          @for (hs of filteredHosts(); track hs.path) {
+            <mat-option [value]="hs.path">
+              <span class="auto-path">{{ hs.path }}</span>
+              <span class="auto-from">({{ hs.source }})</span>
+            </mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('port')">
+          <input matInput formControlName="port" type="number" matTooltip="Port to listen (default: 8000)" />
+          <mat-label>Port</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('apiKey')">
+          <input
+            matInput
+            formControlName="apiKey"
+            type="text"
+            matTooltip="API key for authentication. Leave empty if the launcher adds it itself (e.g. run.sh reads keys.ini)"
+          />
+          <mat-label>API Key</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Additional ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('extraFlags', 'envText')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Additional</mat-panel-title>
+        <mat-panel-description>Extra CLI flags and environment variables</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('extraFlags')">
+        <textarea
+          matInput
+          formControlName="extraFlags"
+          rows="4"
+          wrap="off"
+          class="flags-textarea"
+          placeholder="--enforce-eager&#10;--disable-log-requests"
+          matTooltip="Any vLLM flags not covered by the fields above (one per line). Pass-through — not validated"
+        ></textarea>
+        <mat-label>Extra CLI Flags (one per line)</mat-label>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('envText')">
+        <textarea
+          matInput
+          formControlName="envText"
+          rows="4"
+          wrap="off"
+          class="env-textarea"
+          placeholder="HF_TOKEN=hf_xxx&#10;HIP_VISIBLE_DEVICES=0,1,2,3"
+          matTooltip="Environment variables for the service process (KEY=VALUE, one per line)"
+        ></textarea>
+        <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
+    {{ isEdit && !isClone ? "Save" : "Create" }}
+  </button>
+</mat-dialog-actions>

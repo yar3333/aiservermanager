@@ -1145,6 +1145,40 @@
         </mat-form-field>
       </div>
     </mat-expansion-panel>
+
+    <!-- ═══════════ Additional ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('extraFlags', 'envText')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Additional</mat-panel-title>
+        <mat-panel-description>Extra CLI flags and environment variables</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('extraFlags')">
+        <textarea
+          matInput
+          formControlName="extraFlags"
+          rows="4"
+          wrap="off"
+          class="flags-textarea"
+          placeholder="--custom-flag value&#10;--flash-attn on"
+          matTooltip="Any llama-server flags not covered by the fields above (one per line). Pass-through — not validated"
+        ></textarea>
+        <mat-label>Extra CLI Flags (one per line)</mat-label>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('envText')">
+        <textarea
+          matInput
+          formControlName="envText"
+          rows="4"
+          wrap="off"
+          class="env-textarea"
+          placeholder="HF_HOME=/data/huggingface&#10;HSA_OVERRIDE_GFX_VERSION=11.0.0"
+          matTooltip="Environment variables for the service process (KEY=VALUE, one per line)"
+        ></textarea>
+        <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
   </form>
 </mat-dialog-content>
 

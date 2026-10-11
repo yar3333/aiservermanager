@@ -12,8 +12,8 @@ export interface ServiceStatus {
 /** Actions the client can perform. */
 export type ServiceAction = "start" | "stop" | "enable" | "disable";
 
-/** Service type: generic (arbitrary) or llama-server (structured config). */
-export type ServiceType = "generic" | "llama-server";
+/** Service type: generic (arbitrary), llama-server or vllm (structured configs). */
+export type ServiceType = "generic" | "llama-server" | "vllm";
 
 /** Custom service config (full name + command + flags). */
 export interface ServiceConfig {

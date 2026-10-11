@@ -1,0 +1,81 @@
+.vllm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 640px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+  align-items: center;
+}
+
+.form-col {
+  flex: 1;
+}
+
+.form-col-60 {
+  flex: 3;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.auto-path {
+  font-family: monospace;
+}
+
+.auto-from {
+  margin-left: 8px;
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.flags-textarea,
+.env-textarea {
+  overflow-x: auto;
+}
+
+mat-dialog-content {
+  padding-top: 10px !important;
+  max-height: 80vh;
+}
+
+mat-expansion-panel {
+  margin-bottom: 0;
+}
+
+mat-dialog-actions {
+  gap: 8px;
+}
+
+.subsection-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 4px 0 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Non-default highlighting ── */
+
+mat-expansion-panel.has-changed {
+  mat-panel-title {
+    font-weight: 700;
+  }
+}
+
+mat-form-field.changed ::ng-deep {
+  .mat-mdc-form-field-infix input,
+  .mat-mdc-form-field-infix .mat-mdc-select {
+    font-weight: 700;
+  }
+}
+
+mat-checkbox.changed ::ng-deep label {
+  font-weight: 700;
+}

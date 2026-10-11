@@ -136,6 +136,96 @@ const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
 
 const KV_CACHE_TYPES = ["f32", "f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl", "q5_0", "q5_1"];
 
+/** All flags covered by structured form fields (positive + negative forms). */
+const KNOWN_LLAMA_FLAGS = new Set([
+  "--host",
+  "--port",
+  "--threads",
+  "--flash-attn",
+  "--fit",
+  "--parallel",
+  "--alias",
+  "--n-predict",
+  "--context-shift",
+  "--no-context-shift",
+  "--cont-batching",
+  "--no-cont-batching",
+  "--device",
+  "--tensor-split",
+  "--model",
+  "--mmproj",
+  "--n-gpu-layers",
+  "--split-mode",
+  "--main-gpu",
+  "--fit-target",
+  "--fit-ctx",
+  "--mlock",
+  "--mmap",
+  "--no-mmap",
+  "--cpu-moe",
+  "--n-cpu-moe",
+  "--ctx-size",
+  "--batch-size",
+  "--ubatch-size",
+  "--cache-type-k",
+  "--cache-type-v",
+  "--kv-offload",
+  "--no-kv-offload",
+  "--cache-ram",
+  "--swa-full",
+  "--rope-scaling",
+  "--rope-scale",
+  "--rope-freq-base",
+  "--rope-freq-scale",
+  "--yarn-orig-ctx",
+  "--yarn-ext-factor",
+  "--yarn-attn-factor",
+  "--yarn-beta-slow",
+  "--yarn-beta-fast",
+  "--temperature",
+  "--seed",
+  "--top-k",
+  "--top-p",
+  "--min-p",
+  "--typical",
+  "--repeat-last-n",
+  "--repeat-penalty",
+  "--presence-penalty",
+  "--frequency-penalty",
+  "--dry-multiplier",
+  "--dry-base",
+  "--mirostat",
+  "--dynatemp-range",
+  "--spec-type",
+  "--spec-draft-n-max",
+  "--model-draft",
+  "--spec-draft-device",
+  "--device-draft",
+  "--n-gpu-layers-draft",
+  "--cache-type-k-draft",
+  "--cache-type-v-draft",
+  "--spec-ngram-mod-n-min",
+  "--spec-ngram-mod-n-max",
+  "--spec-ngram-mod-n-match",
+  "--spec-ngram-simple-size-n",
+  "--spec-ngram-simple-size-m",
+  "--spec-ngram-simple-min-hits",
+  "--lora",
+  "--lora-scaled",
+  "--timeout",
+  "--threads-http",
+  "--metrics",
+  "--slots",
+  "--no-slots",
+  "--cache-prompt",
+  "--no-cache-prompt",
+  "--cache-reuse",
+  "--reasoning",
+  "--reasoning-budget",
+  "--reasoning-format",
+  "--api-key-file",
+]);
+
 @Component({
   selector: "app-llama-server-dialog",
   standalone: true,
@@ -290,6 +380,9 @@ export class LlamaServerDialogComponent implements OnInit {
     reasoningFormat: [DEFAULT_OPTIONS.reasoningFormat],
     // Auth
     apiKeyFile: [""],
+    // Additional
+    extraFlags: [""],
+    envText: [""],
   });
 
   // ── Device + Host autocomplete ──
@@ -464,7 +557,7 @@ export class LlamaServerDialogComponent implements OnInit {
       .subscribe((v) => this._commandValue.set(v!));
 
     if (this.data.config) {
-      this.populateFormFromFlags(this.data.config.flags);
+      this.populateFormFromFlags(this.data.config.flags, this.data.config.environment);
     }
 
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -472,7 +565,7 @@ export class LlamaServerDialogComponent implements OnInit {
     });
   }
 
-  private populateFormFromFlags(flags: string[]): void {
+  private populateFormFromFlags(flags: string[], environment?: Record<string, string>): void {
     const f = this.form.controls;
     // Basic
     f.host.setValue(flagValueStr(flags, "--host", DEFAULT_OPTIONS.host));
@@ -587,6 +680,41 @@ export class LlamaServerDialogComponent implements OnInit {
     f.reasoningFormat.setValue(flagValueStr(flags, "--reasoning-format", DEFAULT_OPTIONS.reasoningFormat));
     // Auth
     f.apiKeyFile.setValue(flagValueStr(flags, "--api-key-file", ""));
+    // Additional
+    f.extraFlags.setValue(this.extractExtraFlags(flags).join("\n"));
+    if (environment) {
+      const envLines = Object.entries(environment)
+        .map(([key, value]) => `${key}=${value}`)
+        .join("\n");
+      if (envLines) {
+        f.envText.setValue(envLines + "\n");
+      }
+    }
+  }
+
+  /** Flag lines not covered by structured fields (kept verbatim, one per line). */
+  private extractExtraFlags(flags: string[]): string[] {
+    const result: string[] = [];
+    for (const entry of flags) {
+      const key = entry.split(/\s|=/)[0];
+      if (entry.startsWith("--") && !KNOWN_LLAMA_FLAGS.has(key)) {
+        result.push(entry);
+      }
+    }
+    return result;
+  }
+
+  /** Parse the envText textarea into KEY → value (same rules as the generic dialog). */
+  parseEnvironment(): Record<string, string> {
+    const environment: Record<string, string> = {};
+    for (const line of (this.form.controls.envText.value as string).split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx <= 0) continue;
+      environment[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1);
+    }
+    return environment;
   }
 
   /** Add flag only if value differs from default. Compares as strings for uniformity. */
@@ -737,6 +865,14 @@ export class LlamaServerDialogComponent implements OnInit {
     // Auth
     this.addIf("--api-key-file", c.apiKeyFile.value, DEFAULT_OPTIONS.apiKeyFile);
 
+    // Additional (free-form, one per line)
+    for (const line of (c.extraFlags.value as string).split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed && trimmed.startsWith("--")) {
+        this._flags.push(trimmed);
+      }
+    }
+
     const result = this._flags;
     this._flags = null;
     return result;
@@ -745,11 +881,13 @@ export class LlamaServerDialogComponent implements OnInit {
   save(): void {
     if (this.form.invalid) return;
 
+    const environment = this.parseEnvironment();
     const cfg: ServiceConfig = {
       name: this.form.controls.name.value!.trim(),
       type: "llama-server" as ServiceType,
       command: this.form.controls.command.value!.trim(),
       flags: this.buildFlags(),
+      ...(Object.keys(environment).length ? { environment } : {}),
     };
 
     this.dialogRef.close(cfg);
