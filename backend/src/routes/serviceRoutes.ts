@@ -123,6 +123,50 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
+  /** List all archived service configs. */
+  router.get("/archive", (_req, res) => {
+    try {
+      const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
+      res.json(scc.listArchivedConfigs());
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Archive a service: stop, uninstall unit, move config to the archive. */
+  router.post("/config/:name/archive", async (req: Request, res: Response) => {
+    try {
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
+      const result = await scc.archiveService(name);
+
+      if (!result.ok) {
+        return res.status(404).json({ error: result.error });
+      }
+
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Restore a service from the archive: move config back and reinstall the unit. */
+  router.post("/config/:name/restore", async (req: Request, res: Response) => {
+    try {
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
+      const result = await scc.restoreService(name);
+
+      if (!result.ok) {
+        return res.status(404).json({ error: result.error });
+      }
+
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
   /** List all installed services on the system (excludes custom). */
   router.get("/managed/available", async (_req, res) => {
     try {

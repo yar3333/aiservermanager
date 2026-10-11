@@ -93,7 +93,8 @@ aiservermanager/
         │   │   └── system-info-dialog.component.ts # System info dialog (OS, disks, logs)
         │   └── services/             # Карточки управления сервисами
         │       ├── service-dialog/   # Диалог создания/редактирования llama-конфигов
-        │       └── managed-services-dialog/ # Диалог выбора системных сервисов
+        │       ├── managed-services-dialog/ # Диалог выбора системных сервисов
+        │       └── archive-dialog/   # Диалог архива: перемещение сервисов в архив/из архива
         ├── models/
         │   ├── gpu.ts                # Gpu, GpuUsage, SystemInfoDetail, DiskInfo, LogFileInfo
         │   └── service.ts            # ServiceStatus, ServiceAction, ServiceConfig
@@ -185,6 +186,9 @@ aiservermanager/
 | `/api/services/config`            | GET    | `ServiceConfig[]` — custom configs                                  |
 | `/api/services/config`            | POST   | `{ name, command, flags }` → создаёт/обновляет config               |
 | `/api/services/config/:name`      | DELETE | Удаляет config + systemd-юнит                                       |
+| `/api/services/config/:name/archive` | POST | Архивирует: stop (если запущен) + uninstall юнита + config → `services-archive/` |
+| `/api/services/config/:name/restore` | POST | Восстанавливает из архива: config → `services/` + reinstall юнита (без enable) |
+| `/api/services/archive`           | GET    | `ServiceConfig[]` — архивные конфиги                                |
 | `/api/services/managed/available` | GET    | `string[]` — все установленные системные сервисы (кроме custom)     |
 | `/api/services/managed`           | GET    | `string[]` — пользовательская выборка управляемых сервисов          |
 | `/api/services/managed`           | POST   | `{ name }` — добавить сервис в выборку                              |
@@ -198,6 +202,8 @@ aiservermanager/
 **Custom** — сервисы с конфигом (`~/.config/aiservermanager/services/<name>.conf`): имя, команда, flags. Устанавливаются как systemd-юниты, управляются через "Add Service" / "Edit".
 
 **Managed** — выбор пользователя из всех установленных systemd-сервисов (кнопка **"Manage"**). Список сохраняется в `~/.config/aiservermanager/managed-services.json`. Только start/stop/enable/disable.
+
+**Archive** — архив custom-сервисов (кнопка **"Archive"**, диалог `ArchiveDialogComponent`). Перемещение в архив: stop (если запущен) → uninstall юнита → конфиг переносится из `services/` в `~/.config/aiservermanager/services-archive/`. Извлечение: конфиг возвращается в `services/` и юнит переустанавливается (без enable/start). Архивные сервисы исчезают из списка статусов и не переустанавливаются при `bootstrap()`.
 
 ### Модели
 
@@ -274,7 +280,7 @@ interface SystemInfoDetail {
 
 ### Тесты backend
 
-Jest 30 + ts-jest + supertest. 17 файлов тестов, 155 тестов.
+Jest 30 + ts-jest + supertest. 20 файлов тестов, 179 тестов.
 
 ## Frontend
 
@@ -293,9 +299,10 @@ Jest 30 + ts-jest + supertest. 17 файлов тестов, 155 тестов.
 - `JournalPanelComponent` — правая панель с журналом логов. Выпадающий список сервисов (включая «— None —» для отключения). Поллинг каждые 1с через `fetchJournal()`, автопрокрутка вниз, ручной скролл сохраняется. Ширина панели настраивается через drag splitter (persist в localStorage)
 - `SystemBarComponent` — панель CPU/RAM + menu (System Info, Reboot, Shutdown)
 - `SystemInfoDialogComponent` — диалог с информацией о системе (OS, hostname, kernel, uptime, disks, logs)
-- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор managed) + **Add Service** (создание custom). `ServiceWithConfig` объединяет статус + config
+- `ServicesComponent` — карточки управляемых сервисов. Кнопки **Manage** (выбор managed) + **Add Service** (создание custom) + **Archive** (архив). `ServiceWithConfig` объединяет статус + config
 - `ManagedServicesDialogComponent` — диалог с чекбоксами и фильтром для выбора managed сервисов
 - `ServiceDialogComponent` — диалог создания/редактирования custom конфигов (name, command, flags)
+- `ArchiveDialogComponent` — диалог архива с двумя панелями (active / archive). Перемещение в архив останавливает и деинсталлирует сервис, переносит конфиг в `services-archive/`; извлечение возвращает конфиг и переустанавливает юнит
 
 ### Состояние компонента
 

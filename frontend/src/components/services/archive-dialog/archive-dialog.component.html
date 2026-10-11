@@ -1,0 +1,73 @@
+<div class="dialog-container">
+  <h2 mat-dialog-title>Archive</h2>
+
+  <mat-dialog-content>
+    <p class="dialog-description">
+      Move a service to the archive to stop, uninstall, and shelve its config. Restore it any time from the archive.
+    </p>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <mat-icon>apps</mat-icon>
+          Services
+        </div>
+        <div class="panel-list">
+          @if (loading()) {
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          } @else if (active().length > 0) {
+            @for (cfg of active(); track cfg.name) {
+              <div class="panel-item">
+                <span class="item-name" [title]="cfg.name">{{ cfg.name }}</span>
+                <button
+                  mat-icon-button
+                  class="move-btn"
+                  title="Move to archive"
+                  [disabled]="busy() !== null"
+                  (click)="archive(cfg.name)"
+                >
+                  <mat-icon>archive</mat-icon>
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="empty-panel">No services</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <mat-icon>archive</mat-icon>
+          Archive
+        </div>
+        <div class="panel-list">
+          @if (loading()) {
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          } @else if (archived().length > 0) {
+            @for (cfg of archived(); track cfg.name) {
+              <div class="panel-item">
+                <span class="item-name" [title]="cfg.name">{{ cfg.name }}</span>
+                <button
+                  mat-icon-button
+                  class="move-btn"
+                  title="Restore from archive"
+                  [disabled]="busy() !== null"
+                  (click)="restore(cfg.name)"
+                >
+                  <mat-icon>unarchive</mat-icon>
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="empty-panel">Archive is empty</p>
+          }
+        </div>
+      </div>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-raised-button color="primary" (click)="close()">Done</button>
+  </mat-dialog-actions>
+</div>

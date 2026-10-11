@@ -22,6 +22,11 @@ export class ServiceConfigController {
     return this.configManager.list();
   }
 
+  /** List all archived service configs. */
+  listArchivedConfigs(): ServiceConfig[] {
+    return this.configManager.listArchived();
+  }
+
   /** Get a single config by name. */
   getConfig(name: string): ServiceConfig | null {
     return this.configManager.get(name);
@@ -120,6 +125,67 @@ export class ServiceConfigController {
 
     // Remove config file
     this.configManager.delete(name);
+
+    return { ok: true };
+  }
+
+  /**
+   * Archive a service: stop if running → uninstall OS service → move config to the archive.
+   * Unlike deleteService, the config file is kept (in services-archive/) for later restore.
+   * @returns { ok, error? }
+   */
+  async archiveService(name: string): Promise<{ ok: boolean; error?: string }> {
+    const cfg = this.configManager.get(name);
+    if (!cfg) {
+      return { ok: false, error: `Config "${name}" not found` };
+    }
+
+    const controller = await this.getActiveController();
+
+    // Uninstall OS service first (best-effort). The config must still live in
+    // services/ here so the controller's hasCustomConfig() gates sudo correctly.
+    if (controller) {
+      const uninstallResult = await controller.uninstall(name);
+      if (!uninstallResult.ok) {
+        console.warn(`[ServiceConfigController] uninstall warning for "${name}":`, uninstallResult.error);
+      }
+    }
+
+    // Move config file to the archive
+    if (!this.configManager.archive(name)) {
+      return { ok: false, error: `Config "${name}" not found` };
+    }
+
+    return { ok: true };
+  }
+
+  /**
+   * Restore a service from the archive: move config back to services/ → reinstall OS service.
+   * The service is installed but not enabled or started.
+   * @returns { ok, error? }
+   */
+  async restoreService(name: string): Promise<{ ok: boolean; error?: string }> {
+    const cfg = this.configManager.listArchived().find((c) => c.name === name);
+    if (!cfg) {
+      return { ok: false, error: `Archived config "${name}" not found` };
+    }
+
+    // Move config file back to services/ (so the controller's hasCustomConfig()
+    // gates sudo correctly during install).
+    if (!this.configManager.restore(name)) {
+      return { ok: false, error: `Archived config "${name}" not found` };
+    }
+
+    // Reinstall the OS service (does NOT enable)
+    const controller = await this.getActiveController();
+    if (controller) {
+      const execStart = buildExecStart(cfg);
+      const result = await controller.install(name, execStart, cfg.environment);
+      if (result.error) {
+        // Config is back in services/ — user can retry from the services UI.
+        return { ok: false, error: result.error };
+      }
+    }
 
     return { ok: true };
   }

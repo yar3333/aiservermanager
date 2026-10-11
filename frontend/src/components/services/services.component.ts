@@ -12,6 +12,7 @@ import { ServiceListService } from "../../services/service-list.service";
 import { ServiceAction, ServiceConfig, ServiceType } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
+import { ArchiveDialogComponent } from "./archive-dialog/archive-dialog.component";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog/vllm-dialog.component";
 import { MatIconModule } from "@angular/material/icon";
@@ -126,6 +127,15 @@ export class ServicesComponent implements OnInit {
 
   manageServices(): void {
     const ref = this.dialog.open(ManagedServicesDialogComponent, { maxWidth: "600px" });
+    ref.afterClosed().subscribe((result) => {
+      if (result) {
+        this.load();
+      }
+    });
+  }
+
+  archiveServices(): void {
+    const ref = this.dialog.open(ArchiveDialogComponent, { minWidth: "840px" });
     ref.afterClosed().subscribe((result) => {
       if (result) {
         this.load();

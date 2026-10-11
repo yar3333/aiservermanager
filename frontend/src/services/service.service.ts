@@ -46,6 +46,21 @@ export class ServiceService {
     return this.http.delete<{ ok: boolean }>(`${this.url}/config/${name}`);
   }
 
+  /** List all archived service configs. */
+  fetchArchivedConfigs(): Observable<ServiceConfig[]> {
+    return this.http.get<ServiceConfig[]>(`${this.url}/archive`);
+  }
+
+  /** Archive a service: stop, uninstall unit, move config to the archive. */
+  archiveService(name: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.url}/config/${name}/archive`, {});
+  }
+
+  /** Restore a service from the archive: move config back and reinstall the unit. */
+  restoreService(name: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.url}/config/${name}/restore`, {});
+  }
+
   /** List all installed services on the system (excludes custom). */
   listAvailableServices(): Observable<string[]> {
     return this.http.get<string[]>(`${this.url}/managed/available`);

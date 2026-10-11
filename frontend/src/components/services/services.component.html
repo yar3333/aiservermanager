@@ -2,13 +2,17 @@
   <div class="section-header">
     <h2>Services</h2>
     <div class="header-actions">
-      <button mat-stroked-button (click)="manageServices()">
+      <button mat-stroked-button (click)="manageServices()" title="Select services to manage">
         <mat-icon>tune</mat-icon>
-        Select services to manage...
+        Managed services
       </button>
-      <button mat-raised-button color="primary" [matMenuTriggerFor]="addMenu" title="Install your own service.">
+      <button mat-stroked-button (click)="archiveServices()" title="Archive services and restore them from the archive.">
+        <mat-icon>archive</mat-icon>
+        Archive
+      </button>
+      <button mat-raised-button color="primary" [matMenuTriggerFor]="addMenu" title="Add custom service">
         <mat-icon>add</mat-icon>
-        Add custom service...
+        Custom service
       </button>
       <mat-menu #addMenu>
         <button mat-menu-item (click)="addService('generic')">
@@ -109,7 +113,7 @@
     </table>
   } @else if (!loading()) {
     <div class="empty">
-      <p>No services configured. Click "Manage" to select system services or "Add Service" to create one.</p>
+      <p>No services configured. Click "Managed services" to select system services or "Custom service" to create one.</p>
     </div>
   }
 </div>
