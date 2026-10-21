@@ -41,6 +41,7 @@ const DEFAULT_OPTIONS = {
   gpuMemoryUtilization: 0.9,
   swapSpace: 4,
   cpuOffloadGb: 0,
+  kvCacheMemory: 0,
   device: "",
   attentionBackend: "",
   // Context & Scheduling
@@ -89,6 +90,7 @@ const DTYPE_OPTIONS = ["auto", "half", "bfloat16", "float", "float16", "float32"
 const ATTENTION_BACKENDS = [
   "TRITON_ATTN",
   "ROCM_ATTN",
+  "ROCM_SEGMENTED_ATTN",
   "FLASH_ATTN",
   "FLASHINFER",
   "TRITON_MLA",
@@ -106,6 +108,7 @@ const SPEC_METHODS = [
   { value: "medusa", label: "medusa" },
   { value: "mlp_speculator", label: "mlp_speculator" },
   { value: "draft_model", label: "draft_model" },
+  { value: "mtp", label: "mtp" },
   { value: "qwen3_5_mtp", label: "qwen3_5_mtp" },
   { value: "qwen3_next_mtp", label: "qwen3_next_mtp" },
   { value: "deepseek_mtp", label: "deepseek_mtp" },
@@ -209,6 +212,7 @@ export class VllmDialogComponent implements OnInit {
     gpuMemoryUtilization: [DEFAULT_OPTIONS.gpuMemoryUtilization],
     swapSpace: [DEFAULT_OPTIONS.swapSpace],
     cpuOffloadGb: [DEFAULT_OPTIONS.cpuOffloadGb],
+    kvCacheMemory: [DEFAULT_OPTIONS.kvCacheMemory],
     device: [DEFAULT_OPTIONS.device],
     attentionBackend: [DEFAULT_OPTIONS.attentionBackend],
     // Context & Scheduling
@@ -350,6 +354,7 @@ export class VllmDialogComponent implements OnInit {
     f.gpuMemoryUtilization.setValue(flagFloat(flags, "--gpu-memory-utilization", DEFAULT_OPTIONS.gpuMemoryUtilization));
     f.swapSpace.setValue(flagFloat(flags, "--swap-space", DEFAULT_OPTIONS.swapSpace));
     f.cpuOffloadGb.setValue(flagFloat(flags, "--cpu-offload-gb", DEFAULT_OPTIONS.cpuOffloadGb));
+    f.kvCacheMemory.setValue(flagNum(flags, "--kv-cache-memory-bytes", DEFAULT_OPTIONS.kvCacheMemory));
     f.device.setValue(flagStr(flags, "--device", ""));
     f.attentionBackend.setValue(flagStr(flags, "--attention-backend", DEFAULT_OPTIONS.attentionBackend));
 
@@ -418,6 +423,7 @@ export class VllmDialogComponent implements OnInit {
       "--gpu-memory-utilization",
       "--swap-space",
       "--cpu-offload-gb",
+      "--kv-cache-memory-bytes",
       "--device",
       "--attention-backend",
       "--max-model-len",
@@ -502,7 +508,6 @@ export class VllmDialogComponent implements OnInit {
     // Context & Scheduling
     this.addIf(flags, "--max-model-len", c.maxModelLen.value, DEFAULT_OPTIONS.maxModelLen);
     this.addIf(flags, "--max-num-seqs", c.maxNumSeqs.value, DEFAULT_OPTIONS.maxNumSeqs);
-    this.addIf(flags, "--max-num-batched-tokens", c.maxNumBatchedTokens.value, DEFAULT_OPTIONS.maxNumBatchedTokens);
     this.addIf(flags, "--block-size", c.blockSize.value, DEFAULT_OPTIONS.blockSize);
 
     // Speculative decoding
@@ -531,6 +536,11 @@ export class VllmDialogComponent implements OnInit {
     this.addIf(flags, "--reasoning-parser", c.reasoningParser.value, DEFAULT_OPTIONS.reasoningParser);
     this.addTri(flags, c.enableChunkedPrefill.value as string, "--enable-chunked-prefill");
     this.addIf(flags, "--attention-backend", c.attentionBackend.value, DEFAULT_OPTIONS.attentionBackend);
+    // Emitted after --attention-backend to match the user's vllm config layout (no diff noise on re-save).
+    this.addIf(flags, "--max-num-batched-tokens", c.maxNumBatchedTokens.value, DEFAULT_OPTIONS.maxNumBatchedTokens);
+    if (String(c.kvCacheMemory.value) !== String(DEFAULT_OPTIONS.kvCacheMemory)) {
+      flags.push(`--kv-cache-memory-bytes=${c.kvCacheMemory.value}`);
+    }
 
     // Sampling defaults
     this.addIf(flags, "--temperature", c.temperature.value, DEFAULT_OPTIONS.temperature);

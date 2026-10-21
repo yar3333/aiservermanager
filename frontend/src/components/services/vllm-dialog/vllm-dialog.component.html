@@ -90,6 +90,7 @@
           'gpuMemoryUtilization',
           'swapSpace',
           'cpuOffloadGb',
+          'kvCacheMemory',
           'device',
           'attentionBackend'
         )
@@ -195,6 +196,15 @@
             }
           </mat-select>
           <mat-label>Attention Backend</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('kvCacheMemory')">
+          <input
+            matInput
+            formControlName="kvCacheMemory"
+            type="number"
+            matTooltip="Explicit KV cache size in bytes. 0 = auto (derived from GPU memory utilization)"
+          />
+          <mat-label>KV Cache Memory (bytes)</mat-label>
         </mat-form-field>
       </div>
     </mat-expansion-panel>

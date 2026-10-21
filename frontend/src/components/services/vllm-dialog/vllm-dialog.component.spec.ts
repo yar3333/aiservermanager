@@ -31,6 +31,34 @@ const VLLM_CONFIG: ServiceConfig = {
   environment: { HF_TOKEN: "hf_test" },
 };
 
+/** Mirrors ~/.config/aiservermanager/services/vllm-qwen-bf16-4gpu.conf */
+const VLLM_BF16_CONFIG: ServiceConfig = {
+  name: "vllm-qwen-bf16-4gpu",
+  type: "vllm",
+  command: "/home/yar/MyDocs/AiChat/vllm/run.sh",
+  flags: [
+    "serve unsloth/Qwen3.8-27B",
+    "--served-model-name qwen-256k",
+    "--host 0.0.0.0",
+    "--port 4239",
+    "--tensor-parallel-size 4",
+    "--max-model-len 262144",
+    "--max-num-seqs 8",
+    "--spec-method mtp",
+    "--spec-tokens 3",
+    "--gpu-memory-utilization 0.95",
+    "--trust-remote-code",
+    "--enable-auto-tool-choice",
+    "--tool-call-parser qwen3_xml",
+    "--reasoning-parser qwen3",
+    "--enable-chunked-prefill",
+    "--attention-backend ROCM_SEGMENTED_ATTN",
+    "--max-num-batched-tokens 8192",
+    "--kv-cache-memory-bytes=5393671680",
+  ],
+  environment: { HF_TOKEN: "hf_test", FLASH_ATTENTION_TRITON_AMD_ENABLE: "TRUE" },
+};
+
 describe("VllmDialogComponent", () => {
   let fixture: ComponentFixture<VllmDialogComponent>;
   let component: VllmDialogComponent;
@@ -88,6 +116,22 @@ describe("VllmDialogComponent", () => {
     create(VLLM_CONFIG);
     component.save();
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_CONFIG));
+  });
+
+  it("populates the bf16 config (mtp spec, ROCM_SEGMENTED_ATTN, kv-cache-memory-bytes)", () => {
+    create(VLLM_BF16_CONFIG);
+    const f = component.form.controls;
+    expect(f.specMethod.value).toBe("mtp");
+    expect(f.attentionBackend.value).toBe("ROCM_SEGMENTED_ATTN");
+    expect(f.maxNumBatchedTokens.value).toBe(8192);
+    expect(f.kvCacheMemory.value).toBe(5393671680);
+    expect(f.extraFlags.value).toBe("");
+  });
+
+  it("round-trips the bf16 config through save() unchanged", () => {
+    create(VLLM_BF16_CONFIG);
+    component.save();
+    expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_BF16_CONFIG));
   });
 
   it("keeps unknown flags in extraFlags and emits them on save", () => {
