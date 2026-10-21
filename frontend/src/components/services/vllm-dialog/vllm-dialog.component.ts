@@ -13,6 +13,7 @@ import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
 import { findFlag } from "./flag-parsing";
+import { parseContextSize, formatContextSize, CONTEXT_PRESETS } from "../../../utils/context-size";
 import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 
@@ -46,6 +47,7 @@ const DEFAULT_OPTIONS = {
   attentionBackend: "",
   // Context & Scheduling
   maxModelLen: 0,
+  // maxModelLen is stored as a formatted string ("256K", "262144"); 0 = from model metadata.
   maxNumSeqs: 256,
   maxNumBatchedTokens: 0,
   blockSize: 0,
@@ -216,7 +218,7 @@ export class VllmDialogComponent implements OnInit {
     device: [DEFAULT_OPTIONS.device],
     attentionBackend: [DEFAULT_OPTIONS.attentionBackend],
     // Context & Scheduling
-    maxModelLen: [DEFAULT_OPTIONS.maxModelLen],
+    maxModelLen: [""],
     maxNumSeqs: [DEFAULT_OPTIONS.maxNumSeqs],
     maxNumBatchedTokens: [DEFAULT_OPTIONS.maxNumBatchedTokens],
     blockSize: [DEFAULT_OPTIONS.blockSize],
@@ -288,9 +290,24 @@ export class VllmDialogComponent implements OnInit {
     return result;
   }
 
+  /** Preset max-model-len options (raw token values, no parallel-slots multiplier). */
+  readonly maxLenPresets = computed<{ label: string }[]>(() =>
+    CONTEXT_PRESETS.map((p) => ({ label: formatContextSize(p, 1) })),
+  );
+
+  /** Normalize free-form maxModelLen input on blur / Enter (parse → re-format for consistent display). */
+  onMaxLenInput(): void {
+    const parsed = parseContextSize((this.form.get("maxModelLen")?.value as string) ?? "");
+    this.form.get("maxModelLen")?.setValue(formatContextSize(parsed, 1), { emitEvent: false });
+  }
+
   /** Check whether a form control value differs from its compiled default. */
   isControlChanged(controlName: string): boolean {
     const val = this.form.get(controlName)?.value;
+    // maxModelLen is stored as formatted string; compare parsed number with default.
+    if (controlName === "maxModelLen") {
+      return +parseContextSize(val as string) !== DEFAULT_OPTIONS.maxModelLen;
+    }
     return val !== undefined && val !== null && isChanged(controlName, val);
   }
 
@@ -359,7 +376,7 @@ export class VllmDialogComponent implements OnInit {
     f.attentionBackend.setValue(flagStr(flags, "--attention-backend", DEFAULT_OPTIONS.attentionBackend));
 
     // Context & Scheduling
-    f.maxModelLen.setValue(flagNum(flags, "--max-model-len", DEFAULT_OPTIONS.maxModelLen));
+    f.maxModelLen.setValue(formatContextSize(flagNum(flags, "--max-model-len", DEFAULT_OPTIONS.maxModelLen), 1));
     f.maxNumSeqs.setValue(flagNum(flags, "--max-num-seqs", DEFAULT_OPTIONS.maxNumSeqs));
     f.maxNumBatchedTokens.setValue(flagNum(flags, "--max-num-batched-tokens", DEFAULT_OPTIONS.maxNumBatchedTokens));
     f.blockSize.setValue(flagNum(flags, "--block-size", DEFAULT_OPTIONS.blockSize));
@@ -506,7 +523,7 @@ export class VllmDialogComponent implements OnInit {
     this.addIf(flags, "--device", (c.device.value ?? "").trim(), DEFAULT_OPTIONS.device);
 
     // Context & Scheduling
-    this.addIf(flags, "--max-model-len", c.maxModelLen.value, DEFAULT_OPTIONS.maxModelLen);
+    this.addIf(flags, "--max-model-len", +parseContextSize(c.maxModelLen.value ?? ""), DEFAULT_OPTIONS.maxModelLen);
     this.addIf(flags, "--max-num-seqs", c.maxNumSeqs.value, DEFAULT_OPTIONS.maxNumSeqs);
     this.addIf(flags, "--block-size", c.blockSize.value, DEFAULT_OPTIONS.blockSize);
 

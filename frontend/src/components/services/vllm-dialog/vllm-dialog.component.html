@@ -224,11 +224,21 @@
           <input
             matInput
             formControlName="maxModelLen"
-            type="number"
-            matTooltip="Model context length. 0 = model's max. Large values need more KV cache"
+            type="text"
+            [matAutocomplete]="maxLenAuto"
+            (blur)="onMaxLenInput()"
+            (keyup.enter)="onMaxLenInput()"
+            placeholder="e.g. 24K, 262144"
+            matTooltip="Model context length. Supports: 20000, 20K. Empty = model's max. Large values need more KV cache"
           />
           <mat-label>Max Model Len</mat-label>
         </mat-form-field>
+
+        <mat-autocomplete #maxLenAuto="matAutocomplete">
+          @for (p of maxLenPresets(); track p.label) {
+            <mat-option [value]="p.label">{{ p.label }}</mat-option>
+          }
+        </mat-autocomplete>
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('maxNumSeqs')">
           <input
             matInput

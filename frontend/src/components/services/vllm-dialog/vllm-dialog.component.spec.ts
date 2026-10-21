@@ -98,7 +98,7 @@ describe("VllmDialogComponent", () => {
     expect(f.host.value).toBe("0.0.0.0");
     expect(f.port.value).toBe(4239);
     expect(f.tensorParallelSize.value).toBe(4);
-    expect(f.maxModelLen.value).toBe(262144);
+    expect(f.maxModelLen.value).toBe("256K");
     expect(f.maxNumSeqs.value).toBe(8);
     expect(f.specMethod.value).toBe("qwen3_5_mtp");
     expect(f.specTokens.value).toBe(3);
