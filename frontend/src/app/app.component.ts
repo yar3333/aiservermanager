@@ -9,6 +9,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { Gpu, GpuWithUsage, GpuUsage, SystemInfo } from "../models/gpu";
 import { GpuService } from "../services/gpu.service";
 import { AuthService } from "../services/auth.service";
+import { LayoutService } from "../services/layout.service";
 import { GpuTableComponent } from "../components/gpu-table/gpu-table.component";
 import { ServicesComponent } from "../components/services/services.component";
 import { JournalPanelComponent } from "../components/journal-panel/journal-panel.component";
@@ -16,6 +17,14 @@ import { SystemBarComponent } from "../components/system-bar/system-bar.componen
 
 const SPLITTER_MIN = 100;
 const SPLITTER_MAX = 1600;
+const JOURNAL_MIN = 160;
+const JOURNAL_MAX = 800;
+const JOURNAL_DEFAULT = 320;
+const GPU_COL_MIN = 360;
+const GPU_COL_MAX = 1400;
+const GPU_COL_DEFAULT = 560;
+
+type DragTarget = "journalWidth" | "journalHeight" | "gpuColWidth";
 
 @Component({
   selector: "app-root",
@@ -39,6 +48,7 @@ const SPLITTER_MAX = 1600;
 export class AppComponent implements OnInit, OnDestroy {
   private gpuService = inject(GpuService);
   private authService = inject(AuthService);
+  private layoutService = inject(LayoutService);
 
   readonly gpus = signal<GpuWithUsage[]>([]);
   readonly systemInfo = signal<SystemInfo>({
@@ -51,16 +61,22 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly error = signal<string | null>(null);
   readonly hasGpus = computed(() => this.gpus().length > 0);
 
+  // Layout: "vertical" (journal on the right) or "horizontal" (journal at the bottom)
+  readonly layout = this.layoutService.layout;
+
   // Auth state
   readonly isAuthenticated = signal(this.authService.isAuthenticated());
   readonly loginPassword = signal("");
   readonly loginError = signal<string | null>(null);
 
   // Draggable splitter state
-  readonly sidebarWidth = signal<number>(420);
+  readonly sidebarWidth = signal<number>(420); // vertical layout: journal column width
+  readonly journalHeight = signal<number>(JOURNAL_DEFAULT); // horizontal layout: journal row height
+  readonly gpuColWidth = signal<number>(GPU_COL_DEFAULT); // horizontal layout: GPU column width
   readonly isDragging = signal<boolean>(false);
-  private dragOffsetX = 0;
-  private dragStartWidth = 420;
+  private dragTarget: DragTarget | null = null;
+  private dragStartCoord = 0;
+  private dragStartValue = 0;
 
   ngOnInit(): void {
     // Listen for auth state changes (401 → logout)
@@ -80,6 +96,24 @@ export class AppComponent implements OnInit, OnDestroy {
         this.sidebarWidth.set(parsed);
       }
     }
+
+    // Restore persisted journal height (horizontal layout)
+    const savedHeight = localStorage.getItem("journal-bottom-height");
+    if (savedHeight) {
+      const parsed = parseInt(savedHeight, 10);
+      if (parsed >= JOURNAL_MIN && parsed <= JOURNAL_MAX) {
+        this.journalHeight.set(parsed);
+      }
+    }
+
+    // Restore persisted GPU column width (horizontal layout)
+    const savedCol = localStorage.getItem("gpu-col-width");
+    if (savedCol) {
+      const parsed = parseInt(savedCol, 10);
+      if (parsed >= GPU_COL_MIN && parsed <= GPU_COL_MAX) {
+        this.gpuColWidth.set(parsed);
+      }
+    }
   }
 
   ngOnDestroy(): void {}
@@ -97,28 +131,59 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // ── Splitter drag handlers ──
 
-  startDrag(event: MouseEvent): void {
-    event.preventDefault();
-    this.dragOffsetX = event.clientX;
-    this.dragStartWidth = this.sidebarWidth();
+  startJournalWidthDrag(event: MouseEvent): void {
+    this.beginDrag("journalWidth", event.clientX, this.sidebarWidth());
+  }
+
+  startJournalHeightDrag(event: MouseEvent): void {
+    this.beginDrag("journalHeight", event.clientY, this.journalHeight());
+  }
+
+  startGpuColDrag(event: MouseEvent): void {
+    this.beginDrag("gpuColWidth", event.clientX, this.gpuColWidth());
+  }
+
+  private beginDrag(target: DragTarget, startCoord: number, startValue: number): void {
+    this.dragTarget = target;
+    this.dragStartCoord = startCoord;
+    this.dragStartValue = startValue;
     this.isDragging.set(true);
   }
 
   @HostListener("document:mousemove", ["$event"])
   onDrag(event: MouseEvent): void {
-    if (!this.isDragging()) return;
-    const delta = this.dragOffsetX - event.clientX; // dragging left → positive
-    let newWidth = this.dragStartWidth + delta;
-    newWidth = Math.max(SPLITTER_MIN, Math.min(SPLITTER_MAX, newWidth));
-    this.sidebarWidth.set(newWidth);
+    if (!this.isDragging() || !this.dragTarget) return;
+    if (this.dragTarget === "journalWidth") {
+      // Journal column on the right: dragging the handle left widens it.
+      const delta = this.dragStartCoord - event.clientX;
+      this.sidebarWidth.set(this.clamp(this.dragStartValue + delta, SPLITTER_MIN, SPLITTER_MAX));
+    } else if (this.dragTarget === "journalHeight") {
+      // Journal row at the bottom: dragging the handle up increases its height.
+      const delta = this.dragStartCoord - event.clientY;
+      this.journalHeight.set(this.clamp(this.dragStartValue + delta, JOURNAL_MIN, JOURNAL_MAX));
+    } else if (this.dragTarget === "gpuColWidth") {
+      // GPU column on the left: dragging the handle right widens it.
+      const delta = event.clientX - this.dragStartCoord;
+      this.gpuColWidth.set(this.clamp(this.dragStartValue + delta, GPU_COL_MIN, GPU_COL_MAX));
+    }
   }
 
   @HostListener("document:mouseup")
   onDragEnd(): void {
-    if (this.isDragging()) {
+    if (!this.isDragging() || !this.dragTarget) return;
+    if (this.dragTarget === "journalWidth") {
       localStorage.setItem("journal-sidebar-width", String(this.sidebarWidth()));
-      this.isDragging.set(false);
+    } else if (this.dragTarget === "journalHeight") {
+      localStorage.setItem("journal-bottom-height", String(this.journalHeight()));
+    } else if (this.dragTarget === "gpuColWidth") {
+      localStorage.setItem("gpu-col-width", String(this.gpuColWidth()));
     }
+    this.dragTarget = null;
+    this.isDragging.set(false);
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
   }
 
   constructor() {

@@ -1,18 +1,28 @@
-import { Component, input, inject } from "@angular/core";
+import { Component, computed, input, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
 import { MatMenuModule } from "@angular/material/menu";
+import { MatDividerModule } from "@angular/material/divider";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { SystemInfo } from "../../models/gpu";
 import { SystemService } from "../../services/system.service";
+import { LayoutService, DashboardLayout } from "../../services/layout.service";
 import { SystemInfoDialogComponent } from "./system-info-dialog.component";
 
 @Component({
   selector: "app-system-bar",
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule, MatMenuModule, MatDialogModule],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatIconModule,
+    MatButtonModule,
+    MatMenuModule,
+    MatDividerModule,
+    MatDialogModule,
+  ],
   templateUrl: "./system-bar.component.html",
   styleUrls: ["./system-bar.component.scss"],
 })
@@ -20,6 +30,13 @@ export class SystemBarComponent {
   readonly systemInfo = input.required<SystemInfo>();
   private systemService = inject(SystemService);
   private dialog = inject(MatDialog);
+  private layoutService = inject(LayoutService);
+
+  readonly layout = computed(() => this.layoutService.layout());
+
+  setLayout(layout: DashboardLayout): void {
+    this.layoutService.setLayout(layout);
+  }
 
   openSystemInfo(): void {
     this.dialog.open(SystemInfoDialogComponent, { disableClose: false });

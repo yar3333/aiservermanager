@@ -65,6 +65,15 @@
         <mat-icon>power_settings_new</mat-icon>
         <span>Shutdown server</span>
       </button>
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="setLayout('vertical')">
+        <mat-icon>{{ layout() === "vertical" ? "check" : "radio_button_unchecked" }}</mat-icon>
+        <span>Layout: vertical</span>
+      </button>
+      <button mat-menu-item (click)="setLayout('horizontal')">
+        <mat-icon>{{ layout() === "horizontal" ? "check" : "radio_button_unchecked" }}</mat-icon>
+        <span>Layout: horizontal</span>
+      </button>
     </mat-menu>
   </div>
 </div>

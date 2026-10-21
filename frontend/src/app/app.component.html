@@ -37,7 +37,7 @@
     <mat-progress-bar mode="query" color="primary"></mat-progress-bar>
   }
 
-  <div class="layout" [class.dragging]="isDragging()">
+  <div class="layout" [class.horizontal]="layout() === 'horizontal'" [class.dragging]="isDragging()">
     <div class="main-content">
       @if (error()) {
         <mat-card class="error-card">
@@ -50,28 +50,50 @@
           </mat-card-content>
         </mat-card>
       } @else {
-        @if (!hasGpus()) {
-          <mat-card class="empty-card">
-            <mat-card-content>
-              <p>No GPUs detected.</p>
-              <p class="mat-body-2" style="color: #999">Ensure nvidia-smi or rocm-smi is available on this system.</p>
-            </mat-card-content>
-          </mat-card>
-        } @else {
+        @if (hasGpus()) {
           <app-system-bar [systemInfo]="systemInfo()" />
-          <app-gpu-table [gpus]="gpus()" />
         }
-
-        <app-services />
+        <div class="top-row">
+          <div class="gpu-col" [style.width.px]="layout() === 'horizontal' ? gpuColWidth() : null">
+            @if (!hasGpus()) {
+              <mat-card class="empty-card">
+                <mat-card-content>
+                  <p>No GPUs detected.</p>
+                  <p class="mat-body-2" style="color: #999">
+                    Ensure nvidia-smi or rocm-smi is available on this system.
+                  </p>
+                </mat-card-content>
+              </mat-card>
+            } @else {
+              <app-gpu-table [gpus]="gpus()" />
+            }
+          </div>
+          @if (layout() === 'horizontal') {
+            <div class="splitter" (mousedown)="startGpuColDrag($event)">
+              <span class="splitter-line"></span>
+            </div>
+          }
+          <div class="services-col">
+            <app-services />
+          </div>
+        </div>
       }
     </div>
 
-    <div class="splitter" (mousedown)="startDrag($event)">
-      <span class="splitter-line"></span>
-    </div>
-
-    <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
-      <app-journal-panel />
-    </div>
+    @if (layout() === 'vertical') {
+      <div class="splitter" (mousedown)="startJournalWidthDrag($event)">
+        <span class="splitter-line"></span>
+      </div>
+      <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
+        <app-journal-panel />
+      </div>
+    } @else {
+      <div class="splitter splitter-h" (mousedown)="startJournalHeightDrag($event)">
+        <span class="splitter-line"></span>
+      </div>
+      <div class="journal-bottom" [style.height.px]="journalHeight()">
+        <app-journal-panel />
+      </div>
+    }
   </div>
 }
