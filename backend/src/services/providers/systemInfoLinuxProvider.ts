@@ -77,7 +77,11 @@ export class SystemInfoLinuxProvider implements SystemInfoProvider {
         const total = parseInt(parts[1], 10);
         const used = parseInt(parts[2], 10);
         const available = parseInt(parts[3], 10);
-        const pct = parseInt(parts[4].replace("%", ""), 10);
+        // df's Use% = used/(used+available), which ignores root-reserved blocks and would
+        // not match the "available of total" figures shown in the UI.
+        const t = isNaN(total) ? 0 : total;
+        const a = isNaN(available) ? 0 : available;
+        const pct = t > 0 ? Math.round(((t - a) / t) * 100) : 0;
         disks.push({
           device: parts[0],
           mountPoint,

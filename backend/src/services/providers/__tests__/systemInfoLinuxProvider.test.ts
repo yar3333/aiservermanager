@@ -293,6 +293,26 @@ describe("SystemInfoLinuxProvider", () => {
       expect(info.disks[0].usePercent).toBe(95);
     });
 
+    it("computes usePercent from total/available so it matches the displayed GB figures (reserved blocks)", async () => {
+      mockSafeExec.mockImplementation(async (cmd: string) => {
+        if (cmd === "cat /etc/os-release") return { stdout: osReleaseStdout, stderr: "" };
+        if (cmd === "hostname") return { stdout: "x\n", stderr: "" };
+        if (cmd === "uname -r") return { stdout: "5.15\n", stderr: "" };
+        if (cmd === "uptime -p") return { stdout: "up\n", stderr: "" };
+        // df's Use% is 54% (used/(used+available)), but 388 of 878 GB free implies 56% used
+        if (cmd.startsWith("df "))
+          return {
+            stdout: "Filesystem 1G-blocks Used Available Use% Mounted on\n/dev/sda1 878 452 388 54% /\n",
+            stderr: "",
+          };
+        if (cmd.includes("stat")) return { stdout: "0\n", stderr: "" };
+        return { stdout: "", stderr: "" };
+      });
+
+      const info = await provider.getSystemInfo();
+      expect(info.disks[0].usePercent).toBe(56);
+    });
+
     it("filters out system mount points (/boot, /boot/efi, /snap, etc.)", async () => {
       mockSafeExec.mockImplementation(async (cmd: string) => {
         if (cmd === "cat /etc/os-release") return { stdout: osReleaseStdout, stderr: "" };
