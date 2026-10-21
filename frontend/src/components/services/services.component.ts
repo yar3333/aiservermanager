@@ -83,6 +83,18 @@ export class ServicesComponent implements OnInit {
     return [...customServices, ...managedServices];
   });
 
+  /** Quick filter by service name (case-insensitive substring). */
+  readonly filter = signal("");
+  readonly filtered = computed(() => {
+    const q = this.filter().trim().toLowerCase();
+    const list = this.unified();
+    return q ? list.filter((s) => s.name.toLowerCase().includes(q)) : list;
+  });
+
+  onFilterInput(event: Event): void {
+    this.filter.set((event.target as HTMLInputElement).value);
+  }
+
   ngOnInit(): void {
     this.load();
   }

@@ -125,6 +125,23 @@ describe("ServicesComponent", () => {
     );
   });
 
+  it("filters services by name (case-insensitive substring)", async () => {
+    await fixture.whenStable();
+    expect(component.filtered()).toHaveLength(2);
+
+    component.filter.set("NGINX");
+    expect(component.filtered().map((s) => s.name)).toEqual(["nginx"]);
+
+    component.filter.set("llama");
+    expect(component.filtered().map((s) => s.name)).toEqual(["llama-server"]);
+
+    component.filter.set("no-such-service");
+    expect(component.filtered()).toHaveLength(0);
+
+    component.filter.set("   ");
+    expect(component.filtered()).toHaveLength(2);
+  });
+
   it("hasFlags reports whether a config has flags", () => {
     expect(component.hasFlags(CONFIGS[0])).toBe(true);
     expect(component.hasFlags({ name: "x", command: "/x", flags: [] })).toBe(false);

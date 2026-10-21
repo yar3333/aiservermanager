@@ -1,6 +1,13 @@
 <div class="services-card">
   <div class="section-header">
     <h2>Services</h2>
+    <input
+      class="service-filter"
+      type="text"
+      placeholder="Filter by name…"
+      [value]="filter()"
+      (input)="onFilterInput($event)"
+    />
     <button
       mat-icon-button
       class="header-menu-btn"
@@ -39,10 +46,10 @@
     </mat-menu>
   </div>
 
-  @if (unified().length > 0) {
+  @if (filtered().length > 0) {
     <table class="services-list">
       <tbody>
-        @for (svc of unified(); track svc.name) {
+        @for (svc of filtered(); track svc.name) {
           <tr [class.custom]="svc.hasConfig" (click)="selectedServiceService.select(svc.name)">
             <td>
               <div class="service-name">
@@ -121,7 +128,11 @@
     </table>
   } @else if (!loading()) {
     <div class="empty">
-      <p>No services configured. Click "Managed services" to select system services or "Custom service" to create one.</p>
+      @if (filter().trim()) {
+        <p>No services match "{{ filter().trim() }}".</p>
+      } @else {
+        <p>No services configured. Click "Managed services" to select system services or "Custom service" to create one.</p>
+      }
     </div>
   }
 </div>
