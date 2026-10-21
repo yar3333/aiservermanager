@@ -6,6 +6,7 @@ import { createContainer } from "./di/container";
 import gpuRoutes from "./routes/gpuRoutes";
 import serviceRoutes from "./routes/serviceRoutes";
 import systemRoutes from "./routes/systemRoutes";
+import hfRoutes from "./routes/hfRoutes";
 import authRoutes from "./routes/authRoutes";
 import { authMiddleware } from "./middleware/authMiddleware";
 import { SERVICE_MANAGER } from "./di/types";
@@ -45,6 +46,7 @@ app.use(authMiddleware(container));
 app.use("/api/gpus", gpuRoutes(container));
 app.use("/api/services", serviceRoutes(container));
 app.use("/api/system", systemRoutes(container));
+app.use("/api/hf", hfRoutes(container));
 
 // Bootstrap: auto-install custom services, cache install errors
 const sm = container.get<ServiceManager>(SERVICE_MANAGER);

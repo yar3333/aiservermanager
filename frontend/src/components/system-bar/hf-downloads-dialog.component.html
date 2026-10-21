@@ -1,0 +1,72 @@
+<div class="hf-dialog">
+  <div class="dialog-header">
+    <mat-icon class="header-icon">download</mat-icon>
+    <div>
+      <h2 mat-dialog-title>HF Downloads</h2>
+      <div class="header-sub">Active `hf download` processes on this server</div>
+    </div>
+    <button mat-icon-button (click)="close()" aria-label="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  @if (error(); as err) {
+    <div class="error">{{ err }}</div>
+  }
+
+  @if (loading()) {
+    <div class="state">Loading…</div>
+  } @else if (downloads().length === 0) {
+    <div class="state">
+      <mat-icon>cloud_off</mat-icon>
+      <div>No active downloads</div>
+    </div>
+  } @else {
+    <div class="download-list">
+      @for (d of downloads(); track d.repoId + d.dest) {
+        <div class="download-row">
+          <div class="row-main">
+            <div class="row-title">
+              <span class="repo">{{ d.repoId }}</span>
+              <span class="status-chip" [class.paused]="d.status === 'paused'">{{ d.status }}</span>
+              @if (d.pids.length > 0) {
+                <span class="pids">pid {{ d.pids.join(", ") }}</span>
+              }
+            </div>
+            <div class="row-dest" [title]="d.dest">{{ d.dest }}</div>
+
+            <mat-progress-bar [mode]="progressMode(d)" [value]="percent(d) ?? 0"></mat-progress-bar>
+
+            <div class="row-meta">
+              <span class="progress-text">
+                {{ formatBytes(d.doneBytes) }} / {{ d.totalBytes > 0 ? formatBytes(d.totalBytes) : "…" }}
+              </span>
+              <span class="files">{{ d.filesDone }} / {{ d.filesTotal }} files</span>
+              <span class="speed">{{ formatSpeed(d.speedBps) }}</span>
+              <span class="eta">{{ d.status === "paused" ? "paused" : "≈ " + formatEta(d.etaSeconds) }}</span>
+            </div>
+          </div>
+
+          <div class="row-actions">
+            @if (d.status === "paused") {
+              <button mat-icon-button color="primary" (click)="resume(d)" title="Resume">
+                <mat-icon>play_arrow</mat-icon>
+              </button>
+            } @else {
+              <button mat-icon-button (click)="pause(d)" title="Pause">
+                <mat-icon>pause</mat-icon>
+              </button>
+            }
+            <button mat-icon-button color="warn" (click)="cancel(d)" title="Cancel">
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="close()">Close</button>
+  </mat-dialog-actions>
+</div>

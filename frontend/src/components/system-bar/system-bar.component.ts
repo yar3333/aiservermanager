@@ -1,4 +1,4 @@
-import { Component, computed, input, inject } from "@angular/core";
+import { Component, computed, input, inject, OnInit, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
@@ -8,8 +8,10 @@ import { MatDividerModule } from "@angular/material/divider";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { SystemInfo } from "../../models/gpu";
 import { SystemService } from "../../services/system.service";
+import { HfService } from "../../services/hf.service";
 import { LayoutService, DashboardLayout } from "../../services/layout.service";
 import { SystemInfoDialogComponent } from "./system-info-dialog.component";
+import { HfDownloadsDialogComponent } from "./hf-downloads-dialog.component";
 
 @Component({
   selector: "app-system-bar",
@@ -26,13 +28,22 @@ import { SystemInfoDialogComponent } from "./system-info-dialog.component";
   templateUrl: "./system-bar.component.html",
   styleUrls: ["./system-bar.component.scss"],
 })
-export class SystemBarComponent {
+export class SystemBarComponent implements OnInit {
   readonly systemInfo = input.required<SystemInfo>();
   private systemService = inject(SystemService);
+  private hfService = inject(HfService);
   private dialog = inject(MatDialog);
   private layoutService = inject(LayoutService);
 
   readonly layout = computed(() => this.layoutService.layout());
+  readonly hfInstalled = signal(false);
+
+  ngOnInit(): void {
+    this.hfService
+      .getStatus()
+      .then((s) => this.hfInstalled.set(s.installed))
+      .catch(() => this.hfInstalled.set(false));
+  }
 
   setLayout(layout: DashboardLayout): void {
     this.layoutService.setLayout(layout);
@@ -40,6 +51,10 @@ export class SystemBarComponent {
 
   openSystemInfo(): void {
     this.dialog.open(SystemInfoDialogComponent, { disableClose: false });
+  }
+
+  openHfDownloads(): void {
+    this.dialog.open(HfDownloadsDialogComponent, { width: "760px", maxWidth: "95vw", disableClose: false });
   }
 
   async reboot(): Promise<void> {

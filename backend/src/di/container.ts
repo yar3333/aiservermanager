@@ -15,6 +15,7 @@ import {
   SERVICE_CONFIG_CONTROLLER,
   MANAGED_SERVICES_CONTROLLER,
   LLAMA_AUTOCOMPLETE_SERVICE,
+  HF_DOWNLOADS_SERVICE,
 } from "./types";
 import { AuthService } from "../services/authService";
 import { PasswordVerifier } from "../services/auth/passwordVerifier";
@@ -41,6 +42,7 @@ import { WindowsServiceController } from "../services/controllers/windowsService
 import { ServiceConfigController } from "../services/serviceConfigController";
 import { ManagedServicesController } from "../services/managedServicesController";
 import { LlamaAutocompleteService } from "../services/llamaAutocompleteService";
+import { HfDownloadsService } from "../services/hfDownloadsService";
 import { SystemInfoProvider } from "../services/systemInfoProvider";
 import { SystemInfoLinuxProvider } from "../services/providers/systemInfoLinuxProvider";
 import { SystemInfoWindowsProvider } from "../services/providers/systemInfoWindowsProvider";
@@ -108,6 +110,9 @@ export function createContainer(): Container {
 
   // Llama autocomplete service — path suggestions, hosts, devices
   container.bind<LlamaAutocompleteService>(LLAMA_AUTOCOMPLETE_SERVICE).to(LlamaAutocompleteService).inSingletonScope();
+
+  // HF downloads service — monitors `hf download` processes (Linux)
+  container.bind<HfDownloadsService>(HF_DOWNLOADS_SERVICE).to(HfDownloadsService).inSingletonScope();
 
   // System info providers — platform-specific strategies
   container.bind<SystemInfoProvider>(SYSTEM_INFO_PROVIDER).to(SystemInfoLinuxProvider);

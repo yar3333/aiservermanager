@@ -53,10 +53,6 @@
       <mat-icon>more_vert</mat-icon>
     </button>
     <mat-menu #menu="matMenu" yPosition="below">
-      <button mat-menu-item (click)="openSystemInfo()">
-        <mat-icon>info</mat-icon>
-        <span>System info</span>
-      </button>
       <button mat-menu-item (click)="reboot()">
         <mat-icon>restart_alt</mat-icon>
         <span>Reboot server</span>
@@ -74,6 +70,17 @@
         <mat-icon>{{ layout() === "horizontal" ? "check" : "radio_button_unchecked" }}</mat-icon>
         <span>Layout: horizontal</span>
       </button>
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="openSystemInfo()">
+        <mat-icon>info</mat-icon>
+        <span>System info</span>
+      </button>
+      @if (hfInstalled()) {
+        <button mat-menu-item (click)="openHfDownloads()">
+          <mat-icon>download</mat-icon>
+          <span>HF Downloads</span>
+        </button>
+      }
     </mat-menu>
   </div>
 </div>
