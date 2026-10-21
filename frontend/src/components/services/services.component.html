@@ -1,34 +1,42 @@
 <div class="services-card">
   <div class="section-header">
     <h2>Services</h2>
-    <div class="header-actions">
-      <button mat-stroked-button (click)="manageServices()" title="Select services to manage">
+    <button
+      mat-icon-button
+      class="header-menu-btn"
+      [matMenuTriggerFor]="servicesMenu"
+      title="Services actions"
+    >
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #servicesMenu="matMenu" xPosition="before">
+      <button mat-menu-item (click)="manageServices()">
         <mat-icon>tune</mat-icon>
-        Managed services
+        <span>Managed services</span>
       </button>
-      <button mat-stroked-button (click)="archiveServices()" title="Archive services and restore them from the archive.">
+      <button mat-menu-item (click)="archiveServices()">
         <mat-icon>archive</mat-icon>
-        Archive
+        <span>Archive</span>
       </button>
-      <button mat-raised-button color="primary" [matMenuTriggerFor]="addMenu" title="Add custom service">
+      <button mat-menu-item [matMenuTriggerFor]="addMenu">
         <mat-icon>add</mat-icon>
-        Custom service
+        <span>Custom service</span>
       </button>
-      <mat-menu #addMenu>
-        <button mat-menu-item (click)="addService('generic')">
-          <mat-icon>settings</mat-icon>
-          Generic service
-        </button>
-        <button mat-menu-item (click)="addService('llama-server')">
-          <mat-icon>smart_toy</mat-icon>
-          llama-server
-        </button>
-        <button mat-menu-item (click)="addService('vllm')">
-          <mat-icon>bolt</mat-icon>
-          vllm
-        </button>
-      </mat-menu>
-    </div>
+    </mat-menu>
+    <mat-menu #addMenu>
+      <button mat-menu-item (click)="addService('generic')">
+        <mat-icon>settings</mat-icon>
+        <span>Generic service</span>
+      </button>
+      <button mat-menu-item (click)="addService('llama-server')">
+        <mat-icon>smart_toy</mat-icon>
+        <span>llama-server</span>
+      </button>
+      <button mat-menu-item (click)="addService('vllm')">
+        <mat-icon>bolt</mat-icon>
+        <span>vllm</span>
+      </button>
+    </mat-menu>
   </div>
 
   @if (unified().length > 0) {
