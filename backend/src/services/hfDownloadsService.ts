@@ -8,7 +8,8 @@ type HfAction = "pause" | "resume" | "cancel";
 
 interface ProcEntry {
   pid: number;
-  cmdline: string;
+  /** Raw argv (NUL-separated cmdline entries). Matching must use these, not a joined string. */
+  argv: string[];
   state: string;
   hfHome?: string;
 }
@@ -59,13 +60,39 @@ export class HfDownloadsService {
     this.procRoot = procRoot;
   }
 
-  /** Whether the `hf` CLI is available on PATH (Linux only). */
+  /** Whether the `hf` CLI is available (Linux only). Works under systemd's minimal PATH. */
   async isInstalled(): Promise<HfStatus> {
     if (process.platform !== "linux") return { installed: false };
-    const which = await ExecTools.safeExec("command -v hf");
-    if (!which.stdout.trim()) return { installed: false };
-    const ver = await ExecTools.safeExec("hf version 2>/dev/null");
+    const which = await ExecTools.safeExec("command -v hf", { env: { PATH: this.pathWithUserBins() } });
+    const binPath = which.stdout.trim();
+    if (binPath) {
+      return this.hfStatusFor(binPath);
+    }
+    // Fallback: standard pipx/uv/pip --user install location (may not be on PATH at all)
+    const candidate = path.join(os.homedir(), ".local", "bin", "hf");
+    try {
+      await fs.promises.access(candidate, fs.constants.X_OK);
+    } catch {
+      return { installed: false };
+    }
+    return this.hfStatusFor(candidate);
+  }
+
+  private async hfStatusFor(binPath: string): Promise<HfStatus> {
+    const ver = await ExecTools.safeExec(`"${binPath}" version 2>/dev/null`);
     return { installed: true, version: ver.stdout.trim() || undefined };
+  }
+
+  /** PATH extended with common user-local bin dirs (systemd runs with a minimal PATH). */
+  private pathWithUserBins(): string {
+    const dirs = [
+      path.join(os.homedir(), ".local", "bin"),
+      path.join(os.homedir(), ".npm-global", "bin"),
+      path.join(os.homedir(), ".cargo", "bin"),
+      "/opt/conda/bin",
+      process.env.PATH ?? "",
+    ];
+    return [...new Set(dirs.map((d) => d.trim()).filter(Boolean))].join(":");
   }
 
   /** List all active `hf download` process groups with progress. */
@@ -98,7 +125,7 @@ export class HfDownloadsService {
     const procs = this.scanProcesses();
     const pids: number[] = [];
     for (const p of procs) {
-      const args = this.parseArgs(p.cmdline);
+      const args = this.parseArgs(p.argv);
       if (args.repoId !== repoId) continue;
       if (this.destinationFor(args, p.hfHome) !== dest) continue;
       pids.push(p.pid);
@@ -132,8 +159,8 @@ export class HfDownloadsService {
       if (!/^\d+$/.test(name)) continue;
       try {
         const raw = fs.readFileSync(path.join(this.procRoot, name, "cmdline"), "utf8");
-        const cmdline = raw.split("\0").filter(Boolean).join(" ");
-        if (!HfDownloadsService.isHfDownloadCmd(cmdline)) continue;
+        const argv = raw.split("\0").filter(Boolean);
+        if (!HfDownloadsService.isHfDownloadCmd(argv)) continue;
         const stat = fs.readFileSync(path.join(this.procRoot, name, "stat"), "utf8");
         const state = (stat.split(") ").pop() ?? "").charAt(0);
         let hfHome: string | undefined;
@@ -143,7 +170,7 @@ export class HfDownloadsService {
         } catch {
           hfHome = undefined;
         }
-        out.push({ pid: Number(name), cmdline, state, hfHome });
+        out.push({ pid: Number(name), argv, state, hfHome });
       } catch {
         // process exited or not readable — skip
       }
@@ -151,36 +178,36 @@ export class HfDownloadsService {
     return out;
   }
 
-  /** True for argv/cmdline of `hf download` / `huggingface-cli download` (incl. `bash -c` wrappers). */
-  static isHfDownloadCmd(cmdline: string): boolean {
-    return HfDownloadsService.findDownloadStart(cmdline) !== -1;
+  /** True when argv is a real `hf download` / `huggingface-cli download` invocation. */
+  static isHfDownloadCmd(argv: string[]): boolean {
+    return HfDownloadsService.findDownloadStart(argv) !== -1;
   }
 
   /**
-   * Token index of the first argument after `hf download` / `huggingface-cli download`,
-   * or -1. Matches the CLI at the end of its path (e.g. `/usr/local/bin/hf`).
+   * Index of the first argument after `hf download` / `huggingface-cli download`, or -1.
+   * Requires the CLI and the subcommand to be separate argv entries (basename of a path
+   * counts: `/usr/local/bin/hf`). Text like `bash -c 'echo hf download x'` must NOT match —
+   * there the whole script is a single argv element.
    */
-  private static findDownloadStart(cmdline: string): number {
-    const tokens = cmdline.split(/\s+/).filter(Boolean);
-    for (let i = 0; i < tokens.length - 1; i++) {
-      const base = tokens[i].split("/").pop() ?? tokens[i];
-      if ((base === "hf" || base === "huggingface-cli") && tokens[i + 1] === "download") return i + 2;
+  private static findDownloadStart(argv: string[]): number {
+    for (let i = 0; i < argv.length - 1; i++) {
+      const base = argv[i].split("/").pop() ?? argv[i];
+      if ((base === "hf" || base === "huggingface-cli") && argv[i + 1] === "download") return i + 2;
     }
     return -1;
   }
 
-  private parseArgs(cmdline: string): ParsedArgs {
-    const start = HfDownloadsService.findDownloadStart(cmdline);
+  private parseArgs(argv: string[]): ParsedArgs {
+    const start = HfDownloadsService.findDownloadStart(argv);
     if (start === -1) return { repoId: "", include: [], exclude: [] };
-    const tokens = cmdline.split(/\s+/).filter(Boolean);
-    const args: ParsedArgs = { repoId: tokens[start], include: [], exclude: [] };
-    for (let i = start + 1; i < tokens.length; i++) {
-      const t = tokens[i];
-      if (t === "--local-dir") args.localDir = tokens[++i];
-      else if (t === "--include") args.include.push(tokens[++i]);
-      else if (t === "--exclude") args.exclude.push(tokens[++i]);
-      else if (t === "--revision") args.revision = tokens[++i];
-      else if (t === "--repo-type") args.repoType = tokens[++i];
+    const args: ParsedArgs = { repoId: argv[start], include: [], exclude: [] };
+    for (let i = start + 1; i < argv.length; i++) {
+      const t = argv[i];
+      if (t === "--local-dir") args.localDir = argv[++i];
+      else if (t === "--include") args.include.push(argv[++i]);
+      else if (t === "--exclude") args.exclude.push(argv[++i]);
+      else if (t === "--revision") args.revision = argv[++i];
+      else if (t === "--repo-type") args.repoType = argv[++i];
     }
     return args;
   }
@@ -195,7 +222,7 @@ export class HfDownloadsService {
   private groupProcesses(procs: ProcEntry[]): Group[] {
     const groups = new Map<string, Group>();
     for (const p of procs) {
-      const args = this.parseArgs(p.cmdline);
+      const args = this.parseArgs(p.argv);
       if (!args.repoId) continue;
       const dest = this.destinationFor(args, p.hfHome);
       const key = `${args.repoId}|${dest}`;
@@ -211,7 +238,7 @@ export class HfDownloadsService {
           states: [],
           include: args.include,
           exclude: args.exclude,
-          command: p.cmdline,
+          command: p.argv.join(" "),
         };
         groups.set(key, g);
       }

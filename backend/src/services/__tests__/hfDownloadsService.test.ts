@@ -4,10 +4,11 @@ import * as path from "path";
 import { HfDownloadsService } from "../hfDownloadsService";
 import { ExecTools } from "../../helpers/ExecTools";
 
-function makeProc(root: string, pid: number, cmdline: string, state = "S", hfHome?: string): void {
+function makeProc(root: string, pid: number, cmdline: string | string[], state = "S", hfHome?: string): void {
   const dir = path.join(root, String(pid));
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "cmdline"), cmdline.split(" ").join("\0") + "\0");
+  const argv = Array.isArray(cmdline) ? cmdline : cmdline.split(" ");
+  fs.writeFileSync(path.join(dir, "cmdline"), argv.join("\0") + "\0");
   fs.writeFileSync(path.join(dir, "stat"), `${pid} (test) ${state} 1 0 0 0 -1 4194560`);
   fs.writeFileSync(path.join(dir, "environ"), hfHome ? `HF_HOME=${hfHome}\0PATH=/usr/bin\0` : "PATH=/usr/bin\0");
 }
@@ -43,26 +44,33 @@ describe("HfDownloadsService", () => {
 
   describe("isHfDownloadCmd", () => {
     it("matches python worker with full CLI path", () => {
-      expect(HfDownloadsService.isHfDownloadCmd("/home/u/.venv/bin/python /home/u/.local/bin/hf download org/model")).toBe(true);
+      expect(
+        HfDownloadsService.isHfDownloadCmd(["/home/u/.venv/bin/python", "/home/u/.local/bin/hf", "download", "org/model"]),
+      ).toBe(true);
     });
 
     it("matches huggingface-cli", () => {
-      expect(HfDownloadsService.isHfDownloadCmd("python /usr/local/bin/huggingface-cli download org/model")).toBe(true);
+      expect(HfDownloadsService.isHfDownloadCmd(["python", "/usr/local/bin/huggingface-cli", "download", "org/model"])).toBe(true);
     });
 
-    it("matches bash -c wrapper", () => {
-      const cmd = "bash -c cd /home/u && export HF_HOME=/x && hf download org/model --local-dir /x > /tmp/log 2>&1";
-      expect(HfDownloadsService.isHfDownloadCmd(cmd)).toBe(true);
+    it("ignores bash -c wrappers (script is a single argv token)", () => {
+      const argv = ["bash", "-c", "cd /home/u && export HF_HOME=/x && hf download org/model --local-dir /x > /tmp/log 2>&1"];
+      expect(HfDownloadsService.isHfDownloadCmd(argv)).toBe(false);
+    });
+
+    it("ignores 'hf download' text inside other commands", () => {
+      expect(HfDownloadsService.isHfDownloadCmd(["bash", "-c", 'echo "hf download org/model"'])).toBe(false);
+      expect(HfDownloadsService.isHfDownloadCmd(["bash", "-c", "ps aux | grep 'hf download'"])).toBe(false);
     });
 
     it("ignores other hf subcommands", () => {
-      expect(HfDownloadsService.isHfDownloadCmd("hf whoami")).toBe(false);
-      expect(HfDownloadsService.isHfDownloadCmd("hf auth login")).toBe(false);
+      expect(HfDownloadsService.isHfDownloadCmd(["hf", "whoami"])).toBe(false);
+      expect(HfDownloadsService.isHfDownloadCmd(["hf", "auth", "login"])).toBe(false);
     });
 
     it("ignores lookalike tokens", () => {
-      expect(HfDownloadsService.isHfDownloadCmd("vim hf-download-notes.txt")).toBe(false);
-      expect(HfDownloadsService.isHfDownloadCmd("ls /opt/hf/download")).toBe(false);
+      expect(HfDownloadsService.isHfDownloadCmd(["vim", "hf-download-notes.txt"])).toBe(false);
+      expect(HfDownloadsService.isHfDownloadCmd(["ls", "/opt/hf/download"])).toBe(false);
     });
   });
 
@@ -101,13 +109,13 @@ describe("HfDownloadsService", () => {
       expect(d.etaSeconds).toBeNull();
     });
 
-    it("groups worker and bash wrapper into one entry", async () => {
+    it("detects the worker and ignores the bash -c wrapper", async () => {
       makeProc(procRoot, 1111, `/opt/venv/bin/python /opt/bin/hf download org/model --local-dir ${dest}`);
-      makeProc(
-        procRoot,
-        2222,
-        `bash -c cd /home/u && hf download org/model --local-dir ${dest} > /tmp/log 2>&1`,
-      );
+      makeProc(procRoot, 2222, [
+        "bash",
+        "-c",
+        `cd /home/u && hf download org/model --local-dir ${dest} > /tmp/log 2>&1`,
+      ]);
       setupFlatDest();
       mockFetch.mockResolvedValue(jsonResponse(tree));
 
@@ -115,7 +123,7 @@ describe("HfDownloadsService", () => {
       const list = await svc.listDownloads();
 
       expect(list).toHaveLength(1);
-      expect(list[0].pids.sort()).toEqual([1111, 2222]);
+      expect(list[0].pids).toEqual([1111]);
     });
 
     it("computes speed and eta on the second poll", async () => {
@@ -253,17 +261,16 @@ describe("HfDownloadsService", () => {
       mockFetch.mockResolvedValue(jsonResponse([]));
     });
 
-    it("sends SIGSTOP to all group pids on pause", async () => {
+    it("signals only the worker pid (bash -c wrapper is not detected)", async () => {
       makeProc(procRoot, 1111, `/opt/bin/hf download org/model --local-dir ${dest}`);
-      makeProc(procRoot, 2222, `bash -c hf download org/model --local-dir ${dest}`);
+      makeProc(procRoot, 2222, ["bash", "-c", `hf download org/model --local-dir ${dest}`]);
       const kill = jest.spyOn(process, "kill").mockReturnValue(true);
 
       const svc = new HfDownloadsService(procRoot);
       await svc.sendAction("pause", "org/model", dest);
 
-      expect(kill).toHaveBeenCalledTimes(2);
+      expect(kill).toHaveBeenCalledTimes(1);
       expect(kill).toHaveBeenCalledWith(1111, "SIGSTOP");
-      expect(kill).toHaveBeenCalledWith(2222, "SIGSTOP");
     });
 
     it("sends SIGCONT on resume", async () => {
@@ -309,7 +316,7 @@ describe("HfDownloadsService", () => {
   });
 
   describe("isInstalled", () => {
-    it("returns installed with version when hf is on PATH", async () => {
+    it("looks up hf with a widened PATH (systemd minimal PATH)", async () => {
       const safeExec = jest.spyOn(ExecTools, "safeExec");
       safeExec
         .mockResolvedValueOnce({ stdout: "/usr/local/bin/hf\n", stderr: "" })
@@ -317,10 +324,29 @@ describe("HfDownloadsService", () => {
 
       const svc = new HfDownloadsService(procRoot);
       await expect(svc.isInstalled()).resolves.toEqual({ installed: true, version: "1.15.0" });
+      expect(safeExec.mock.calls[0]).toEqual([
+        "command -v hf",
+        { env: { PATH: expect.stringContaining(".local/bin") } },
+      ]);
     });
 
-    it("returns installed=false when hf is missing", async () => {
+    it("falls back to ~/.local/bin/hf when PATH lookup finds nothing", async () => {
+      const safeExec = jest.spyOn(ExecTools, "safeExec");
+      safeExec
+        .mockResolvedValueOnce({ stdout: "", stderr: "" })
+        .mockResolvedValueOnce({ stdout: "1.15.0\n", stderr: "" });
+      jest.spyOn(fs.promises, "access").mockResolvedValue(undefined);
+
+      const svc = new HfDownloadsService(procRoot);
+      await expect(svc.isInstalled()).resolves.toEqual({ installed: true, version: "1.15.0" });
+      expect(safeExec.mock.calls[1][0]).toBe(`"${path.join(os.homedir(), ".local", "bin", "hf")}" version 2>/dev/null`);
+    });
+
+    it("returns installed=false when hf is missing everywhere", async () => {
       jest.spyOn(ExecTools, "safeExec").mockResolvedValue({ stdout: "", stderr: "" });
+      const enoent = new Error("ENOENT") as NodeJS.ErrnoException;
+      enoent.code = "ENOENT";
+      jest.spyOn(fs.promises, "access").mockRejectedValue(enoent);
 
       const svc = new HfDownloadsService(procRoot);
       await expect(svc.isInstalled()).resolves.toEqual({ installed: false });
