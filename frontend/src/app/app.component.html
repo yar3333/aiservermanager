@@ -50,11 +50,14 @@
           </mat-card-content>
         </mat-card>
       } @else {
-        @if (hasGpus()) {
+        @if (layout() === 'horizontal' && hasGpus()) {
           <app-system-bar [systemInfo]="systemInfo()" />
         }
         <div class="top-row">
           <div class="gpu-col" [style.width.px]="layout() === 'horizontal' ? gpuColWidth() : null">
+            @if (layout() !== 'horizontal' && hasGpus()) {
+              <app-system-bar [systemInfo]="systemInfo()" />
+            }
             @if (!hasGpus()) {
               <mat-card class="empty-card">
                 <mat-card-content>
