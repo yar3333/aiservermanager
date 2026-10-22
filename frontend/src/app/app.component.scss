@@ -68,7 +68,7 @@
 
 .layout {
   display: flex;
-  flex-direction: row; // vertical (default): journal on the right
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
 
@@ -78,18 +78,28 @@
   }
 }
 
+// Vertical (default): main-content is a flex row —
+// [ top-row-vertical | splitter | journal-sidebar ].
+// Horizontal: main-content is a flex column —
+// [ top-row-horizontal | splitter-h | journal-bottom ].
+// The journal + splitters live inside main-content, so it no longer scrolls;
+// each column scrolls independently.
 .main-content {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
-  padding: 24px 8px 24px 24px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  padding: 24px;
   max-width: 100%;
 }
 
-// GPU + services: plain block flow in vertical mode (matches the original flat
-// layout exactly, so no hairline overflow), flex row in horizontal mode.
-.top-row {
-  display: block;
+// Vertical mode: GPU + services stacked in plain block flow, one scroll unit.
+.top-row-vertical {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
 }
 
 .gpu-col,
@@ -101,6 +111,7 @@
   width: 8px;
   flex-shrink: 0;
   cursor: col-resize;
+  margin: 0 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,6 +144,7 @@
   height: 8px;
   flex-shrink: 0;
   cursor: row-resize;
+  margin: 8px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,29 +173,22 @@
 
 .journal-sidebar {
   flex-shrink: 0;
-  overflow: hidden;
-  padding: 24px 24px 24px 8px;
+  overflow-y: auto;
 }
 
 .journal-bottom {
   flex-shrink: 0;
-  overflow: hidden;
-  padding: 8px 24px 24px 24px;
+  overflow-y: auto;
 }
 
 // ── Horizontal layout (journal at the bottom, GPU | services side by side with a splitter) ──
 
 .layout.horizontal {
-  flex-direction: column;
-
   .main-content {
-    overflow: hidden;
-    display: flex;
     flex-direction: column;
-    padding: 24px 24px 8px 24px;
   }
 
-  .top-row {
+  .top-row-horizontal {
     display: flex;
     flex-direction: row;
     flex: 1;
@@ -193,10 +198,6 @@
   .gpu-col {
     flex-shrink: 0;
     overflow-y: auto;
-  }
-
-  .splitter {
-    margin: 0 8px;
   }
 
   .services-col {
