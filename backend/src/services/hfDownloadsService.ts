@@ -2,9 +2,12 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { ExecTools } from "../helpers/ExecTools";
-import { HfDownload, HfLocalModel, HfStatus } from "../models/HfDownload";
+import { HfDownload, HfLocalModel, HfOrphanBlob, HfStatus } from "../models/HfDownload";
 
 type HfAction = "pause" | "resume" | "cancel";
+
+/** Unreferenced blob files younger than this are treated as in-flight download chunks. */
+const ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 interface ProcEntry {
   pid: number;
@@ -178,7 +181,9 @@ export class HfDownloadsService {
     return models.filter((m): m is HfLocalModel => m !== null).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Delete a model's cache directory. Name must be a plain "org/name" repo id. */
+  /** Delete a model's cache directory, then clean up hub-level blobs it referenced
+   *  that are no longer linked from any remaining model. Only blobs referenced by the
+   *  deleted model are considered — chunks of an in-progress download are never touched. */
   async deleteLocalModel(name: string): Promise<void> {
     if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(name) || name.includes("..")) {
       throw new Error(`Invalid model name: ${name}`);
@@ -195,13 +200,40 @@ export class HfDownloadsService {
     if (hubReal && !real.startsWith(hubReal + path.sep)) {
       throw new Error("Invalid model path");
     }
+    const targets = await this.collectExternalTargets(real, hubReal);
+
     await fs.promises.rm(real, { recursive: true });
+    if (targets.size === 0 || !hubReal) return;
+
+    const stillUsed = await this.referencedExternalTargets(hub, hubReal);
+    for (const t of targets) {
+      if (stillUsed.has(t)) continue;
+      await fs.promises.rm(t, { force: true }).catch(() => {});
+      await this.removeEmptyParents(t, path.join(hubReal, "blobs"));
+    }
   }
 
-  /** Total size of real files under dir. Symlinks are not followed, so the classic
-   *  cache layout (snapshots/ symlinks → blobs/) is counted once. */
-  private async dirSize(dir: string): Promise<number> {
-    let total = 0;
+  /** Realpaths of external symlink targets referenced by ANY model in the cache. */
+  private async referencedExternalTargets(hub: string, hubReal: string | null): Promise<Set<string>> {
+    const used = new Set<string>();
+    if (!hubReal) return used;
+    const entries = await fs.promises.readdir(hub, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
+    for (const e of entries) {
+      if (!e.isDirectory() || !e.name.startsWith("models--")) continue;
+      for (const t of await this.collectExternalTargets(path.join(hub, e.name), hubReal)) used.add(t);
+    }
+    return used;
+  }
+
+  /** Blob files under <hub>/blobs referenced by no model and untouched for
+   *  ORPHAN_MAX_AGE_MS — fresh unreferenced chunks may belong to an in-flight download. */
+  async listOrphanBlobs(): Promise<HfOrphanBlob[]> {
+    const hubReal = await fs.promises.realpath(this.hubDir()).catch(() => null);
+    if (!hubReal) return [];
+    const blobsRoot = path.join(hubReal, "blobs");
+    const used = await this.referencedExternalTargets(path.dirname(blobsRoot), hubReal);
+    const cutoff = Date.now() - ORPHAN_MAX_AGE_MS;
+    const orphans: HfOrphanBlob[] = [];
     const walk = async (d: string): Promise<void> => {
       let entries: fs.Dirent[];
       try {
@@ -210,11 +242,122 @@ export class HfDownloadsService {
         return;
       }
       for (const e of entries) {
+        const p = path.join(d, e.name);
         try {
-          if (e.isDirectory()) await walk(path.join(d, e.name));
-          else if (e.isFile()) total += (await fs.promises.lstat(path.join(d, e.name))).size;
+          if (e.isDirectory()) await walk(p);
+          else if (e.isFile()) {
+            const real = await fs.promises.realpath(p);
+            if (used.has(real)) continue;
+            const st = await fs.promises.stat(p);
+            if (st.mtimeMs > cutoff) continue;
+            orphans.push({ path: real, size: st.size, modifiedMs: st.mtimeMs });
+          }
         } catch {
-          // file vanished mid-walk — ignore
+          // vanished — skip
+        }
+      }
+    };
+    await walk(blobsRoot);
+    return orphans.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /** Delete all orphan blobs (same criteria as listOrphanBlobs). */
+  async cleanupOrphanBlobs(): Promise<{ removed: number; freed: number }> {
+    const orphans = await this.listOrphanBlobs();
+    const blobsRoot = path.join(await fs.promises.realpath(this.hubDir()).catch(() => ""), "blobs");
+    let freed = 0;
+    for (const o of orphans) {
+      try {
+        await fs.promises.rm(o.path, { force: true });
+        freed += o.size;
+        await this.removeEmptyParents(o.path, blobsRoot);
+      } catch {
+        // already gone / not removable — skip
+      }
+    }
+    return { removed: orphans.length, freed };
+  }
+
+  /** Realpaths of symlink targets that leave the model dir but stay inside the HF cache
+   *  (huggingface_hub 1.x: snapshots symlink into the shared <hub>/blobs). */
+  private async collectExternalTargets(modelDir: string, hubReal: string | null): Promise<Set<string>> {
+    const targets = new Set<string>();
+    const walk = async (d: string): Promise<void> => {
+      let entries: fs.Dirent[];
+      try {
+        entries = await fs.promises.readdir(d, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const p = path.join(d, e.name);
+        try {
+          if (e.isDirectory()) await walk(p);
+          else if (e.isSymbolicLink()) {
+            const real = await fs.promises.realpath(p);
+            if (
+              !real.startsWith(modelDir + path.sep) &&
+              hubReal !== null &&
+              real.startsWith(hubReal + path.sep)
+            ) {
+              targets.add(real);
+            }
+          }
+        } catch {
+          // broken symlink — skip
+        }
+      }
+    };
+    await walk(modelDir);
+    return targets;
+  }
+
+  /** Remove now-empty parent dirs of a deleted blob, up to (not including) stopAt. */
+  private async removeEmptyParents(file: string, stopAt: string): Promise<void> {
+    let dir = path.dirname(file);
+    while (dir.startsWith(stopAt + path.sep) && dir !== stopAt) {
+      try {
+        await fs.promises.rmdir(dir);
+      } catch {
+        return; // not empty (or gone) — done
+      }
+      dir = path.dirname(dir);
+    }
+  }
+
+  /** Total size of the model's data. Real files are counted via lstat. Symlinks are
+   *  resolved: targets inside the model dir are skipped (the real file is counted by its
+   *  own walk), targets OUTSIDE it (huggingface_hub 1.x keeps blobs in the shared
+   *  <hub>/blobs, snapshots symlink to ../../../blobs/…) are followed and counted, deduped
+   *  by realpath so a blob linked from several revisions counts once. */
+  private async dirSize(dir: string): Promise<number> {
+    let total = 0;
+    const seen = new Set<string>();
+    const walk = async (d: string): Promise<void> => {
+      let entries: fs.Dirent[];
+      try {
+        entries = await fs.promises.readdir(d, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const p = path.join(d, e.name);
+        try {
+          if (e.isDirectory()) {
+            await walk(p);
+          } else if (e.isFile()) {
+            const real = await fs.promises.realpath(p);
+            if (seen.has(real)) continue;
+            seen.add(real);
+            total += (await fs.promises.lstat(p)).size;
+          } else if (e.isSymbolicLink()) {
+            const real = await fs.promises.realpath(p);
+            if (seen.has(real) || real.startsWith(dir + path.sep)) continue;
+            seen.add(real);
+            total += (await fs.promises.stat(p)).size;
+          }
+        } catch {
+          // file vanished mid-walk or broken symlink — ignore
         }
       }
     };

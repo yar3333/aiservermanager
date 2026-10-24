@@ -92,6 +92,34 @@
           }
         </div>
       }
+
+      <div class="subsection-title">
+        Orphaned blobs
+        @if (!orphansLoading() && orphans().length > 0) {
+          <span class="orphan-total"> — {{ orphans().length }} file(s), {{ formatBytes(totalOrphanBytes()) }}</span>
+        }
+      </div>
+      @if (orphansLoading()) {
+        <div class="state small">Loading…</div>
+      } @else if (orphans().length === 0) {
+        <div class="empty">No orphaned blobs</div>
+      } @else {
+        <div class="model-list orphan-list">
+          @for (o of orphans(); track o.path) {
+            <div class="model-row">
+              <div class="row-main">
+                <span class="row-dest" [title]="o.path">{{ o.path }}</span>
+              </div>
+              <span class="size">{{ formatBytes(o.size) }}</span>
+            </div>
+          }
+        </div>
+        <div class="orphan-actions">
+          <button mat-raised-button color="warn" (click)="cleanupOrphans()" [disabled]="cleaning()">
+            {{ cleaning() ? "Cleaning…" : "Cleanup (" + formatBytes(totalOrphanBytes()) + ")" }}
+          </button>
+        </div>
+      }
     }
   </mat-dialog-content>
 

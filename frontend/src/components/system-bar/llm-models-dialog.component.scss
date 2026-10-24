@@ -41,6 +41,23 @@
   }
 }
 
+.orphan-total {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: #999;
+}
+
+.orphan-list {
+  max-height: 25vh;
+}
+
+.orphan-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .state {
   display: flex;
   flex-direction: column;

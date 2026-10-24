@@ -75,5 +75,25 @@ export default function hfRoutes(container: Container) {
     }
   });
 
+  /** Blob files in the shared <hub>/blobs referenced by no model (and older than 24h). */
+  router.get("/models/orphans", async (_req: Request, res: Response) => {
+    try {
+      const svc = container.get<HfDownloadsService>(HF_DOWNLOADS_SERVICE);
+      res.json(await svc.listOrphanBlobs());
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Delete all orphan blobs. */
+  router.post("/models/orphans/cleanup", async (_req: Request, res: Response) => {
+    try {
+      const svc = container.get<HfDownloadsService>(HF_DOWNLOADS_SERVICE);
+      res.json(await svc.cleanupOrphanBlobs());
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
   return router;
 }

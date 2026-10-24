@@ -17,6 +17,8 @@ describe("HF routes", () => {
       sendAction: jest.fn(),
       listLocalModels: jest.fn(),
       deleteLocalModel: jest.fn(),
+      listOrphanBlobs: jest.fn(),
+      cleanupOrphanBlobs: jest.fn(),
     } as unknown as HfDownloadsService;
 
     container = new Container();
@@ -130,6 +132,36 @@ describe("HF routes", () => {
       (mockSvc as any).deleteLocalModel.mockRejectedValue(new Error("Invalid model name: ../etc"));
       const res = await request(app).delete("/api/hf/models/org/..%2Fetc");
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /api/hf/models/orphans", () => {
+    it("returns the orphan blob list", async () => {
+      (mockSvc as any).listOrphanBlobs.mockResolvedValue([{ path: "/x/blobs/60/big", size: 10, modifiedMs: 1 }]);
+      const res = await request(app).get("/api/hf/models/orphans");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([{ path: "/x/blobs/60/big", size: 10, modifiedMs: 1 }]);
+    });
+
+    it("returns 500 on error", async () => {
+      (mockSvc as any).listOrphanBlobs.mockRejectedValue(new Error("boom"));
+      const res = await request(app).get("/api/hf/models/orphans");
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe("POST /api/hf/models/orphans/cleanup", () => {
+    it("cleans up and returns stats", async () => {
+      (mockSvc as any).cleanupOrphanBlobs.mockResolvedValue({ removed: 2, freed: 100 });
+      const res = await request(app).post("/api/hf/models/orphans/cleanup");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ removed: 2, freed: 100 });
+    });
+
+    it("returns 500 on error", async () => {
+      (mockSvc as any).cleanupOrphanBlobs.mockRejectedValue(new Error("boom"));
+      const res = await request(app).post("/api/hf/models/orphans/cleanup");
+      expect(res.status).toBe(500);
     });
   });
 });

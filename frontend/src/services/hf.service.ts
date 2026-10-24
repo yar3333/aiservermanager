@@ -1,7 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
-import { HfDownload, HfLocalModel, HfStatus } from "../models/hf";
+import { HfDownload, HfLocalModel, HfOrphanBlob, HfStatus } from "../models/hf";
 
 type HfAction = "pause" | "resume" | "cancel";
 
@@ -27,6 +27,16 @@ export class HfService {
   async deleteLocalModel(name: string): Promise<void> {
     const [org, ...rest] = name.split("/");
     await firstValueFrom(this.http.delete(`${this.baseUrl}/models/${org}/${rest.join("/")}`));
+  }
+
+  /** Blob files in the shared hub/blobs referenced by no model (older than 24h). */
+  async getOrphanBlobs(): Promise<HfOrphanBlob[]> {
+    return firstValueFrom(this.http.get<HfOrphanBlob[]>(`${this.baseUrl}/models/orphans`));
+  }
+
+  /** Delete all orphan blobs; returns { removed, freed }. */
+  async cleanupOrphanBlobs(): Promise<{ removed: number; freed: number }> {
+    return firstValueFrom(this.http.post<{ removed: number; freed: number }>(`${this.baseUrl}/models/orphans/cleanup`, {}));
   }
 
   async action(action: HfAction, download: HfDownload): Promise<void> {

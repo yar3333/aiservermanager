@@ -39,3 +39,13 @@ export interface HfLocalModel {
   /** Total size on disk in bytes. */
   size: number;
 }
+
+/** A blob file in the shared <hub>/blobs that no model references anymore. */
+export interface HfOrphanBlob {
+  /** Full path of the blob file. */
+  path: string;
+  /** Size in bytes. */
+  size: number;
+  /** Last modification time (epoch ms). */
+  modifiedMs: number;
+}

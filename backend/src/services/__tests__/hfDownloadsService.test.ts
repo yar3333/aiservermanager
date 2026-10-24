@@ -395,6 +395,49 @@ describe("HfDownloadsService", () => {
       expect(m.size).toBe(2048);
     });
 
+    it("follows symlinks to the shared hub-level blobs (huggingface_hub 1.x xet layout)", async () => {
+      const shared = path.join(hub, "blobs", "60");
+      fs.mkdirSync(shared, { recursive: true });
+      fs.writeFileSync(path.join(shared, "big"), "x".repeat(4096));
+
+      const dirC = path.join(hub, "models--org--model-c");
+      const snap = path.join(dirC, "snapshots", "main");
+      fs.mkdirSync(snap, { recursive: true });
+      fs.symlinkSync("../../../blobs/60/big", path.join(snap, "model-00001.safetensors"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const [m] = await svc.listLocalModels();
+      expect(m.size).toBe(4096);
+    });
+
+    it("counts a shared blob linked from several revisions once", async () => {
+      const shared = path.join(hub, "blobs", "70");
+      fs.mkdirSync(shared, { recursive: true });
+      fs.writeFileSync(path.join(shared, "big"), "x".repeat(4096));
+
+      const dirD = path.join(hub, "models--org--model-d");
+      fs.mkdirSync(path.join(dirD, "snapshots", "main"), { recursive: true });
+      fs.mkdirSync(path.join(dirD, "snapshots", "v2"), { recursive: true });
+      fs.symlinkSync("../../../blobs/70/big", path.join(dirD, "snapshots", "main", "model.safetensors"));
+      fs.symlinkSync("../../../blobs/70/big", path.join(dirD, "snapshots", "v2", "model.safetensors"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const [m] = await svc.listLocalModels();
+      expect(m.size).toBe(4096);
+    });
+
+    it("ignores broken symlinks", async () => {
+      const dirE = path.join(hub, "models--org--model-e");
+      const snap = path.join(dirE, "snapshots", "main");
+      fs.mkdirSync(snap, { recursive: true });
+      fs.writeFileSync(path.join(dirE, "config.json"), "x".repeat(100));
+      fs.symlinkSync("../../blobs/missing", path.join(snap, "model.safetensors"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const [m] = await svc.listLocalModels();
+      expect(m.size).toBe(100);
+    });
+
     it("parses model names whose own name contains --", async () => {
       fs.mkdirSync(path.join(hub, "models--org--model--with--dashes"), { recursive: true });
       const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
@@ -434,6 +477,92 @@ describe("HfDownloadsService", () => {
       await expect(svc.deleteLocalModel("../etc/passwd")).rejects.toThrow("Invalid model name");
       await expect(svc.deleteLocalModel("org/../other")).rejects.toThrow("Invalid model name");
       expect(fs.existsSync(path.join(hub, "models--org--model-a"))).toBe(true);
+    });
+
+    it("removes hub-level blobs left orphaned by the deletion", async () => {
+      const shared = path.join(hub, "blobs", "60");
+      fs.mkdirSync(shared, { recursive: true });
+      fs.writeFileSync(path.join(shared, "big"), "x".repeat(4096));
+
+      const dirC = path.join(hub, "models--org--model-c");
+      const snap = path.join(dirC, "snapshots", "main");
+      fs.mkdirSync(snap, { recursive: true });
+      fs.symlinkSync("../../../blobs/60/big", path.join(snap, "model.safetensors"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-c");
+      expect(fs.existsSync(path.join(hub, "models--org--model-c"))).toBe(false);
+      expect(fs.existsSync(path.join(shared, "big"))).toBe(false);
+      expect(fs.existsSync(shared)).toBe(false); // empty parent dir removed too
+      expect(fs.existsSync(path.join(hub, "models--org--model-a"))).toBe(true);
+    });
+
+    it("keeps hub-level blobs still referenced by another model", async () => {
+      const shared = path.join(hub, "blobs", "60");
+      fs.mkdirSync(shared, { recursive: true });
+      fs.writeFileSync(path.join(shared, "big"), "x".repeat(4096));
+
+      for (const m of ["model-c", "model-d"]) {
+        const snap = path.join(hub, `models--org--${m}`, "snapshots", "main");
+        fs.mkdirSync(snap, { recursive: true });
+        fs.symlinkSync("../../../blobs/60/big", path.join(snap, "model.safetensors"));
+      }
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-c");
+      expect(fs.existsSync(path.join(shared, "big"))).toBe(true);
+    });
+  });
+
+  describe("orphan blobs", () => {
+    let hub: string;
+    let shared: string;
+
+    beforeEach(() => {
+      hub = path.join(tmp, "cache", "hub");
+      shared = path.join(hub, "blobs", "60");
+      fs.mkdirSync(shared, { recursive: true });
+    });
+
+    function backdate(file: string): void {
+      const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      fs.utimesSync(file, old, old);
+    }
+
+    it("lists unreferenced old blobs with size and mtime", async () => {
+      fs.writeFileSync(path.join(shared, "orphan"), "x".repeat(4096));
+      backdate(path.join(shared, "orphan"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const orphans = await svc.listOrphanBlobs();
+      expect(orphans).toHaveLength(1);
+      expect(orphans[0].path).toBe(path.join(shared, "orphan"));
+      expect(orphans[0].size).toBe(4096);
+      expect(orphans[0].modifiedMs).toBeLessThan(Date.now() - 24 * 60 * 60 * 1000);
+    });
+
+    it("does not list blobs referenced by a model or fresh unreferenced chunks", async () => {
+      fs.writeFileSync(path.join(shared, "used"), "x".repeat(100));
+      fs.writeFileSync(path.join(shared, "fresh"), "x".repeat(200));
+      backdate(path.join(shared, "used"));
+
+      const snap = path.join(hub, "models--org--model-a", "snapshots", "main");
+      fs.mkdirSync(snap, { recursive: true });
+      fs.symlinkSync("../../../blobs/60/used", path.join(snap, "model.safetensors"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.listOrphanBlobs()).resolves.toEqual([]);
+    });
+
+    it("cleanup removes orphans, frees bytes and prunes empty parent dirs", async () => {
+      fs.writeFileSync(path.join(shared, "orphan"), "x".repeat(4096));
+      backdate(path.join(shared, "orphan"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.cleanupOrphanBlobs()).resolves.toEqual({ removed: 1, freed: 4096 });
+      expect(fs.existsSync(path.join(shared, "orphan"))).toBe(false);
+      expect(fs.existsSync(shared)).toBe(false);
+      expect(fs.existsSync(path.join(hub, "blobs"))).toBe(true);
     });
   });
 });

@@ -6,7 +6,7 @@ import { MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatIconModule } from "@angular/material/icon";
 import { HfService } from "../../services/hf.service";
-import { HfDownload, HfLocalModel } from "../../models/hf";
+import { HfDownload, HfLocalModel, HfOrphanBlob } from "../../models/hf";
 
 const POLL_MS = 2000;
 
@@ -37,12 +37,21 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     return this.models().filter((m) => !active.has(m.dir));
   });
 
+  /** Unreferenced blob files in the shared hub/blobs (older than 24h). */
+  readonly orphans = signal<HfOrphanBlob[]>([]);
+  readonly orphansLoading = signal(true);
+  /** Cleanup of orphans in flight. */
+  readonly cleaning = signal(false);
+
+  readonly totalOrphanBytes = computed(() => this.orphans().reduce((sum, o) => sum + o.size, 0));
+
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
 
   ngOnInit(): void {
     void this.refresh();
     void this.refreshModels();
+    void this.refreshOrphans();
     this.timer = setInterval(() => void this.refresh(), POLL_MS);
   }
 
@@ -68,6 +77,16 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
       this.error.set(this.errorText(err, "Failed to load models"));
     } finally {
       this.modelsLoading.set(false);
+    }
+  }
+
+  async refreshOrphans(): Promise<void> {
+    try {
+      this.orphans.set(await this.hfService.getOrphanBlobs());
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, "Failed to load orphaned blobs"));
+    } finally {
+      this.orphansLoading.set(false);
     }
   }
 
@@ -101,10 +120,26 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     try {
       await this.hfService.deleteLocalModel(m.name);
       await this.refreshModels();
+      await this.refreshOrphans();
     } catch (err: unknown) {
       this.error.set(this.errorText(err, `Failed to delete ${m.name}`));
     } finally {
       this.deleting.set(null);
+    }
+  }
+
+  async cleanupOrphans(): Promise<void> {
+    if (this.cleaning()) return;
+    const n = this.orphans().length;
+    if (!confirm(`Delete ${n} orphaned blob file(s) (${this.formatBytes(this.totalOrphanBytes())})?`)) return;
+    this.cleaning.set(true);
+    try {
+      await this.hfService.cleanupOrphanBlobs();
+      await this.refreshOrphans();
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, "Failed to clean up orphaned blobs"));
+    } finally {
+      this.cleaning.set(false);
     }
   }
 
