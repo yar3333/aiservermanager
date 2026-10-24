@@ -121,6 +121,38 @@
         </div>
       }
     }
+
+    <h3 class="section-title">
+      <mat-icon>computer</mat-icon>
+      LM Studio
+    </h3>
+
+    @if (lmLoading()) {
+      <div class="state small">Loading…</div>
+    } @else if (lmModels().length === 0) {
+      <div class="empty">No models in ~/.lmstudio/models</div>
+    } @else {
+      <div class="model-list">
+        @for (m of lmModels(); track m.name) {
+          <div class="model-row">
+            <div class="row-main">
+              <span class="repo">{{ m.name }}</span>
+              <span class="row-dest" [title]="m.dir">{{ m.dir }}</span>
+            </div>
+            <span class="size">{{ formatBytes(m.size) }}</span>
+            <button
+              mat-icon-button
+              color="warn"
+              (click)="deleteLmModel(m)"
+              [disabled]="lmDeleting() === m.name"
+              title="Delete model"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    }
   </mat-dialog-content>
 
   <mat-dialog-actions align="end">

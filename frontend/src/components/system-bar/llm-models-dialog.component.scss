@@ -26,6 +26,10 @@ mat-dialog-content {
   font-weight: 500;
   color: #333;
 
+  &:not(:first-of-type) {
+    margin-top: 20px;
+  }
+
   mat-icon {
     font-size: 20px;
     width: 20px;

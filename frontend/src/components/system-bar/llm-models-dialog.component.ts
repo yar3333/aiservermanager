@@ -6,7 +6,9 @@ import { MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatIconModule } from "@angular/material/icon";
 import { HfService } from "../../services/hf.service";
+import { LmStudioService } from "../../services/lm-studio.service";
 import { HfDownload, HfLocalModel, HfOrphanBlob } from "../../models/hf";
+import { LmStudioModel } from "../../models/lm-studio";
 
 const POLL_MS = 2000;
 
@@ -19,6 +21,7 @@ const POLL_MS = 2000;
 })
 export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   private hfService = inject(HfService);
+  private lmStudioService = inject(LmStudioService);
   private dialogRef = inject(MatDialogRef<LlmModelsDialogComponent>);
 
   /** In-progress `hf download` groups — polled every POLL_MS. */
@@ -30,6 +33,12 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   readonly error = signal<string | null>(null);
   /** Model whose delete is in flight (disables its button). */
   readonly deleting = signal<string | null>(null);
+
+  /** Models downloaded via LM Studio (~/.lmstudio/models) — loaded once (sizes are expensive). */
+  readonly lmModels = signal<LmStudioModel[]>([]);
+  readonly lmLoading = signal(true);
+  /** LM Studio model whose delete is in flight (disables its button). */
+  readonly lmDeleting = signal<string | null>(null);
 
   /** Models currently being downloaded are shown as cards, not in the static list. */
   readonly staticModels = computed(() => {
@@ -52,6 +61,7 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     void this.refresh();
     void this.refreshModels();
     void this.refreshOrphans();
+    void this.refreshLmModels();
     this.timer = setInterval(() => void this.refresh(), POLL_MS);
   }
 
@@ -77,6 +87,30 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
       this.error.set(this.errorText(err, "Failed to load models"));
     } finally {
       this.modelsLoading.set(false);
+    }
+  }
+
+  async refreshLmModels(): Promise<void> {
+    try {
+      this.lmModels.set(await this.lmStudioService.getModels());
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, "Failed to load LM Studio models"));
+    } finally {
+      this.lmLoading.set(false);
+    }
+  }
+
+  async deleteLmModel(m: LmStudioModel): Promise<void> {
+    if (this.lmDeleting()) return;
+    if (!confirm(`Delete model ${m.name} (${this.formatBytes(m.size)}) from the LM Studio folder?`)) return;
+    this.lmDeleting.set(m.name);
+    try {
+      await this.lmStudioService.deleteModel(m.name);
+      await this.refreshLmModels();
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, `Failed to delete ${m.name}`));
+    } finally {
+      this.lmDeleting.set(null);
     }
   }
 

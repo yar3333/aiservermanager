@@ -16,6 +16,7 @@ import {
   MANAGED_SERVICES_CONTROLLER,
   LLAMA_AUTOCOMPLETE_SERVICE,
   HF_DOWNLOADS_SERVICE,
+  LM_STUDIO_SERVICE,
 } from "./types";
 import { AuthService } from "../services/authService";
 import { PasswordVerifier } from "../services/auth/passwordVerifier";
@@ -43,6 +44,7 @@ import { ServiceConfigController } from "../services/serviceConfigController";
 import { ManagedServicesController } from "../services/managedServicesController";
 import { LlamaAutocompleteService } from "../services/llamaAutocompleteService";
 import { HfDownloadsService } from "../services/hfDownloadsService";
+import { LmStudioService } from "../services/lmStudioService";
 import { SystemInfoProvider } from "../services/systemInfoProvider";
 import { SystemInfoLinuxProvider } from "../services/providers/systemInfoLinuxProvider";
 import { SystemInfoWindowsProvider } from "../services/providers/systemInfoWindowsProvider";
@@ -113,6 +115,9 @@ export function createContainer(): Container {
 
   // HF downloads service — monitors `hf download` processes (Linux)
   container.bind<HfDownloadsService>(HF_DOWNLOADS_SERVICE).to(HfDownloadsService).inSingletonScope();
+
+  // LM Studio service — lists models from ~/.lmstudio/models
+  container.bind<LmStudioService>(LM_STUDIO_SERVICE).to(LmStudioService).inSingletonScope();
 
   // System info providers — platform-specific strategies
   container.bind<SystemInfoProvider>(SYSTEM_INFO_PROVIDER).to(SystemInfoLinuxProvider);
