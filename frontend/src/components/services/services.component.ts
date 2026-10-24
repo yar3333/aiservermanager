@@ -1,5 +1,6 @@
 import { Component, signal, computed, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HttpErrorResponse } from "@angular/common/http";
 import { MatButtonModule } from "@angular/material/button";
 import { MatChipsModule } from "@angular/material/chips";
 import { MatDialog, MatDialogRef } from "@angular/material/dialog";
@@ -123,7 +124,7 @@ export class ServicesComponent implements OnInit {
       }
       await this.load();
     } catch (err) {
-      this.showError(`${name}: ${String((err as { error?: string }).error || err)}`);
+      this.showError(`${name}: ${this.errorText(err)}`);
     } finally {
       this.busy.set(null);
     }
@@ -135,6 +136,15 @@ export class ServicesComponent implements OnInit {
       horizontalPosition: "center",
       verticalPosition: "top",
     });
+  }
+
+  /** Extract a human-readable message — the backend sends { error: string } on failures. */
+  private errorText(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { error?: string } | null;
+      return body?.error ?? err.message;
+    }
+    return String(err);
   }
 
   manageServices(): void {
@@ -180,12 +190,13 @@ export class ServicesComponent implements OnInit {
   }
 
   async deleteService(name: string): Promise<void> {
+    if (!confirm(`Delete service "${name}"? Its systemd unit will be uninstalled and the config removed.`)) return;
     this.selectedServiceService.select(name);
     try {
       await firstValueFrom(this.serviceService.deleteConfig(name));
       await this.load();
     } catch (err) {
-      this.showError(`Delete "${name}": ${String(err)}`);
+      this.showError(`Delete "${name}": ${this.errorText(err)}`);
     }
   }
 
@@ -254,7 +265,7 @@ export class ServicesComponent implements OnInit {
           }
         }
       } catch (err) {
-        this.showError(`Save: ${String(err)}`);
+        this.showError(`Save: ${this.errorText(err)}`);
       } finally {
         await this.load();
       }

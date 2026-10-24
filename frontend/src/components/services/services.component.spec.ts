@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { HttpErrorResponse } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { Observable, of } from "rxjs";
+import { Observable, of, throwError } from "rxjs";
 import { ServicesComponent, ServiceWithConfig } from "./services.component";
 import { ServiceService } from "../../services/service.service";
 import { ServiceListService } from "../../services/service-list.service";
@@ -104,10 +105,32 @@ describe("ServicesComponent", () => {
     );
   });
 
-  it("deletes a custom service", async () => {
+  it("deletes a custom service after confirmation", async () => {
     await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
     await component.deleteService("llama-server");
     expect(serviceService.deleteConfig).toHaveBeenCalledWith("llama-server");
+  });
+
+  it("skips deletion when confirmation is declined", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(false);
+    await component.deleteService("llama-server");
+    expect(serviceService.deleteConfig).not.toHaveBeenCalled();
+  });
+
+  it("shows the backend error message (not [object Object]) on delete failure", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
+    serviceService.deleteConfig.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500, error: { error: "unit stop failed" } })),
+    );
+    await component.deleteService("llama-server");
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Delete "llama-server": unit stop failed',
+      "Dismiss",
+      expect.objectContaining({ duration: 8000 }),
+    );
   });
 
   it("cloneService opens the llama dialog with a unique clone name", async () => {
