@@ -23,11 +23,12 @@ export function parseContextSize(raw: string | number): number {
     valuePart = trimmed;
   }
 
-  // Parse value + unit suffix
-  const match = valuePart.match(/^(\d+)\s*([kKmM])?$/);
+  // Parse value + unit suffix. The mantissa may be fractional ("19.5K" = 19968) so that
+  // suffixed values are never silently dropped to 0 (which used to make the field vanish).
+  const match = valuePart.match(/^(\d+(?:\.\d+)?)\s*([kKmM])?$/);
   if (!match) return 0;
 
-  let value = parseInt(match[1], 10);
+  let value = parseFloat(match[1]);
   const unit = match[2];
 
   if (unit) {
@@ -45,17 +46,13 @@ export const CONTEXT_PRESETS = [8192, 16384, 32768, 65536, 98304, 131072, 196608
 
 /**
  * Format a raw token count into a short label like "20K", "1M".
+ * Only collapses to a K/M suffix when the value is an exact multiple of the unit,
+ * so the result always round-trips through parseContextSize (no lossy fractional suffix).
  */
 export function formatShort(n: number): string {
   if (n <= 0) return "0";
-  if (n >= 1048576) {
-    const m = n / 1048576;
-    return `${m % 1 === 0 ? m : m.toFixed(1)}M`;
-  }
-  if (n >= 1024) {
-    const k = n / 1024;
-    return `${k % 1 === 0 ? k : k.toFixed(1)}K`;
-  }
+  if (n >= 1048576 && n % 1048576 === 0) return `${n / 1048576}M`;
+  if (n >= 1024 && n % 1024 === 0) return `${n / 1024}K`;
   return `${n}`;
 }
 
