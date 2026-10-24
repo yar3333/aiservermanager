@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { HttpErrorResponse } from "@angular/common/http";
 import { MatDialogRef } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { of, throwError } from "rxjs";
@@ -74,6 +75,19 @@ describe("ArchiveDialogComponent", () => {
     expect(component.active().map((c) => c.name)).toEqual(["svc-a", "svc-b"]);
     expect(component.archived().map((c) => c.name)).toEqual(["archived-x"]);
     expect(snackBar.open).toHaveBeenCalled();
+  });
+
+  it("shows the backend error message (not [object Object]) on failure", async () => {
+    await fixture.whenStable();
+    serviceService.archiveService.mockReturnValueOnce(
+      throwError(() => new HttpErrorResponse({ status: 500, error: { error: "unit stop failed" } })),
+    );
+    await component.archive("svc-a");
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Archive "svc-a": unit stop failed',
+      "Dismiss",
+      expect.objectContaining({ duration: 6000 }),
+    );
   });
 
   it("closes with a truthy result only after a change was made", async () => {

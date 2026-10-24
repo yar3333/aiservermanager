@@ -1,5 +1,6 @@
 import { Component, signal, inject, OnInit, WritableSignal } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HttpErrorResponse } from "@angular/common/http";
 import { MatButtonModule } from "@angular/material/button";
 import { MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
@@ -53,7 +54,7 @@ export class ArchiveDialogComponent implements OnInit {
       this.move(name, this.active, this.archived);
       this.dirty = true;
     } catch (err) {
-      this.showError(`Archive "${name}": ${String(err)}`);
+      this.showError(`Archive "${name}": ${this.errorText(err)}`);
     } finally {
       this.busy.set(null);
     }
@@ -67,7 +68,7 @@ export class ArchiveDialogComponent implements OnInit {
       this.move(name, this.archived, this.active);
       this.dirty = true;
     } catch (err) {
-      this.showError(`Restore "${name}": ${String(err)}`);
+      this.showError(`Restore "${name}": ${this.errorText(err)}`);
     } finally {
       this.busy.set(null);
     }
@@ -86,6 +87,15 @@ export class ArchiveDialogComponent implements OnInit {
       horizontalPosition: "center",
       verticalPosition: "top",
     });
+  }
+
+  /** Extract a human-readable message — the backend sends { error: string } on failures. */
+  private errorText(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { error?: string } | null;
+      return body?.error ?? err.message;
+    }
+    return String(err);
   }
 
   close(): void {
