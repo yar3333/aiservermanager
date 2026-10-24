@@ -134,7 +134,7 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_BF16_CONFIG));
   });
 
-  it("populates served model name and aliases from repeated --served-model-name", () => {
+  it("populates served model name(s) from repeated --served-model-name (comma-separated)", () => {
     create({
       name: "vllm-alias",
       type: "vllm",
@@ -147,19 +147,15 @@ describe("VllmDialogComponent", () => {
         "--host 0.0.0.0",
       ],
     });
-    const f = component.form.controls;
-    expect(f.servedModelName.value).toBe("qwen-256k");
-    expect(f.servedModelAliases.value).toBe("qwen-256k-fast, qwen");
+    expect(component.form.controls.servedModelName.value).toBe("qwen-256k, qwen-256k-fast, qwen");
   });
 
-  it("keeps a single --served-model-name as the name with empty aliases", () => {
+  it("keeps a single --served-model-name as-is", () => {
     create(VLLM_CONFIG);
-    const f = component.form.controls;
-    expect(f.servedModelName.value).toBe("qwen-256k");
-    expect(f.servedModelAliases.value).toBe("");
+    expect(component.form.controls.servedModelName.value).toBe("qwen-256k");
   });
 
-  it("round-trips a config with model aliases through save() unchanged", () => {
+  it("round-trips a config with multiple served model names through save() unchanged", () => {
     const config: ServiceConfig = {
       name: "vllm-alias",
       type: "vllm",
@@ -178,14 +174,13 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(config));
   });
 
-  it("emits one --served-model-name per alias and ignores empty entries", () => {
+  it("emits one --served-model-name per comma-separated entry and ignores empty entries", () => {
     create(null);
     const f = component.form.controls;
     f.name.setValue("vllm-new");
     f.command.setValue("/bin/vllm");
     f.model.setValue("test/model");
-    f.servedModelName.setValue("qwen");
-    f.servedModelAliases.setValue("qwen-fast, qwen2,  ");
+    f.servedModelName.setValue("qwen, qwen-fast, qwen2,  ");
     component.save();
     const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
     expect(saved.flags).toContain("--served-model-name qwen");

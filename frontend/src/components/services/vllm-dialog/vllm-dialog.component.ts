@@ -31,7 +31,6 @@ const DEFAULT_OPTIONS = {
   host: "127.0.0.1",
   port: 8000,
   servedModelName: "",
-  servedModelAliases: "",
   // Model
   model: "",
   tokenizer: "",
@@ -204,7 +203,6 @@ export class VllmDialogComponent implements OnInit {
     host: [DEFAULT_OPTIONS.host],
     port: [DEFAULT_OPTIONS.port],
     servedModelName: [DEFAULT_OPTIONS.servedModelName],
-    servedModelAliases: [DEFAULT_OPTIONS.servedModelAliases],
     // Model
     model: [DEFAULT_OPTIONS.model],
     tokenizer: [DEFAULT_OPTIONS.tokenizer],
@@ -358,9 +356,8 @@ export class VllmDialogComponent implements OnInit {
     // Identity
     f.host.setValue(flagStr(flags, "--host", DEFAULT_OPTIONS.host));
     f.port.setValue(flagNum(flags, "--port", DEFAULT_OPTIONS.port));
-    const servedNames = findAllFlags(flags, "--served-model-name");
-    f.servedModelName.setValue(servedNames[0] ?? "");
-    f.servedModelAliases.setValue(servedNames.slice(1).join(", "));
+    // servedModelName holds all served names, comma-separated (first = primary, rest = aliases).
+    f.servedModelName.setValue(findAllFlags(flags, "--served-model-name").join(", "));
 
     // Model
     f.tokenizer.setValue(flagStr(flags, "--tokenizer", ""));
@@ -505,11 +502,10 @@ export class VllmDialogComponent implements OnInit {
     // Flag order mirrors the user's vllm configs: serve → served-model-name →
     // host/port → parallelism → context → speculative → gpu-memory-utilization →
     // tools → sampling → server → extras.
-    const primaryName = (c.servedModelName.value ?? "").trim();
-    if (primaryName !== DEFAULT_OPTIONS.servedModelName) flags.push(`--served-model-name ${primaryName}`);
-    for (const alias of (c.servedModelAliases.value ?? "").split(",")) {
-      const trimmedAlias = alias.trim();
-      if (trimmedAlias) flags.push(`--served-model-name ${trimmedAlias}`);
+    // One --served-model-name per comma-separated name (primary + aliases).
+    for (const name of (c.servedModelName.value ?? "").split(",")) {
+      const trimmedName = name.trim();
+      if (trimmedName) flags.push(`--served-model-name ${trimmedName}`);
     }
     this.addIf(flags, "--host", c.host.value, DEFAULT_OPTIONS.host);
     this.addIf(flags, "--port", c.port.value, DEFAULT_OPTIONS.port);

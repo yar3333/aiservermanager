@@ -31,10 +31,7 @@
     </mat-autocomplete>
 
     <!-- ═══════════ Model ═══════════ -->
-    <mat-expansion-panel
-      expanded
-      [class.has-changed]="isSectionChanged('model', 'tokenizer', 'dtype', 'servedModelName', 'servedModelAliases')"
-    >
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('model', 'tokenizer', 'dtype', 'servedModelName')">
       <mat-expansion-panel-header>
         <mat-panel-title>Model</mat-panel-title>
       </mat-expansion-panel-header>
@@ -62,28 +59,16 @@
         }
       </mat-autocomplete>
 
-      <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('servedModelName')">
-          <input
-            matInput
-            formControlName="servedModelName"
-            type="text"
-            placeholder="e.g. qwen-256k"
-            matTooltip="Name the model is served under. Clients request it by this name"
-          />
-          <mat-label>Served Model Name</mat-label>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('servedModelAliases')">
-          <input
-            matInput
-            formControlName="servedModelAliases"
-            type="text"
-            placeholder="e.g. qwen-256k-fast, qwen"
-            matTooltip="Extra aliases (comma-separated). Each becomes its own --served-model-name"
-          />
-          <mat-label>Model Aliases</mat-label>
-        </mat-form-field>
-      </div>
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('servedModelName')">
+        <input
+          matInput
+          formControlName="servedModelName"
+          type="text"
+          placeholder="e.g. qwen-256k, qwen-256k-fast"
+          matTooltip="Name(s) the model is served under. List several separated by commas — each becomes its own --served-model-name alias"
+        />
+        <mat-label>Served Model Name</mat-label>
+      </mat-form-field>
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('tokenizer')">
