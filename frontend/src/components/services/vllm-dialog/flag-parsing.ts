@@ -29,6 +29,33 @@ export function findFlag(flags: string[], name: string): string | null {
   return null;
 }
 
+/** Extract ALL values for a flag that may appear multiple times (e.g. repeated --served-model-name).
+ *  Returns them in the order they appear. Handles the same formats as findFlag.
+ */
+export function findAllFlags(flags: string[], name: string): string[] {
+  const result: string[] = [];
+  for (const entry of flags) {
+    // "--flag=value"
+    const eqIdx = entry.indexOf("=");
+    if (eqIdx > 0 && entry.slice(0, eqIdx) === name) {
+      result.push(entry.slice(eqIdx + 1));
+      continue;
+    }
+    // "--flag value"
+    const spIdx = entry.indexOf(" ");
+    if (spIdx > 0 && entry.slice(0, spIdx) === name) {
+      result.push(entry.slice(spIdx + 1).trim());
+    }
+  }
+  // Separate tokens fallback: ["--flag", "value", "--flag", "value2", ...]
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] === name && i + 1 < flags.length) {
+      result.push(flags[i + 1]);
+    }
+  }
+  return result;
+}
+
 /** Check if a boolean flag is present. Handles both standalone flags ["--flag"] and combined ["--flag on"]. */
 export function flagBool(flags: string[], positive: string, negative: string, fallback: boolean): boolean {
   for (const entry of flags) {

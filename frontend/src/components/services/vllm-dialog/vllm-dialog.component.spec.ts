@@ -134,6 +134,66 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_BF16_CONFIG));
   });
 
+  it("populates served model name and aliases from repeated --served-model-name", () => {
+    create({
+      name: "vllm-alias",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: [
+        "serve test/model",
+        "--served-model-name qwen-256k",
+        "--served-model-name qwen-256k-fast",
+        "--served-model-name qwen",
+        "--host 0.0.0.0",
+      ],
+    });
+    const f = component.form.controls;
+    expect(f.servedModelName.value).toBe("qwen-256k");
+    expect(f.servedModelAliases.value).toBe("qwen-256k-fast, qwen");
+  });
+
+  it("keeps a single --served-model-name as the name with empty aliases", () => {
+    create(VLLM_CONFIG);
+    const f = component.form.controls;
+    expect(f.servedModelName.value).toBe("qwen-256k");
+    expect(f.servedModelAliases.value).toBe("");
+  });
+
+  it("round-trips a config with model aliases through save() unchanged", () => {
+    const config: ServiceConfig = {
+      name: "vllm-alias",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: [
+        "serve test/model",
+        "--served-model-name qwen-256k",
+        "--served-model-name qwen-256k-fast",
+        "--served-model-name qwen",
+        "--host 0.0.0.0",
+        "--port 4239",
+      ],
+    };
+    create(config);
+    component.save();
+    expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(config));
+  });
+
+  it("emits one --served-model-name per alias and ignores empty entries", () => {
+    create(null);
+    const f = component.form.controls;
+    f.name.setValue("vllm-new");
+    f.command.setValue("/bin/vllm");
+    f.model.setValue("test/model");
+    f.servedModelName.setValue("qwen");
+    f.servedModelAliases.setValue("qwen-fast, qwen2,  ");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toContain("--served-model-name qwen");
+    expect(saved.flags).toContain("--served-model-name qwen-fast");
+    expect(saved.flags).toContain("--served-model-name qwen2");
+    expect(saved.flags.filter((x) => x.startsWith("--served-model-name")).length).toBe(3);
+  });
+
   it("keeps unknown flags in extraFlags and emits them on save", () => {
     create({
       name: "vllm-x",

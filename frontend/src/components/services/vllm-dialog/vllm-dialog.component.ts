@@ -12,7 +12,7 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
-import { findFlag } from "./flag-parsing";
+import { findFlag, findAllFlags } from "./flag-parsing";
 import { parseContextSize, formatContextSize, CONTEXT_PRESETS } from "../../../utils/context-size";
 import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
@@ -31,6 +31,7 @@ const DEFAULT_OPTIONS = {
   host: "127.0.0.1",
   port: 8000,
   servedModelName: "",
+  servedModelAliases: "",
   // Model
   model: "",
   tokenizer: "",
@@ -203,6 +204,7 @@ export class VllmDialogComponent implements OnInit {
     host: [DEFAULT_OPTIONS.host],
     port: [DEFAULT_OPTIONS.port],
     servedModelName: [DEFAULT_OPTIONS.servedModelName],
+    servedModelAliases: [DEFAULT_OPTIONS.servedModelAliases],
     // Model
     model: [DEFAULT_OPTIONS.model],
     tokenizer: [DEFAULT_OPTIONS.tokenizer],
@@ -356,7 +358,9 @@ export class VllmDialogComponent implements OnInit {
     // Identity
     f.host.setValue(flagStr(flags, "--host", DEFAULT_OPTIONS.host));
     f.port.setValue(flagNum(flags, "--port", DEFAULT_OPTIONS.port));
-    f.servedModelName.setValue(flagStr(flags, "--served-model-name", ""));
+    const servedNames = findAllFlags(flags, "--served-model-name");
+    f.servedModelName.setValue(servedNames[0] ?? "");
+    f.servedModelAliases.setValue(servedNames.slice(1).join(", "));
 
     // Model
     f.tokenizer.setValue(flagStr(flags, "--tokenizer", ""));
@@ -501,7 +505,12 @@ export class VllmDialogComponent implements OnInit {
     // Flag order mirrors the user's vllm configs: serve → served-model-name →
     // host/port → parallelism → context → speculative → gpu-memory-utilization →
     // tools → sampling → server → extras.
-    this.addIf(flags, "--served-model-name", (c.servedModelName.value ?? "").trim(), DEFAULT_OPTIONS.servedModelName);
+    const primaryName = (c.servedModelName.value ?? "").trim();
+    if (primaryName !== DEFAULT_OPTIONS.servedModelName) flags.push(`--served-model-name ${primaryName}`);
+    for (const alias of (c.servedModelAliases.value ?? "").split(",")) {
+      const trimmedAlias = alias.trim();
+      if (trimmedAlias) flags.push(`--served-model-name ${trimmedAlias}`);
+    }
     this.addIf(flags, "--host", c.host.value, DEFAULT_OPTIONS.host);
     this.addIf(flags, "--port", c.port.value, DEFAULT_OPTIONS.port);
 
