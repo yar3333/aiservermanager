@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { ExecTools } from "../helpers/ExecTools";
-import { HfDownload, HfStatus } from "../models/HfDownload";
+import { HfDownload, HfLocalModel, HfStatus } from "../models/HfDownload";
 
 type HfAction = "pause" | "resume" | "cancel";
 
@@ -54,10 +54,13 @@ const SPEED_EMA_ALPHA = 0.3;
 
 export class HfDownloadsService {
   private readonly procRoot: string;
+  /** Override of the HF cache root (<HF_HOME>); resolved from env/HOME when absent. */
+  private readonly cacheRootOverride?: string;
   private readonly speedMap = new Map<string, SpeedState>();
 
-  constructor(procRoot = "/proc") {
+  constructor(procRoot = "/proc", cacheRootOverride?: string) {
     this.procRoot = procRoot;
+    this.cacheRootOverride = cacheRootOverride;
   }
 
   /** Whether the `hf` CLI is available (Linux only). Works under systemd's minimal PATH. */
@@ -143,6 +146,90 @@ export class HfDownloadsService {
     }
     if (!alive) throw new Error(`No active download found for ${repoId}`);
     if (action !== "cancel") this.speedMap.delete(`${repoId}|${dest}`);
+  }
+
+  // ── local HF cache (downloaded models) ──
+
+  /** <HF_HOME>/hub — where huggingface_hub stores <type>--org--name cache dirs. */
+  private hubDir(): string {
+    const root = this.cacheRootOverride || process.env.HF_HOME || path.join(os.homedir(), ".cache", "huggingface");
+    return path.join(root, "hub");
+  }
+
+  /** List models present in the local HF cache with their size on disk. */
+  async listLocalModels(): Promise<HfLocalModel[]> {
+    const hub = this.hubDir();
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(hub, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    const models: (HfLocalModel | null)[] = await Promise.all(
+      entries
+        .filter((e) => e.isDirectory() && e.name.startsWith("models--"))
+        .map(async (e) => {
+          const name = HfDownloadsService.parseModelDirName(e.name);
+          if (!name) return null;
+          const dir = path.join(hub, e.name);
+          return { name, dir, size: await this.dirSize(dir) };
+        }),
+    );
+    return models.filter((m): m is HfLocalModel => m !== null).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** Delete a model's cache directory. Name must be a plain "org/name" repo id. */
+  async deleteLocalModel(name: string): Promise<void> {
+    if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(name) || name.includes("..")) {
+      throw new Error(`Invalid model name: ${name}`);
+    }
+    const hub = this.hubDir();
+    const dir = path.join(hub, `models--${name.replace("/", "--")}`);
+    let real: string;
+    try {
+      real = await fs.promises.realpath(dir);
+    } catch {
+      throw new Error(`Model not found: ${name}`);
+    }
+    const hubReal = await fs.promises.realpath(hub).catch(() => null);
+    if (hubReal && !real.startsWith(hubReal + path.sep)) {
+      throw new Error("Invalid model path");
+    }
+    await fs.promises.rm(real, { recursive: true });
+  }
+
+  /** Total size of real files under dir. Symlinks are not followed, so the classic
+   *  cache layout (snapshots/ symlinks → blobs/) is counted once. */
+  private async dirSize(dir: string): Promise<number> {
+    let total = 0;
+    const walk = async (d: string): Promise<void> => {
+      let entries: fs.Dirent[];
+      try {
+        entries = await fs.promises.readdir(d, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        try {
+          if (e.isDirectory()) await walk(path.join(d, e.name));
+          else if (e.isFile()) total += (await fs.promises.lstat(path.join(d, e.name))).size;
+        } catch {
+          // file vanished mid-walk — ignore
+        }
+      }
+    };
+    await walk(dir);
+    return total;
+  }
+
+  /** "models--org--name" → "org/name" (the name part may itself contain "--"). */
+  private static parseModelDirName(baseName: string): string | null {
+    const prefix = "models--";
+    if (!baseName.startsWith(prefix)) return null;
+    const rest = baseName.slice(prefix.length);
+    const idx = rest.indexOf("--");
+    if (idx <= 0) return null;
+    return `${rest.slice(0, idx)}/${rest.slice(idx + 2)}`;
   }
 
   // ── process table ──

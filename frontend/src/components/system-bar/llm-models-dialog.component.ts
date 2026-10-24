@@ -1,34 +1,48 @@
-import { Component, signal, inject, OnInit, OnDestroy } from "@angular/core";
+import { Component, computed, signal, inject, OnInit, OnDestroy } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HttpErrorResponse } from "@angular/common/http";
 import { MatButtonModule } from "@angular/material/button";
 import { MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatIconModule } from "@angular/material/icon";
 import { HfService } from "../../services/hf.service";
-import { HfDownload } from "../../models/hf";
+import { HfDownload, HfLocalModel } from "../../models/hf";
 
 const POLL_MS = 2000;
 
 @Component({
-  selector: "app-hf-downloads-dialog",
+  selector: "app-llm-models-dialog",
   standalone: true,
   imports: [CommonModule, MatButtonModule, MatDialogModule, MatProgressBarModule, MatIconModule],
-  templateUrl: "./hf-downloads-dialog.component.html",
-  styleUrls: ["./hf-downloads-dialog.component.scss"],
+  templateUrl: "./llm-models-dialog.component.html",
+  styleUrls: ["./llm-models-dialog.component.scss"],
 })
-export class HfDownloadsDialogComponent implements OnInit, OnDestroy {
+export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   private hfService = inject(HfService);
-  private dialogRef = inject(MatDialogRef<HfDownloadsDialogComponent>);
+  private dialogRef = inject(MatDialogRef<LlmModelsDialogComponent>);
 
+  /** In-progress `hf download` groups — polled every POLL_MS. */
   readonly downloads = signal<HfDownload[]>([]);
+  /** Models already in the local Hugging Face cache — loaded once + after delete (sizes are expensive). */
+  readonly models = signal<HfLocalModel[]>([]);
   readonly loading = signal(true);
+  readonly modelsLoading = signal(true);
   readonly error = signal<string | null>(null);
+  /** Model whose delete is in flight (disables its button). */
+  readonly deleting = signal<string | null>(null);
+
+  /** Models currently being downloaded are shown as cards, not in the static list. */
+  readonly staticModels = computed(() => {
+    const active = new Set(this.downloads().map((d) => d.dest));
+    return this.models().filter((m) => !active.has(m.dir));
+  });
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
 
   ngOnInit(): void {
     void this.refresh();
+    void this.refreshModels();
     this.timer = setInterval(() => void this.refresh(), POLL_MS);
   }
 
@@ -41,10 +55,29 @@ export class HfDownloadsDialogComponent implements OnInit, OnDestroy {
       this.downloads.set(await this.hfService.getDownloads());
       this.error.set(null);
     } catch (err: unknown) {
-      this.error.set(err instanceof Error ? err.message : "Failed to load HF downloads");
+      this.error.set(this.errorText(err, "Failed to load downloads"));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async refreshModels(): Promise<void> {
+    try {
+      this.models.set(await this.hfService.getLocalModels());
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, "Failed to load models"));
+    } finally {
+      this.modelsLoading.set(false);
+    }
+  }
+
+  /** Extract a human-readable message — the backend sends { error: string } on failures. */
+  private errorText(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { error?: string } | null;
+      return body?.error ?? err.message;
+    }
+    return err instanceof Error ? err.message : fallback;
   }
 
   async pause(d: HfDownload): Promise<void> {
@@ -61,6 +94,20 @@ export class HfDownloadsDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  async deleteModel(m: HfLocalModel): Promise<void> {
+    if (this.deleting()) return;
+    if (!confirm(`Delete model ${m.name} (${this.formatBytes(m.size)}) from the Hugging Face cache?`)) return;
+    this.deleting.set(m.name);
+    try {
+      await this.hfService.deleteLocalModel(m.name);
+      await this.refreshModels();
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, `Failed to delete ${m.name}`));
+    } finally {
+      this.deleting.set(null);
+    }
+  }
+
   private async act(action: "pause" | "resume" | "cancel", d: HfDownload): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -68,7 +115,7 @@ export class HfDownloadsDialogComponent implements OnInit, OnDestroy {
       await this.hfService.action(action, d);
       await this.refresh();
     } catch (err: unknown) {
-      this.error.set(err instanceof Error ? err.message : `Failed to ${action} download`);
+      this.error.set(this.errorText(err, `Failed to ${action} download`));
     } finally {
       this.busy = false;
     }

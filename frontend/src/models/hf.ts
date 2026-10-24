@@ -21,3 +21,13 @@ export interface HfStatus {
   installed: boolean;
   version?: string;
 }
+
+/** A model already present in the local Hugging Face cache. */
+export interface HfLocalModel {
+  /** Repo id, e.g. "org/model". */
+  name: string;
+  /** Full path of the cache directory. */
+  dir: string;
+  /** Total size on disk in bytes. */
+  size: number;
+}

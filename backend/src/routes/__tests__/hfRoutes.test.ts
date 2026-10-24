@@ -15,6 +15,8 @@ describe("HF routes", () => {
       isInstalled: jest.fn(),
       listDownloads: jest.fn(),
       sendAction: jest.fn(),
+      listLocalModels: jest.fn(),
+      deleteLocalModel: jest.fn(),
     } as unknown as HfDownloadsService;
 
     container = new Container();
@@ -90,6 +92,44 @@ describe("HF routes", () => {
         .post("/api/hf/downloads/action")
         .send({ action: "cancel", repoId: "org/model", dest: "/tmp/x" });
       expect(res.status).toBe(500);
+    });
+  });
+
+  describe("GET /api/hf/models", () => {
+    it("returns the local model list", async () => {
+      (mockSvc as any).listLocalModels.mockResolvedValue([{ name: "org/model", dir: "/x", size: 10 }]);
+      const res = await request(app).get("/api/hf/models");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([{ name: "org/model", dir: "/x", size: 10 }]);
+    });
+
+    it("returns 500 on error", async () => {
+      (mockSvc as any).listLocalModels.mockRejectedValue(new Error("boom"));
+      const res = await request(app).get("/api/hf/models");
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe("boom");
+    });
+  });
+
+  describe("DELETE /api/hf/models/:org/:name", () => {
+    it("deletes the model and returns ok", async () => {
+      (mockSvc as any).deleteLocalModel.mockResolvedValue(undefined);
+      const res = await request(app).delete("/api/hf/models/org/model-a");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect((mockSvc as any).deleteLocalModel).toHaveBeenCalledWith("org/model-a");
+    });
+
+    it("returns 404 for a non-existent model", async () => {
+      (mockSvc as any).deleteLocalModel.mockRejectedValue(new Error("Model not found: org/x"));
+      const res = await request(app).delete("/api/hf/models/org/x");
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 for an invalid model name", async () => {
+      (mockSvc as any).deleteLocalModel.mockRejectedValue(new Error("Invalid model name: ../etc"));
+      const res = await request(app).delete("/api/hf/models/org/..%2Fetc");
+      expect(res.status).toBe(400);
     });
   });
 });

@@ -11,7 +11,7 @@ import { SystemService } from "../../services/system.service";
 import { HfService } from "../../services/hf.service";
 import { LayoutService, DashboardLayout } from "../../services/layout.service";
 import { SystemInfoDialogComponent } from "./system-info-dialog.component";
-import { HfDownloadsDialogComponent } from "./hf-downloads-dialog.component";
+import { LlmModelsDialogComponent } from "./llm-models-dialog.component";
 
 @Component({
   selector: "app-system-bar",
@@ -53,8 +53,8 @@ export class SystemBarComponent implements OnInit {
     this.dialog.open(SystemInfoDialogComponent, { disableClose: false });
   }
 
-  openHfDownloads(): void {
-    this.dialog.open(HfDownloadsDialogComponent, { width: "760px", maxWidth: "95vw", disableClose: false });
+  openLlmModels(): void {
+    this.dialog.open(LlmModelsDialogComponent, { width: "760px", maxWidth: "95vw", disableClose: false });
   }
 
   async reboot(): Promise<void> {

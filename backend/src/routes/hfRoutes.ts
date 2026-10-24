@@ -46,5 +46,34 @@ export default function hfRoutes(container: Container) {
     }
   });
 
+  /** Models already present in the local Hugging Face cache (with sizes). */
+  router.get("/models", async (_req: Request, res: Response) => {
+    try {
+      const svc = container.get<HfDownloadsService>(HF_DOWNLOADS_SERVICE);
+      res.json(await svc.listLocalModels());
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  /** Delete a model's cache directory from the local Hugging Face cache. */
+  router.delete("/models/:org/:name", async (req: Request, res: Response) => {
+    try {
+      const org = Array.isArray(req.params.org) ? req.params.org[0] : req.params.org;
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const svc = container.get<HfDownloadsService>(HF_DOWNLOADS_SERVICE);
+      await svc.deleteLocalModel(`${org}/${name}`);
+      res.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      const status = message.startsWith("Model not found")
+        ? 404
+        : message.startsWith("Invalid model name")
+          ? 400
+          : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
   return router;
 }

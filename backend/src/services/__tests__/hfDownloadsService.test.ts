@@ -352,4 +352,88 @@ describe("HfDownloadsService", () => {
       await expect(svc.isInstalled()).resolves.toEqual({ installed: false });
     });
   });
+
+  describe("listLocalModels", () => {
+    let hub: string;
+
+    beforeEach(() => {
+      hub = path.join(tmp, "cache", "hub");
+      fs.mkdirSync(hub, { recursive: true });
+    });
+
+    it("lists models with names and sizes, ignoring non-model entries", async () => {
+      const dirA = path.join(hub, "models--org--model-a");
+      fs.mkdirSync(dirA, { recursive: true });
+      fs.writeFileSync(path.join(dirA, "w.bin"), "x".repeat(1000));
+      const sub = path.join(dirA, "sub");
+      fs.mkdirSync(sub, { recursive: true });
+      fs.writeFileSync(path.join(sub, "w2.bin"), "x".repeat(500));
+
+      // Not a model (dataset) and plain files must be ignored.
+      fs.mkdirSync(path.join(hub, "datasets--org--ds"), { recursive: true });
+      fs.writeFileSync(path.join(hub, "models--broken"), "nope");
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const models = await svc.listLocalModels();
+      expect(models).toEqual([
+        { name: "org/model-a", dir: dirA, size: 1500 },
+      ]);
+    });
+
+    it("counts classic cache layout once (snapshots symlinks are not double-counted)", async () => {
+      const dirB = path.join(hub, "models--org--model-b");
+      const blobs = path.join(dirB, "blobs");
+      const snap = path.join(dirB, "snapshots", "main");
+      fs.mkdirSync(blobs, { recursive: true });
+      fs.mkdirSync(snap, { recursive: true });
+      fs.writeFileSync(path.join(blobs, "abc123"), "x".repeat(2048));
+      fs.symlinkSync(path.join(blobs, "abc123"), path.join(snap, "model.bin"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const [m] = await svc.listLocalModels();
+      expect(m.name).toBe("org/model-b");
+      expect(m.size).toBe(2048);
+    });
+
+    it("parses model names whose own name contains --", async () => {
+      fs.mkdirSync(path.join(hub, "models--org--model--with--dashes"), { recursive: true });
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      const models = await svc.listLocalModels();
+      expect(models.map((m) => m.name)).toEqual(["org/model--with--dashes"]);
+    });
+
+    it("returns an empty list when the hub dir does not exist", async () => {
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "no-such-cache"));
+      await expect(svc.listLocalModels()).resolves.toEqual([]);
+    });
+  });
+
+  describe("deleteLocalModel", () => {
+    let hub: string;
+
+    beforeEach(() => {
+      hub = path.join(tmp, "cache", "hub");
+      fs.mkdirSync(path.join(hub, "models--org--model-a", "sub"), { recursive: true });
+      fs.writeFileSync(path.join(hub, "models--org--model-a", "w.bin"), "x".repeat(100));
+    });
+
+    it("removes the model's cache directory", async () => {
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+      expect(fs.existsSync(path.join(hub, "models--org--model-a"))).toBe(false);
+    });
+
+    it("throws for a non-existent model", async () => {
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModel("org/missing")).rejects.toThrow("Model not found");
+    });
+
+    it("rejects names that are not plain org/repo ids", async () => {
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModel("no-slash")).rejects.toThrow("Invalid model name");
+      await expect(svc.deleteLocalModel("../etc/passwd")).rejects.toThrow("Invalid model name");
+      await expect(svc.deleteLocalModel("org/../other")).rejects.toThrow("Invalid model name");
+      expect(fs.existsSync(path.join(hub, "models--org--model-a"))).toBe(true);
+    });
+  });
 });
