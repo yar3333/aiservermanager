@@ -29,7 +29,7 @@ export function findFlag(flags: string[], name: string): string | null {
   return null;
 }
 
-/** Extract ALL values for a flag that may appear multiple times (e.g. repeated --served-model-name).
+/** Extract ALL values for a flag that may appear multiple times (legacy repeated --served-model-name).
  *  Returns them in the order they appear. Handles the same formats as findFlag.
  */
 export function findAllFlags(flags: string[], name: string): string[] {

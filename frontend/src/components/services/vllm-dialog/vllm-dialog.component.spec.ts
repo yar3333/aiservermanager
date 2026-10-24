@@ -155,6 +155,20 @@ describe("VllmDialogComponent", () => {
     expect(component.form.controls.servedModelName.value).toBe("qwen-256k");
   });
 
+  it("populates served model name(s) from a single --served-model-name with space-separated names", () => {
+    create({
+      name: "vllm-alias",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: [
+        "serve test/model",
+        "--served-model-name qwen-256k qwen-256k-fast qwen",
+        "--host 0.0.0.0",
+      ],
+    });
+    expect(component.form.controls.servedModelName.value).toBe("qwen-256k, qwen-256k-fast, qwen");
+  });
+
   it("round-trips a config with multiple served model names through save() unchanged", () => {
     const config: ServiceConfig = {
       name: "vllm-alias",
@@ -162,9 +176,7 @@ describe("VllmDialogComponent", () => {
       command: "/bin/vllm",
       flags: [
         "serve test/model",
-        "--served-model-name qwen-256k",
-        "--served-model-name qwen-256k-fast",
-        "--served-model-name qwen",
+        "--served-model-name qwen-256k qwen-256k-fast qwen",
         "--host 0.0.0.0",
         "--port 4239",
       ],
@@ -174,7 +186,26 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(config));
   });
 
-  it("emits one --served-model-name per comma-separated entry and ignores empty entries", () => {
+  it("normalizes legacy repeated --served-model-name flags into a single space-separated flag on save", () => {
+    create({
+      name: "vllm-alias",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: [
+        "serve test/model",
+        "--served-model-name qwen-256k",
+        "--served-model-name qwen-256k-fast",
+        "--served-model-name qwen",
+        "--host 0.0.0.0",
+      ],
+    });
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    const served = saved.flags.filter((x) => x.startsWith("--served-model-name"));
+    expect(served).toEqual(["--served-model-name qwen-256k qwen-256k-fast qwen"]);
+  });
+
+  it("emits a single --served-model-name with space-separated entries and ignores empty entries", () => {
     create(null);
     const f = component.form.controls;
     f.name.setValue("vllm-new");
@@ -183,10 +214,8 @@ describe("VllmDialogComponent", () => {
     f.servedModelName.setValue("qwen, qwen-fast, qwen2,  ");
     component.save();
     const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
-    expect(saved.flags).toContain("--served-model-name qwen");
-    expect(saved.flags).toContain("--served-model-name qwen-fast");
-    expect(saved.flags).toContain("--served-model-name qwen2");
-    expect(saved.flags.filter((x) => x.startsWith("--served-model-name")).length).toBe(3);
+    expect(saved.flags).toContain("--served-model-name qwen qwen-fast qwen2");
+    expect(saved.flags.filter((x) => x.startsWith("--served-model-name")).length).toBe(1);
   });
 
   it("keeps unknown flags in extraFlags and emits them on save", () => {

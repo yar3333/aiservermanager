@@ -357,7 +357,15 @@ export class VllmDialogComponent implements OnInit {
     f.host.setValue(flagStr(flags, "--host", DEFAULT_OPTIONS.host));
     f.port.setValue(flagNum(flags, "--port", DEFAULT_OPTIONS.port));
     // servedModelName holds all served names, comma-separated (first = primary, rest = aliases).
-    f.servedModelName.setValue(findAllFlags(flags, "--served-model-name").join(", "));
+    // vllm takes a SINGLE --served-model-name flag with names separated by spaces (nargs="*");
+    // legacy configs with repeated flags are merged back into one.
+    f.servedModelName.setValue(
+      findAllFlags(flags, "--served-model-name")
+        .flatMap((v) => v.split(/\s+/))
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .join(", "),
+    );
 
     // Model
     f.tokenizer.setValue(flagStr(flags, "--tokenizer", ""));
@@ -502,11 +510,12 @@ export class VllmDialogComponent implements OnInit {
     // Flag order mirrors the user's vllm configs: serve → served-model-name →
     // host/port → parallelism → context → speculative → gpu-memory-utilization →
     // tools → sampling → server → extras.
-    // One --served-model-name per comma-separated name (primary + aliases).
-    for (const name of (c.servedModelName.value ?? "").split(",")) {
-      const trimmedName = name.trim();
-      if (trimmedName) flags.push(`--served-model-name ${trimmedName}`);
-    }
+    // Single --served-model-name flag, all names (primary + aliases) separated by spaces.
+    const servedNames = (c.servedModelName.value ?? "")
+      .split(",")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    if (servedNames.length) flags.push(`--served-model-name ${servedNames.join(" ")}`);
     this.addIf(flags, "--host", c.host.value, DEFAULT_OPTIONS.host);
     this.addIf(flags, "--port", c.port.value, DEFAULT_OPTIONS.port);
 
