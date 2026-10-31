@@ -76,12 +76,13 @@ jobs:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@latest
+
       - name: Dry-run pack (sanity check)
         working-directory: release/aiservermanager
         run: npm pack --dry-run
 
-      - name: Publish to npm
+      - name: Publish to npm (trusted publishing)
         working-directory: release/aiservermanager
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
