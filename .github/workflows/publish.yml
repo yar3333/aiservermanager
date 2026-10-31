@@ -9,6 +9,12 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# A push with a tag triggers this workflow twice (branch push + tag push on the
+# same commit); keep only the tag run, which also publishes.
+concurrency:
+  group: build-${{ github.sha }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
