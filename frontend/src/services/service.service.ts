@@ -26,6 +26,11 @@ export class ServiceService {
     return this.http.post<ServiceStatus>(`${this.url}/control`, { name, action });
   }
 
+  /** Install the systemd unit for a custom service that has a config but no unit yet. */
+  installService(name: string): Observable<ServiceStatus> {
+    return this.http.post<ServiceStatus>(`${this.url}/install`, { name });
+  }
+
   /** List all user-created service configs. */
   fetchConfigs(): Observable<ServiceConfig[]> {
     return this.http.get<ServiceConfig[]>(`${this.url}/config`);

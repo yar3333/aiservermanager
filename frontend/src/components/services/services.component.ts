@@ -52,7 +52,7 @@ export class ServicesComponent implements OnInit {
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
   /** Name + action currently being processed — prevents double-click. */
-  readonly busy = signal<{ name: string; action: ServiceAction } | null>(null);
+  readonly busy = signal<{ name: string; action: ServiceAction | "install" } | null>(null);
 
   /** Merged list: custom services + managed services with config. */
   readonly unified = computed<ServiceWithConfig[]>(() => {
@@ -125,6 +125,25 @@ export class ServicesComponent implements OnInit {
       await this.load();
     } catch (err) {
       this.showError(`${name}: ${this.errorText(err)}`);
+    } finally {
+      this.busy.set(null);
+    }
+  }
+
+  /** Install the systemd unit for a custom service that has a config but no unit yet. */
+  async installService(name: string): Promise<void> {
+    const current = this.busy();
+    if (current && current.name === name && current.action === "install") return;
+    this.selectedServiceService.select(name);
+    this.busy.set({ name, action: "install" });
+    try {
+      const result = await firstValueFrom(this.serviceService.installService(name));
+      if (result.error) {
+        this.showError(`${name}: ${result.error}`);
+      }
+      await this.load();
+    } catch (err) {
+      this.showError(`Install "${name}": ${this.errorText(err)}`);
     } finally {
       this.busy.set(null);
     }

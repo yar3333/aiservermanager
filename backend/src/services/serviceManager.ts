@@ -134,6 +134,37 @@ export class ServiceManager {
     return results;
   }
 
+  /**
+   * Install the systemd unit for a custom service that has a config but is
+   * not yet registered in the OS (e.g. config added while server was running).
+   */
+  async installService(name: string): Promise<ServiceStatus> {
+    const defs = this.getServiceDefs();
+    const def = defs.find((s) => s.name === name);
+    if (!def) {
+      throw new Error(`Unknown service: ${name}`);
+    }
+
+    const controller = await this.getActiveController();
+    if (!controller) {
+      throw new Error("No service controller available on this platform");
+    }
+
+    const cfg = this.configManager.get(name);
+    if (!cfg) {
+      throw new Error(`No config for service: ${name}`);
+    }
+
+    const execStart = buildExecStart(cfg);
+    const result = await controller.install(name, execStart, cfg.environment);
+
+    if (!result.error) {
+      this.installErrors.delete(name);
+    }
+
+    return { ...def, ...result };
+  }
+
   async performAction(name: string, action: ServiceAction): Promise<ServiceStatus> {
     const defs = this.getServiceDefs();
     const def = defs.find((s) => s.name === name);

@@ -51,6 +51,23 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
+  /** Install the systemd unit for a custom service that has a config but no unit yet: { name: "llama" } */
+  router.post("/install", async (req: Request, res: Response) => {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "'name' is required" });
+      }
+
+      const sm = container.get<ServiceManager>(SERVICE_MANAGER);
+      const result = await sm.installService(name);
+      res.json(result);
+    } catch (err) {
+      const status = (err as Error).message.startsWith("Unknown service") ? 404 : 500;
+      res.status(status).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
   /** List all user-created service configs. */
   router.get("/config", (_req, res) => {
     try {

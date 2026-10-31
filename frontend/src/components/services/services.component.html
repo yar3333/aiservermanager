@@ -99,6 +99,16 @@
                     Enable
                   </button>
                 }
+              } @else if (svc.hasConfig) {
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="busy()?.name === svc.name"
+                  (click)="installService(svc.name); $event.stopPropagation()"
+                >
+                  <mat-icon>download</mat-icon>
+                  Install
+                </button>
               }
             </td>
             <td class="service-actions-cell">
