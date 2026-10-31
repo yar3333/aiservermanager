@@ -78,11 +78,8 @@
   }
 }
 
-// Vertical (default): main-content is a flex row —
-// [ top-row-vertical | splitter | journal-sidebar ].
-// Horizontal: main-content is a flex column —
-// [ top-row-horizontal | splitter-h | journal-bottom ].
-// The journal + splitters live inside main-content, so it no longer scrolls;
+// Layout: journal at the bottom, GPU | services side by side with a splitter.
+// The journal + splitters live inside main-content, so it does not scroll;
 // each column scrolls independently.
 .main-content {
   flex: 1;
@@ -90,21 +87,31 @@
   min-height: 0;
   overflow: hidden;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   padding: 24px;
   max-width: 100%;
 }
 
-// Vertical mode: GPU + services stacked in plain block flow, one scroll unit.
-.top-row-vertical {
+.top-row-horizontal {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+
+.gpu-col {
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.services-col {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
 }
 
-.gpu-col,
-.services-col {
-  min-width: 0;
+.services-col app-services {
+  margin-top: 0;
 }
 
 .splitter {
@@ -171,44 +178,9 @@
   }
 }
 
-.journal-sidebar {
-  flex-shrink: 0;
-  overflow-y: auto;
-}
-
 .journal-bottom {
   flex-shrink: 0;
   overflow-y: auto;
-}
-
-// ── Horizontal layout (journal at the bottom, GPU | services side by side with a splitter) ──
-
-.layout.horizontal {
-  .main-content {
-    flex-direction: column;
-  }
-
-  .top-row-horizontal {
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .gpu-col {
-    flex-shrink: 0;
-    overflow-y: auto;
-  }
-
-  .services-col {
-    flex: 1;
-    min-width: 0;
-    overflow-y: auto;
-  }
-
-  .services-col app-services {
-    margin-top: 0;
-  }
 }
 
 .error-card,

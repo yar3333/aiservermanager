@@ -37,7 +37,7 @@
     <mat-progress-bar mode="query" color="primary"></mat-progress-bar>
   }
 
-  <div class="layout" [class.horizontal]="layout() === 'horizontal'" [class.dragging]="isDragging()">
+  <div class="layout" [class.dragging]="isDragging()">
     <div class="main-content">
       @if (error()) {
         <mat-card class="error-card">
@@ -50,77 +50,40 @@
           </mat-card-content>
         </mat-card>
       } @else {
-        @switch (layout()) {
-          @case ("vertical") {
-            <div class="top-row-vertical">
-              <div class="gpu-col">
-                <app-system-bar [systemInfo]="systemInfo()" />
+        <div class="top-row-horizontal">
+          <div class="gpu-col" [style.width.px]="gpuColWidth()">
+            <app-system-bar [systemInfo]="systemInfo()" />
 
-                @if (!hasGpus()) {
-                  <mat-card class="empty-card">
-                    <mat-card-content>
-                      <p>No GPUs detected.</p>
-                      <p class="mat-body-2" style="color: #999">
-                        Ensure nvidia-smi or rocm-smi is available on this system.
-                      </p>
-                    </mat-card-content>
-                  </mat-card>
-                } @else {
-                  <app-gpu-table [gpus]="gpus()" />
-                }
-              </div>
+            @if (!hasGpus()) {
+              <mat-card class="empty-card">
+                <mat-card-content>
+                  <p>No GPUs detected.</p>
+                  <p class="mat-body-2" style="color: #999">
+                    Ensure nvidia-smi or rocm-smi is available on this system.
+                  </p>
+                </mat-card-content>
+              </mat-card>
+            } @else {
+              <app-gpu-table [gpus]="gpus()" />
+            }
+          </div>
 
-              <div class="services-col">
-                <app-services />
-              </div>
-            </div>
+          <div class="splitter" (mousedown)="startGpuColDrag($event)">
+            <span class="splitter-line"></span>
+          </div>
 
-            <div class="splitter" (mousedown)="startJournalWidthDrag($event)">
-              <span class="splitter-line"></span>
-            </div>
+          <div class="services-col">
+            <app-services />
+          </div>
+        </div>
 
-            <div class="journal-sidebar" [style.width.px]="sidebarWidth()">
-              <app-journal-panel />
-            </div>
-          }
+        <div class="splitter splitter-h" (mousedown)="startJournalHeightDrag($event)">
+          <span class="splitter-line"></span>
+        </div>
 
-          @case ("horizontal") {
-            <div class="top-row-horizontal">
-              <div class="gpu-col" [style.width.px]="gpuColWidth()">
-                <app-system-bar [systemInfo]="systemInfo()" />
-
-                @if (!hasGpus()) {
-                  <mat-card class="empty-card">
-                    <mat-card-content>
-                      <p>No GPUs detected.</p>
-                      <p class="mat-body-2" style="color: #999">
-                        Ensure nvidia-smi or rocm-smi is available on this system.
-                      </p>
-                    </mat-card-content>
-                  </mat-card>
-                } @else {
-                  <app-gpu-table [gpus]="gpus()" />
-                }
-              </div>
-
-              <div class="splitter" (mousedown)="startGpuColDrag($event)">
-                <span class="splitter-line"></span>
-              </div>
-
-              <div class="services-col">
-                <app-services />
-              </div>
-            </div>
-
-            <div class="splitter splitter-h" (mousedown)="startJournalHeightDrag($event)">
-              <span class="splitter-line"></span>
-            </div>
-
-            <div class="journal-bottom" [style.height.px]="journalHeight()">
-              <app-journal-panel />
-            </div>
-          }
-        }
+        <div class="journal-bottom" [style.height.px]="journalHeight()">
+          <app-journal-panel />
+        </div>
       }
     </div>
   </div>

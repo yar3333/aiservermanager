@@ -1,4 +1,4 @@
-import { Component, computed, input, inject, OnInit, signal } from "@angular/core";
+import { Component, input, inject, OnInit, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
@@ -9,7 +9,6 @@ import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { SystemInfo } from "../../models/gpu";
 import { SystemService } from "../../services/system.service";
 import { HfService } from "../../services/hf.service";
-import { LayoutService, DashboardLayout } from "../../services/layout.service";
 import { SystemInfoDialogComponent } from "./system-info-dialog.component";
 import { LlmModelsDialogComponent } from "./llm-models-dialog.component";
 
@@ -33,9 +32,7 @@ export class SystemBarComponent implements OnInit {
   private systemService = inject(SystemService);
   private hfService = inject(HfService);
   private dialog = inject(MatDialog);
-  private layoutService = inject(LayoutService);
 
-  readonly layout = computed(() => this.layoutService.layout());
   readonly hfInstalled = signal(false);
 
   ngOnInit(): void {
@@ -43,10 +40,6 @@ export class SystemBarComponent implements OnInit {
       .getStatus()
       .then((s) => this.hfInstalled.set(s.installed))
       .catch(() => this.hfInstalled.set(false));
-  }
-
-  setLayout(layout: DashboardLayout): void {
-    this.layoutService.setLayout(layout);
   }
 
   openSystemInfo(): void {
