@@ -67,6 +67,21 @@ describe("LmStudioService", () => {
     ]);
   });
 
+  it("groups sharded weights into one entry", async () => {
+    const modelDir = path.join(root, "pub", "sharded");
+    fs.mkdirSync(modelDir, { recursive: true });
+    fs.writeFileSync(path.join(modelDir, "Model-BF16-00001-of-00002.gguf"), Buffer.alloc(3000));
+    fs.writeFileSync(path.join(modelDir, "Model-BF16-00002-of-00002.gguf"), Buffer.alloc(1000));
+    fs.writeFileSync(path.join(modelDir, "Model-Q4.gguf"), Buffer.alloc(500));
+
+    const models = await service().listModels();
+    expect(models[0].files).toEqual([
+      { name: "Model-BF16.gguf", size: 4000, shards: ["Model-BF16-00001-of-00002.gguf", "Model-BF16-00002-of-00002.gguf"] },
+      { name: "Model-Q4.gguf", size: 500 },
+    ]);
+    expect(models[0].size).toBe(4500);
+  });
+
   it("ignores stray files in the root and in publisher dirs (only dirs are models)", async () => {
     fs.writeFileSync(path.join(root, "not-a-dir"), "x");
     fs.mkdirSync(path.join(root, "pub"), { recursive: true });

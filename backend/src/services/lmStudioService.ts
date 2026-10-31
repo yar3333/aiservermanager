@@ -113,7 +113,12 @@ export class LmStudioService {
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   }
 
-  /** GGUF files under the model dir (recursively), sorted by relative path. */
+  /** Regex for shard suffixes: "-00001-of-00003" before ".gguf". */
+  private static readonly SHARD_RE = /^(.*?)-(\d{5})-of-(\d{5})\.gguf$/i;
+
+  /** GGUF files under the model dir (recursively), sorted by relative path.
+   *  Sharded weights ("-NNNNN-of-NNNNN" suffixes) are grouped into one entry
+   *  with summed size and the shard paths in `shards`. */
   private async listGgufFiles(dir: string): Promise<LmStudioModelFile[]> {
     const files: LmStudioModelFile[] = [];
     const walk = async (d: string): Promise<void> => {
@@ -136,6 +141,33 @@ export class LmStudioService {
       }
     };
     await walk(dir);
-    return files.sort((a, b) => a.name.localeCompare(b.name));
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    return this.groupShards(files);
+  }
+
+  /** Merge "-NNNNN-of-NNNNN" shards into a single entry per base name. */
+  private groupShards(files: LmStudioModelFile[]): LmStudioModelFile[] {
+    const result: LmStudioModelFile[] = [];
+    let i = 0;
+    while (i < files.length) {
+      const m = LmStudioService.SHARD_RE.exec(files[i].name);
+      if (!m) {
+        result.push(files[i]);
+        i++;
+        continue;
+      }
+      const base = `${m[1]}.gguf`;
+      const shards: string[] = [];
+      let size = 0;
+      while (i < files.length) {
+        const mm = LmStudioService.SHARD_RE.exec(files[i].name);
+        if (!mm || `${mm[1]}.gguf` !== base) break;
+        shards.push(files[i].name);
+        size += files[i].size;
+        i++;
+      }
+      result.push({ name: base, size, shards });
+    }
+    return result;
   }
 }

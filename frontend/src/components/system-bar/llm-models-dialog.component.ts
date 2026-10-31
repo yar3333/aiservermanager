@@ -123,12 +123,16 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   }
 
   async deleteLmFile(m: LmStudioModel, f: LmStudioModelFile): Promise<void> {
+    const paths = f.shards ?? [f.name];
     const key = `${m.name}/${f.name}`;
     if (this.lmFileDeleting()) return;
-    if (!confirm(`Delete file ${f.name} (${this.formatBytes(f.size)})?`)) return;
+    const what = f.shards ? `${f.name} (${f.shards.length} shard files)` : f.name;
+    if (!confirm(`Delete file ${what} (${this.formatBytes(f.size)})?`)) return;
     this.lmFileDeleting.set(key);
     try {
-      await this.lmStudioService.deleteModelFile(m.name, f.name);
+      for (const p of paths) {
+        await this.lmStudioService.deleteModelFile(m.name, p);
+      }
       await this.refreshLmModels();
     } catch (err: unknown) {
       this.error.set(this.errorText(err, `Failed to delete ${f.name}`));

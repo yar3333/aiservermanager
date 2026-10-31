@@ -1,9 +1,12 @@
-/** A single weight file inside a model dir — one quantization (or a shard of one). */
+/** A single weight file inside a model dir — one quantization (or a sharded one). */
 export interface LmStudioModelFile {
-  /** Path relative to the model dir, e.g. "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf". */
+  /** Path relative to the model dir; for a sharded group — the base name without
+   *  the "-NNNNN-of-NNNNN" suffix, e.g. "Qwen3.8-27B-BF16.gguf". */
   name: string;
-  /** File size in bytes. */
+  /** Total size in bytes (sum of all shards for a group). */
   size: number;
+  /** Shard paths relative to the model dir — present only when shards are grouped. */
+  shards?: string[];
 }
 
 /** A model downloaded via LM Studio (from ~/.lmstudio/models/<publisher>/<name>). */

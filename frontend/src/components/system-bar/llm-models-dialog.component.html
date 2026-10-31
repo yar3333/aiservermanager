@@ -148,7 +148,10 @@
             <div class="file-list">
               @for (f of m.files; track f.name) {
                 <div class="file-row">
-                  <span class="file-name" [title]="f.name">{{ f.name }}</span>
+                  <span class="file-name" [title]="f.shards ? f.shards.join('\n') : f.name">{{ f.name }}</span>
+                  @if (f.shards) {
+                    <span class="shard-count">{{ f.shards.length }} shards</span>
+                  }
                   <span class="size">{{ formatBytes(f.size) }}</span>
                   <button
                     mat-icon-button

@@ -193,6 +193,17 @@ mat-dialog-content {
       white-space: nowrap;
     }
 
+    .shard-count {
+      flex-shrink: 0;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+
     .size {
       flex-shrink: 0;
       font-size: 12px;
