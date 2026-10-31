@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { injectable, unmanaged } from "inversify";
-import { LmStudioModel } from "../models/LmStudio";
+import { LmStudioModel, LmStudioModelFile } from "../models/LmStudio";
 
 /** Lists models downloaded via LM Studio from ~/.lmstudio/models/<publisher>/<name>. */
 @injectable()
@@ -29,7 +29,9 @@ export class LmStudioService {
         return Promise.all(
           names.map(async (name): Promise<LmStudioModel> => {
             const dir = path.join(root, pub, name);
-            return { name: `${pub}/${name}`, dir, size: await this.dirSize(dir) };
+            const files = await this.listGgufFiles(dir);
+            const size = files.reduce((sum, f) => sum + f.size, 0);
+            return { name: `${pub}/${name}`, dir, size, files };
           }),
         );
       }),
@@ -59,6 +61,34 @@ export class LmStudioService {
     if (rootReal) await this.removeEmptyParents(real, rootReal);
   }
 
+  /** Delete a single GGUF file (fileName = path relative to the model dir),
+   *  then remove now-empty parent dirs of the file. */
+  async deleteModelFile(name: string, fileName: string): Promise<void> {
+    if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(name) || name.includes("..")) {
+      throw new Error(`Invalid model name: ${name}`);
+    }
+    if (!fileName || fileName.split(/[\\/]/).some((p) => p === "..")) {
+      throw new Error("Invalid file path");
+    }
+    const root = this.modelsRoot();
+    const dir = path.join(root, ...name.split("/"));
+    const file = path.join(dir, fileName);
+    let real: string;
+    try {
+      real = await fs.promises.realpath(file);
+    } catch {
+      throw new Error(`File not found: ${name}/${fileName}`);
+    }
+    const rootReal = await fs.promises.realpath(root).catch(() => null);
+    if (rootReal && !real.startsWith(rootReal + path.sep)) {
+      throw new Error("Invalid file path");
+    }
+    await fs.promises.rm(real);
+    if (rootReal) await this.removeEmptyParents(real, rootReal);
+    // Prune the model dir and publisher dir when everything is gone.
+    await this.removeEmptyParents(file, rootReal ?? root);
+  }
+
   /** Remove now-empty parent dirs of a deleted model, up to (not including) stopAt. */
   private async removeEmptyParents(file: string, stopAt: string): Promise<void> {
     let dir = path.dirname(file);
@@ -83,9 +113,9 @@ export class LmStudioService {
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   }
 
-  /** Total size of all files under the model dir (recursively). */
-  private async dirSize(dir: string): Promise<number> {
-    let total = 0;
+  /** GGUF files under the model dir (recursively), sorted by relative path. */
+  private async listGgufFiles(dir: string): Promise<LmStudioModelFile[]> {
+    const files: LmStudioModelFile[] = [];
     const walk = async (d: string): Promise<void> => {
       let entries: fs.Dirent[];
       try {
@@ -97,13 +127,15 @@ export class LmStudioService {
         const p = path.join(d, e.name);
         try {
           if (e.isDirectory()) await walk(p);
-          else if (e.isFile()) total += (await fs.promises.lstat(p)).size;
+          else if (e.isFile() && e.name.toLowerCase().endsWith(".gguf")) {
+            files.push({ name: path.relative(dir, p), size: (await fs.promises.lstat(p)).size });
+          }
         } catch {
           // file vanished mid-walk — ignore
         }
       }
     };
     await walk(dir);
-    return total;
+    return files.sort((a, b) => a.name.localeCompare(b.name));
   }
 }

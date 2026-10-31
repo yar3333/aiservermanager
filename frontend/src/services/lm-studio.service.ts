@@ -18,4 +18,12 @@ export class LmStudioService {
     const [org, ...rest] = name.split("/");
     await firstValueFrom(this.http.delete(`${this.baseUrl}/models/${org}/${rest.join("/")}`));
   }
+
+  /** Delete a single GGUF file (quantization) from a model dir (name = "publisher/model"). */
+  async deleteModelFile(name: string, fileName: string): Promise<void> {
+    const [org, ...rest] = name.split("/");
+    await firstValueFrom(
+      this.http.delete(`${this.baseUrl}/models/${org}/${rest.join("/")}/files/${encodeURIComponent(fileName)}`),
+    );
+  }
 }

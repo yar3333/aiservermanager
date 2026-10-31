@@ -22,7 +22,12 @@ describe("LmStudioService", () => {
 
   it("fetches local models from /api/lmstudio/models", async () => {
     const models: LmStudioModel[] = [
-      { name: "lmstudio-community/Test-Model-GGUF", dir: "/root/models/lmstudio-community/Test-Model-GGUF", size: 4096 },
+      {
+        name: "lmstudio-community/Test-Model-GGUF",
+        dir: "/root/models/lmstudio-community/Test-Model-GGUF",
+        size: 4096,
+        files: [{ name: "Model-Q4_K_M.gguf", size: 2048 }],
+      },
     ];
     const promise = service.getModels();
     const req = httpMock.expectOne("/api/lmstudio/models");
@@ -34,6 +39,14 @@ describe("LmStudioService", () => {
   it("deletes a model via DELETE /api/lmstudio/models/:org/:name", async () => {
     const promise = service.deleteModel("pub/model");
     const req = httpMock.expectOne("/api/lmstudio/models/pub/model");
+    expect(req.request.method).toBe("DELETE");
+    req.flush({});
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  it("deletes a single quantization file via DELETE /api/lmstudio/models/:org/:name/files/:file", async () => {
+    const promise = service.deleteModelFile("pub/model", "Model-Q4_K_M.gguf");
+    const req = httpMock.expectOne("/api/lmstudio/models/pub/model/files/Model-Q4_K_M.gguf");
     expect(req.request.method).toBe("DELETE");
     req.flush({});
     await expect(promise).resolves.toBeUndefined();

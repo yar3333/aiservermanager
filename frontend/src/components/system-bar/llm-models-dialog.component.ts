@@ -8,7 +8,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { HfService } from "../../services/hf.service";
 import { LmStudioService } from "../../services/lm-studio.service";
 import { HfDownload, HfLocalModel, HfOrphanBlob } from "../../models/hf";
-import { LmStudioModel } from "../../models/lm-studio";
+import { LmStudioModel, LmStudioModelFile } from "../../models/lm-studio";
 
 const POLL_MS = 2000;
 
@@ -39,6 +39,10 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   readonly lmLoading = signal(true);
   /** LM Studio model whose delete is in flight (disables its button). */
   readonly lmDeleting = signal<string | null>(null);
+  /** LM Studio model whose quantization files are expanded (model name or null). */
+  readonly lmExpanded = signal<string | null>(null);
+  /** LM Studio file whose delete is in flight ("model/file" — disables its button). */
+  readonly lmFileDeleting = signal<string | null>(null);
 
   /** Models currently being downloaded are shown as cards, not in the static list. */
   readonly staticModels = computed(() => {
@@ -100,6 +104,10 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  toggleLmExpand(m: LmStudioModel): void {
+    this.lmExpanded.set(this.lmExpanded() === m.name ? null : m.name);
+  }
+
   async deleteLmModel(m: LmStudioModel): Promise<void> {
     if (this.lmDeleting()) return;
     if (!confirm(`Delete model ${m.name} (${this.formatBytes(m.size)}) from the LM Studio folder?`)) return;
@@ -111,6 +119,21 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
       this.error.set(this.errorText(err, `Failed to delete ${m.name}`));
     } finally {
       this.lmDeleting.set(null);
+    }
+  }
+
+  async deleteLmFile(m: LmStudioModel, f: LmStudioModelFile): Promise<void> {
+    const key = `${m.name}/${f.name}`;
+    if (this.lmFileDeleting()) return;
+    if (!confirm(`Delete file ${f.name} (${this.formatBytes(f.size)})?`)) return;
+    this.lmFileDeleting.set(key);
+    try {
+      await this.lmStudioService.deleteModelFile(m.name, f.name);
+      await this.refreshLmModels();
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, `Failed to delete ${f.name}`));
+    } finally {
+      this.lmFileDeleting.set(null);
     }
   }
 

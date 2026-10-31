@@ -29,18 +29,42 @@ describe("LmStudioService", () => {
 
     const models = await service().listModels();
     expect(models).toHaveLength(1);
-    expect(models[0]).toEqual({ name: "lmstudio-community/Test-Model-GGUF", dir: modelDir, size: 3072 });
+    expect(models[0]).toEqual({
+      name: "lmstudio-community/Test-Model-GGUF",
+      dir: modelDir,
+      size: 3072,
+      files: [
+        { name: "model-q4.gguf", size: 2048 },
+        { name: "model-q8.gguf", size: 1024 },
+      ],
+    });
   });
 
-  it("counts nested files", async () => {
+  it("lists only gguf files in the files array", async () => {
+    const modelDir = path.join(root, "pub", "mixed");
+    fs.mkdirSync(modelDir, { recursive: true });
+    fs.writeFileSync(path.join(modelDir, "model.Q4_K_M.gguf"), Buffer.alloc(2048));
+    fs.writeFileSync(path.join(modelDir, "README.md"), "x");
+    fs.writeFileSync(path.join(modelDir, "tokenizer.json"), "x");
+
+    const models = await service().listModels();
+    expect(models[0].files).toEqual([{ name: "model.Q4_K_M.gguf", size: 2048 }]);
+  });
+
+  it("counts nested gguf files", async () => {
     const modelDir = path.join(root, "pub", "nested");
     fs.mkdirSync(path.join(modelDir, "sub"), { recursive: true });
-    fs.writeFileSync(path.join(modelDir, "a.bin"), Buffer.alloc(100));
-    fs.writeFileSync(path.join(modelDir, "sub", "b.bin"), Buffer.alloc(50));
+    fs.writeFileSync(path.join(modelDir, "a.gguf"), Buffer.alloc(100));
+    fs.writeFileSync(path.join(modelDir, "sub", "b.gguf"), Buffer.alloc(50));
+    fs.writeFileSync(path.join(modelDir, "README.md"), "x");
 
     const models = await service().listModels();
     expect(models).toHaveLength(1);
     expect(models[0].size).toBe(150);
+    expect(models[0].files).toEqual([
+      { name: "a.gguf", size: 100 },
+      { name: path.join("sub", "b.gguf"), size: 50 },
+    ]);
   });
 
   it("ignores stray files in the root and in publisher dirs (only dirs are models)", async () => {
@@ -57,6 +81,41 @@ describe("LmStudioService", () => {
     }
     const names = (await service().listModels()).map((m) => m.name);
     expect(names).toEqual(["a-pub/m-model", "b-pub/z-model"]);
+  });
+
+  describe("deleteModelFile", () => {
+    it("deletes a single gguf file and keeps the model dir", async () => {
+      const modelDir = path.join(root, "pub", "m");
+      fs.mkdirSync(modelDir, { recursive: true });
+      fs.writeFileSync(path.join(modelDir, "a.gguf"), Buffer.alloc(2048));
+      fs.writeFileSync(path.join(modelDir, "b.gguf"), Buffer.alloc(1024));
+
+      await service().deleteModelFile("pub/m", "a.gguf");
+
+      expect(fs.existsSync(path.join(modelDir, "a.gguf"))).toBe(false);
+      expect(fs.existsSync(path.join(modelDir, "b.gguf"))).toBe(true);
+      expect(fs.existsSync(modelDir)).toBe(true);
+    });
+
+    it("removes the model dir when the last file is deleted", async () => {
+      fs.mkdirSync(path.join(root, "pub", "m"), { recursive: true });
+      fs.writeFileSync(path.join(root, "pub", "m", "a.gguf"), "x");
+
+      await service().deleteModelFile("pub/m", "a.gguf");
+
+      expect(fs.existsSync(path.join(root, "pub", "m"))).toBe(false);
+      expect(fs.existsSync(path.join(root, "pub"))).toBe(false);
+    });
+
+    it("rejects traversal outside the models root", async () => {
+      fs.mkdirSync(path.join(root, "pub", "m"), { recursive: true });
+      await expect(service().deleteModelFile("pub/m", "../../escape.gguf")).rejects.toThrow("Invalid file path");
+    });
+
+    it("throws File not found for a missing file", async () => {
+      fs.mkdirSync(path.join(root, "pub", "m"), { recursive: true });
+      await expect(service().deleteModelFile("pub/m", "nope.gguf")).rejects.toThrow("File not found");
+    });
   });
 
   describe("deleteModel", () => {

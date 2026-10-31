@@ -124,9 +124,13 @@
     } @else {
       <div class="model-list">
         @for (m of lmModels(); track m.name) {
-          <div class="model-row">
-            <div class="row-main">
-              <span class="repo">{{ m.name }}</span>
+          <div class="model-row lm">
+            <div class="row-main" (click)="toggleLmExpand(m)">
+              <div class="row-title">
+                <mat-icon class="expand-icon">{{ lmExpanded() === m.name ? "expand_more" : "chevron_right" }}</mat-icon>
+                <span class="repo">{{ m.name }}</span>
+                <span class="file-count">{{ m.files.length }} file(s)</span>
+              </div>
               <span class="row-dest" [title]="m.dir">{{ m.dir }}</span>
             </div>
             <span class="size">{{ formatBytes(m.size) }}</span>
@@ -140,6 +144,27 @@
               <mat-icon>delete</mat-icon>
             </button>
           </div>
+          @if (lmExpanded() === m.name) {
+            <div class="file-list">
+              @for (f of m.files; track f.name) {
+                <div class="file-row">
+                  <span class="file-name" [title]="f.name">{{ f.name }}</span>
+                  <span class="size">{{ formatBytes(f.size) }}</span>
+                  <button
+                    mat-icon-button
+                    color="warn"
+                    (click)="deleteLmFile(m, f)"
+                    [disabled]="lmFileDeleting() === m.name + '/' + f.name"
+                    title="Delete quantization"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              } @empty {
+                <div class="empty">No .gguf files</div>
+              }
+            </div>
+          }
         }
       </div>
     }

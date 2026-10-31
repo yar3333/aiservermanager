@@ -13,6 +13,7 @@ describe("LM Studio routes", () => {
     mockSvc = {
       listModels: jest.fn(),
       deleteModel: jest.fn(),
+      deleteModelFile: jest.fn(),
     } as unknown as LmStudioService;
 
     const container = new Container();
@@ -66,6 +67,36 @@ describe("LM Studio routes", () => {
       const res = await request(app).delete("/api/lmstudio/models/pub/x");
       expect(res.status).toBe(500);
       expect(res.body.error).toBe("boom");
+    });
+  });
+
+  describe("DELETE /api/lmstudio/models/:org/:name/files/*splat", () => {
+    it("deletes a single quantization file", async () => {
+      (mockSvc as any).deleteModelFile.mockResolvedValue(undefined);
+      const res = await request(app).delete("/api/lmstudio/models/pub/model/files/model-q4.gguf");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect((mockSvc as any).deleteModelFile).toHaveBeenCalledWith("pub/model", "model-q4.gguf");
+    });
+
+    it("passes through nested file paths", async () => {
+      (mockSvc as any).deleteModelFile.mockResolvedValue(undefined);
+      const res = await request(app).delete("/api/lmstudio/models/pub/model/files/sub/shard-1.gguf");
+      expect(res.status).toBe(200);
+      expect((mockSvc as any).deleteModelFile).toHaveBeenCalledWith("pub/model", "sub/shard-1.gguf");
+    });
+
+    it("returns 404 when the file does not exist", async () => {
+      (mockSvc as any).deleteModelFile.mockRejectedValue(new Error("File not found: pub/m/a.gguf"));
+      const res = await request(app).delete("/api/lmstudio/models/pub/m/files/a.gguf");
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("File not found: pub/m/a.gguf");
+    });
+
+    it("returns 400 on invalid file path", async () => {
+      (mockSvc as any).deleteModelFile.mockRejectedValue(new Error("Invalid file path"));
+      const res = await request(app).delete("/api/lmstudio/models/pub/m/files/a%2F..%2F..%2Fescape");
+      expect(res.status).toBe(400);
     });
   });
 });

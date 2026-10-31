@@ -35,5 +35,29 @@ export default function lmStudioRoutes(container: Container) {
     }
   });
 
+  /** Delete a single GGUF file (quantization) from a model dir. */
+  router.delete("/models/:org/:name/files/*splat", async (req: Request, res: Response) => {
+    try {
+      const org = Array.isArray(req.params.org) ? req.params.org[0] : req.params.org;
+      const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const file = Array.isArray(req.params.splat) ? req.params.splat.join("/") : (req.params.splat as string);
+      if (!file) {
+        res.status(400).json({ error: "Missing file path" });
+        return;
+      }
+      const svc = container.get<LmStudioService>(LM_STUDIO_SERVICE);
+      await svc.deleteModelFile(`${org}/${name}`, file);
+      res.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      const status = message.startsWith("File not found")
+        ? 404
+        : message.startsWith("Invalid")
+          ? 400
+          : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
   return router;
 }
