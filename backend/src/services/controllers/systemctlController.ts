@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
-import { buildEnvironmentLines } from "../../models/ServiceConfig";
+import { buildEnvironmentLines, InstallOptions } from "../../models/ServiceConfig";
 import { JournalLine, ServiceController } from "../serviceController";
 import { ConfigManager } from "../configManager";
 
@@ -117,8 +117,8 @@ export class SystemctlController implements ServiceController {
   /**
    * Build the systemd unit file content for a custom service.
    */
-  private buildUnitContent(name: string, execStart: string, environment?: Record<string, string>): string {
-    const envLines = environment ? buildEnvironmentLines(environment) : [];
+  private buildUnitContent(name: string, execStart: string, options?: InstallOptions): string {
+    const envLines = options?.environment ? buildEnvironmentLines(options.environment) : [];
     const lines = [
       "[Unit]",
       `Description=ai server manager service (${name})`,
@@ -126,26 +126,32 @@ export class SystemctlController implements ServiceController {
       "",
       "[Service]",
       "Type=simple",
+    ];
+    if (options?.user) {
+      lines.push(`User=${options.user}`);
+    }
+    if (options?.group) {
+      lines.push(`Group=${options.group}`);
+    }
+    lines.push(
       `ExecStart=${execStart}`,
       ...envLines,
-      "Restart=no",
-      //"Restart=on-failure",
-      //"RestartSec=5",
+      `Restart=${options?.restart ?? "no"}`,
       "",
       "[Install]",
       "WantedBy=multi-user.target",
       "",
-    ];
+    );
     return lines.join("\n");
   }
 
   /**
    * Write the unit file and reload the daemon. Does NOT enable.
    */
-  async install(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
+  async install(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus> {
     const sudo = "sudo ";
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
-    const unitContent = this.buildUnitContent(name, execStart, environment);
+    const unitContent = this.buildUnitContent(name, execStart, options);
 
     try {
       if (this.hasCustomConfig(name)) {
@@ -188,12 +194,8 @@ export class SystemctlController implements ServiceController {
     return this.getStatus(name);
   }
 
-  async installAndEnable(
-    name: string,
-    execStart: string,
-    environment?: Record<string, string>,
-  ): Promise<ServiceStatus> {
-    const status = await this.install(name, execStart, environment);
+  async installAndEnable(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart, options);
     if (status.error) return status;
 
     const enableResult = await ExecTools.safeExecWithCode(`sudo systemctl enable ${name}`);

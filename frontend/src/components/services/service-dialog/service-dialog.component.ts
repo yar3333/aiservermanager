@@ -5,7 +5,8 @@ import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { MatButtonModule } from "@angular/material/button";
 import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
-import { ServiceConfig, ServiceType } from "../../../models/service";
+import { MatSelectModule } from "@angular/material/select";
+import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 
 export interface ServiceDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -28,6 +29,7 @@ const NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$";
     MatAutocompleteModule,
     MatButtonModule,
     MatInputModule,
+    MatSelectModule,
     MatDialogModule,
   ],
   templateUrl: "./service-dialog.component.html",
@@ -46,7 +48,13 @@ export class ServiceDialogComponent {
     command: [this.data.config?.command ?? "", Validators.required],
     flagsText: [""],
     envText: [""],
+    user: [this.data.config?.user ?? ""],
+    group: [this.data.config?.group ?? ""],
+    restart: [this.data.config?.restart ?? "no"],
   });
+
+  /** Options for the Restart= select. */
+  readonly restartOptions = SERVICE_RESTART_VALUES;
 
   get nameControl() {
     return this.form.get("name")!;
@@ -125,6 +133,13 @@ export class ServiceDialogComponent {
       flags,
       environment,
     };
+
+    const user = ((this.form.get("user")!.value as string) ?? "").trim();
+    const group = ((this.form.get("group")!.value as string) ?? "").trim();
+    if (user) cfg.user = user;
+    if (group) cfg.group = group;
+    const restart = this.form.get("restart")!.value as ServiceRestart;
+    if (restart && restart !== "no") cfg.restart = restart;
 
     this.dialogRef.close(cfg);
   }

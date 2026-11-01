@@ -1,5 +1,5 @@
 import { multiInject } from "inversify";
-import { ServiceConfig, buildExecStart } from "../models/ServiceConfig";
+import { ServiceConfig, buildExecStart, buildInstallOptions, USER_GROUP_REGEX, RESTART_VALUES } from "../models/ServiceConfig";
 import { ConfigManager } from "./configManager";
 import { ServiceController } from "./serviceController";
 
@@ -71,6 +71,17 @@ export class ServiceConfigController {
       }
     }
 
+    // Validate run-as settings
+    if (cfg.user !== undefined && !USER_GROUP_REGEX.test(cfg.user)) {
+      return { ok: false, error: `Invalid user name: "${cfg.user}"` };
+    }
+    if (cfg.group !== undefined && !USER_GROUP_REGEX.test(cfg.group)) {
+      return { ok: false, error: `Invalid group name: "${cfg.group}"` };
+    }
+    if (cfg.restart !== undefined && !(RESTART_VALUES as readonly string[]).includes(cfg.restart)) {
+      return { ok: false, error: `Invalid restart policy: "${cfg.restart}"` };
+    }
+
     // Save config file
     this.configManager.save(cfg);
 
@@ -84,7 +95,7 @@ export class ServiceConfigController {
       const wasInstalled = priorStatus.installed;
       const wasEnabled = wasInstalled && priorStatus.enabled;
 
-      const result = await controller.install(cfg.name, execStart, cfg.environment);
+      const result = await controller.install(cfg.name, execStart, buildInstallOptions(cfg));
       if (result.error) {
         // Config was saved but service install failed — keep config for retry
         return { ok: false, error: result.error };
@@ -180,7 +191,7 @@ export class ServiceConfigController {
     const controller = await this.getActiveController();
     if (controller) {
       const execStart = buildExecStart(cfg);
-      const result = await controller.install(name, execStart, cfg.environment);
+      const result = await controller.install(name, execStart, buildInstallOptions(cfg));
       if (result.error) {
         // Config is back in services/ — user can retry from the services UI.
         return { ok: false, error: result.error };

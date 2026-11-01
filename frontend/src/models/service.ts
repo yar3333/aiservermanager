@@ -15,6 +15,19 @@ export type ServiceAction = "start" | "stop" | "enable" | "disable";
 /** Service type: generic (arbitrary), llama-server or vllm (structured configs). */
 export type ServiceType = "generic" | "llama-server" | "vllm";
 
+/** Supported systemd Restart= values. */
+export const SERVICE_RESTART_VALUES = [
+  "no",
+  "on-success",
+  "on-failure",
+  "on-abnormal",
+  "on-watchdog",
+  "on-abort",
+  "always",
+] as const;
+
+export type ServiceRestart = (typeof SERVICE_RESTART_VALUES)[number];
+
 /** Custom service config (full name + command + flags). */
 export interface ServiceConfig {
   /** Full service name (e.g. "llama-server", "my-ai-worker") */
@@ -27,6 +40,12 @@ export interface ServiceConfig {
   flags: string[];
   /** Extra environment variables passed to the service process (KEY → value). */
   environment?: Record<string, string>;
+  /** Run the service as this user (systemd User=). Unset → run as root. */
+  user?: string;
+  /** Run the service as this group (systemd Group=). */
+  group?: string;
+  /** Restart policy (systemd Restart=). Unset → "no" (systemd default). */
+  restart?: ServiceRestart;
 }
 
 /** A single journal log line from the backend. */

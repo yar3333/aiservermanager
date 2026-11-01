@@ -1,4 +1,5 @@
 import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
+import { InstallOptions } from "../models/ServiceConfig";
 
 /** A single journal log line. */
 export interface JournalLine {
@@ -23,13 +24,13 @@ export interface ServiceController {
    * Install a custom service unit file and reload the daemon.
    * Does NOT enable (auto-start). Returns the post-action status on success.
    */
-  install(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus>;
+  install(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus>;
 
   /**
    * Install a custom service from its config, then enable it (auto-start).
    * Returns the post-action status on success.
    */
-  installAndEnable(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus>;
+  installAndEnable(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus>;
 
   /**
    * Uninstall a service: stop if running, then remove from the OS.

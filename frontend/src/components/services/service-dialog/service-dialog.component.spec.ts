@@ -65,6 +65,37 @@ describe("ServiceDialogComponent", () => {
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 
+  it("prefills and saves user, group and restart", () => {
+    create({
+      name: "llama-server",
+      command: "/bin/llama-server",
+      flags: [],
+      user: "llama",
+      group: "ai",
+      restart: "always",
+    });
+    expect(component.form.get("user")!.value).toBe("llama");
+    expect(component.form.get("group")!.value).toBe("ai");
+    expect(component.form.get("restart")!.value).toBe("always");
+
+    component.save();
+    expect(dialogRef.close).toHaveBeenCalledWith(
+      expect.objectContaining({ user: "llama", group: "ai", restart: "always" }),
+    );
+  });
+
+  it("omits empty user/group and the default restart policy on save", () => {
+    create({ name: "svc", command: "/bin/x", flags: [], user: "old", group: "g", restart: "on-failure" });
+    component.form.get("user")!.setValue("  ");
+    component.form.get("group")!.setValue("");
+    component.form.get("restart")!.setValue("no");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0];
+    expect(saved.user).toBeUndefined();
+    expect(saved.group).toBeUndefined();
+    expect(saved.restart).toBeUndefined();
+  });
+
   it("cancel closes the dialog without a result", () => {
     create(null);
     component.cancel();

@@ -19,6 +19,16 @@
   width: 100%;
 }
 
+.run-as-row {
+  display: flex;
+  gap: 12px;
+}
+
+.half-width {
+  flex: 1;
+  min-width: 0;
+}
+
 .flags-textarea,
 .env-textarea {
   overflow-x: auto;

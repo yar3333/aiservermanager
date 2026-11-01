@@ -882,12 +882,17 @@ export class LlamaServerDialogComponent implements OnInit {
     if (this.form.invalid) return;
 
     const environment = this.parseEnvironment();
+    const prev = this.data.config;
     const cfg: ServiceConfig = {
       name: this.form.controls.name.value!.trim(),
       type: "llama-server" as ServiceType,
       command: this.form.controls.command.value!.trim(),
       flags: this.buildFlags(),
       ...(Object.keys(environment).length ? { environment } : {}),
+      // Fields managed by the generic service dialog — pass through untouched
+      ...(prev?.user ? { user: prev.user } : {}),
+      ...(prev?.group ? { group: prev.group } : {}),
+      ...(prev?.restart ? { restart: prev.restart } : {}),
     };
 
     this.dialogRef.close(cfg);

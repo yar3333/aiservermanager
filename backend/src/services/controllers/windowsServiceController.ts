@@ -1,5 +1,6 @@
 import { ExecTools, ExecResult, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
+import { InstallOptions } from "../../models/ServiceConfig";
 import { JournalLine, ServiceController } from "../serviceController";
 
 /** Manage Windows services via sc.exe. */
@@ -164,7 +165,7 @@ export class WindowsServiceController implements ServiceController {
     return result.exitCode === 0 ? null : `Failed to set environment variables: ${result.stderr.trim()}`;
   }
 
-  async install(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
+  async install(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus> {
     const SC = WindowsServiceController.SC;
     const isAdmin = await this.checkIsAdmin();
     if (!isAdmin) {
@@ -178,7 +179,7 @@ export class WindowsServiceController implements ServiceController {
     }
 
     // Persist environment variables before (re)creating the service
-    const envError = await this.setServiceEnvironment(name, environment);
+    const envError = await this.setServiceEnvironment(name, options?.environment);
     if (envError) {
       return { name, running: false, enabled: false, installed: false, error: envError };
     }
@@ -209,8 +210,8 @@ export class WindowsServiceController implements ServiceController {
     return this.getStatus(name);
   }
 
-  async installAndEnable(name: string, execStart: string, environment?: Record<string, string>): Promise<ServiceStatus> {
-    const status = await this.install(name, execStart, environment);
+  async installAndEnable(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus> {
+    const status = await this.install(name, execStart, options);
     if (status.error) return status;
 
     // Enable (set to auto start)

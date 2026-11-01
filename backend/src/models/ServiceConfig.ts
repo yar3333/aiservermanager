@@ -4,6 +4,44 @@ export type ServiceType = "generic" | "llama-server" | "vllm";
 /** Valid environment variable name (POSIX / systemd rule). */
 const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** Valid systemd user/group name (subset accepted by the unit file). */
+export const USER_GROUP_REGEX = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+
+/** Supported systemd Restart= values. */
+export const RESTART_VALUES = [
+  "no",
+  "on-success",
+  "on-failure",
+  "on-abnormal",
+  "on-watchdog",
+  "on-abort",
+  "always",
+] as const;
+
+export type ServiceRestart = (typeof RESTART_VALUES)[number];
+
+/** Extra settings passed to ServiceController.install() when writing the unit. */
+export interface InstallOptions {
+  /** Environment variables for the service process. */
+  environment?: Record<string, string>;
+  /** Run the service as this user (systemd User=). */
+  user?: string;
+  /** Run the service as this group (systemd Group=). */
+  group?: string;
+  /** Restart policy (systemd Restart=). Defaults to "no". */
+  restart?: ServiceRestart;
+}
+
+/** Build install options (environment + run-as settings) from a service config. */
+export function buildInstallOptions(cfg: ServiceConfig): InstallOptions {
+  return {
+    environment: cfg.environment,
+    user: cfg.user,
+    group: cfg.group,
+    restart: cfg.restart,
+  };
+}
+
 /** Service config loaded from ~/.config/aiservermanager/services/<name>.conf */
 export interface ServiceConfig {
   /** Full systemd service name (e.g. "llama-server", "my-ai-worker") */
@@ -16,17 +54,27 @@ export interface ServiceConfig {
   flags: string[];
   /** Extra environment variables passed to the service process (KEY → value). */
   environment?: Record<string, string>;
+  /** Run the service as this user (systemd User=). Unset → run as root. */
+  user?: string;
+  /** Run the service as this group (systemd Group=). */
+  group?: string;
+  /** Restart policy (systemd Restart=). Unset → "no" (systemd default). */
+  restart?: ServiceRestart;
 }
 
 /**
- * Parse a config file into a ServiceConfig. Lines with "type=", "command=" or
- * "env.KEY=" are metadata; every other non-empty line is a raw CLI argument.
+ * Parse a config file into a ServiceConfig. Lines with "type=", "command=",
+ * "unit.user=", "unit.group=", "unit.restart=" or "env.KEY=" are metadata;
+ * every other non-empty line is a raw CLI argument.
  */
 export function parseConfigFile(name: string, raw: string): ServiceConfig {
   const flags: string[] = [];
   const environment: Record<string, string> = {};
   let command = "";
   let type: ServiceType | undefined;
+  let user: string | undefined;
+  let group: string | undefined;
+  let restart: ServiceRestart | undefined;
 
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
@@ -39,6 +87,17 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
       }
     } else if (trimmed.startsWith("command=")) {
       command = trimmed.slice("command=".length).trim();
+    } else if (trimmed.startsWith("unit.user=")) {
+      const val = trimmed.slice("unit.user=".length).trim();
+      if (USER_GROUP_REGEX.test(val)) user = val;
+    } else if (trimmed.startsWith("unit.group=")) {
+      const val = trimmed.slice("unit.group=".length).trim();
+      if (USER_GROUP_REGEX.test(val)) group = val;
+    } else if (trimmed.startsWith("unit.restart=")) {
+      const val = trimmed.slice("unit.restart=".length).trim();
+      if ((RESTART_VALUES as readonly string[]).includes(val)) {
+        restart = val as ServiceRestart;
+      }
     } else if (trimmed.startsWith("env.")) {
       const eqIdx = trimmed.indexOf("=");
       if (eqIdx > 0) {
@@ -53,7 +112,16 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
   }
 
   const envKeys = Object.keys(environment);
-  return { name, type, command, flags, environment: envKeys.length ? environment : undefined };
+  return {
+    name,
+    type,
+    command,
+    flags,
+    environment: envKeys.length ? environment : undefined,
+    user,
+    group,
+    restart,
+  };
 }
 
 /** Serialize a ServiceConfig back to a config file string. */
@@ -63,6 +131,15 @@ export function serializeConfig(cfg: ServiceConfig): string {
     lines.push(`type=${cfg.type}`);
   }
   lines.push(`command=${cfg.command}`);
+  if (cfg.user && USER_GROUP_REGEX.test(cfg.user)) {
+    lines.push(`unit.user=${cfg.user}`);
+  }
+  if (cfg.group && USER_GROUP_REGEX.test(cfg.group)) {
+    lines.push(`unit.group=${cfg.group}`);
+  }
+  if (cfg.restart && (RESTART_VALUES as readonly string[]).includes(cfg.restart)) {
+    lines.push(`unit.restart=${cfg.restart}`);
+  }
   if (cfg.environment) {
     for (const [key, value] of Object.entries(cfg.environment)) {
       if (ENV_KEY_REGEX.test(key) && !/[\r\n]/.test(value)) {

@@ -3,7 +3,7 @@ import { ServiceAction, ServiceStatus } from "../models/ServiceStatus";
 import { JournalLine, ServiceController } from "./serviceController";
 import { ConfigManager } from "./configManager";
 import { ManagedServicesManager } from "./managedServicesManager";
-import { buildExecStart } from "../models/ServiceConfig";
+import { buildExecStart, buildInstallOptions } from "../models/ServiceConfig";
 
 /** Service metadata — defaults for each known service. */
 interface ServiceDef {
@@ -78,7 +78,7 @@ export class ServiceManager {
         if (!cfg) return;
 
         const execStart = buildExecStart(cfg);
-        const result = await controller.install(status.name, execStart, cfg.environment);
+        const result = await controller.install(status.name, execStart, buildInstallOptions(cfg));
 
         // If install failed, cache the error
         if (result.error) {
@@ -156,7 +156,7 @@ export class ServiceManager {
     }
 
     const execStart = buildExecStart(cfg);
-    const result = await controller.install(name, execStart, cfg.environment);
+    const result = await controller.install(name, execStart, buildInstallOptions(cfg));
 
     if (!result.error) {
       this.installErrors.delete(name);

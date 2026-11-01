@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { ServiceConfig, buildExecStart, serializeConfig } from "../../models/ServiceConfig";
+import { ServiceConfig, buildExecStart, buildInstallOptions, serializeConfig } from "../../models/ServiceConfig";
 import { ServiceController } from "../serviceController";
 import { ServiceStatus } from "../../models/ServiceStatus";
 
@@ -116,7 +116,7 @@ describe("ServiceConfigController (archive)", () => {
       expect(result.ok).toBe(true);
       expect(fs.existsSync(path.join(archiveDir, "my-svc.conf"))).toBe(false);
       expect(fs.existsSync(path.join(servicesDir, "my-svc.conf"))).toBe(true);
-      expect(controller.install).toHaveBeenCalledWith("my-svc", buildExecStart(cfg), cfg.environment);
+      expect(controller.install).toHaveBeenCalledWith("my-svc", buildExecStart(cfg), buildInstallOptions(cfg));
     });
 
     it("returns an error and does not install when the archived config is missing", async () => {
@@ -143,6 +143,48 @@ describe("ServiceConfigController (archive)", () => {
       expect(result.error).toBe("install failed");
       // Config was moved back — user can retry from the UI.
       expect(fs.existsSync(path.join(servicesDir, "my-svc.conf"))).toBe(true);
+    });
+  });
+
+  describe("createOrUpdate", () => {
+    it("passes user/group/restart from the config to install", async () => {
+      const controller = makeController();
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.createOrUpdate({
+        name: "my-svc",
+        command: "/usr/bin/foo",
+        flags: [],
+        user: "llama",
+        group: "ai",
+        restart: "always",
+      });
+
+      expect(result.ok).toBe(true);
+      expect(controller.install).toHaveBeenCalledWith("my-svc", "/usr/bin/foo", {
+        environment: undefined,
+        user: "llama",
+        group: "ai",
+        restart: "always",
+      });
+      const raw = fs.readFileSync(path.join(servicesDir, "my-svc.conf"), "utf-8");
+      expect(raw).toContain("unit.user=llama");
+      expect(raw).toContain("unit.group=ai");
+      expect(raw).toContain("unit.restart=always");
+    });
+
+    it("rejects invalid user, group and restart values", async () => {
+      const controller = makeController();
+      const scc = new ServiceConfigController([controller]);
+
+      expect((await scc.createOrUpdate({ name: "s1", command: "/bin/x", flags: [], user: "bad user" })).ok).toBe(false);
+      expect((await scc.createOrUpdate({ name: "s2", command: "/bin/x", flags: [], group: "bad group!" })).ok).toBe(
+        false,
+      );
+      expect(
+        (await scc.createOrUpdate({ name: "s3", command: "/bin/x", flags: [], restart: "sometimes" as never })).ok,
+      ).toBe(false);
+      expect(controller.install).not.toHaveBeenCalled();
     });
   });
 

@@ -108,6 +108,9 @@ export default function serviceRoutes(container: Container) {
         command: body.command,
         flags: body.flags ?? [],
         environment: body.environment ?? {},
+        user: typeof body.user === "string" && body.user.trim() ? body.user.trim() : undefined,
+        group: typeof body.group === "string" && body.group.trim() ? body.group.trim() : undefined,
+        restart: body.restart,
       };
 
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
