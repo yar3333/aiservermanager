@@ -603,6 +603,35 @@
         <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
       </mat-form-field>
     </mat-expansion-panel>
+
+    <!-- ═══════════ Service unit ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Service unit</mat-panel-title>
+        <mat-panel-description>systemd User / Group / Restart policy</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="user" placeholder="llama" matTooltip="systemd User=, empty → root" />
+          <mat-label>Run as user</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="group" placeholder="ai" matTooltip="systemd Group=" />
+          <mat-label>Run as group</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="restart">
+            @for (r of restartOptions; track r) {
+              <mat-option [value]="r">{{ r === "no" ? "no (default)" : r }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Restart policy</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
   </form>
 </mat-dialog-content>
 

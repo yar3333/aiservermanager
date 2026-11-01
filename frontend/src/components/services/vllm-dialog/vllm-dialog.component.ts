@@ -10,7 +10,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
-import { ServiceConfig, ServiceType } from "../../../models/service";
+import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
 import { findFlag, findAllFlags } from "./flag-parsing";
 import { parseContextSize, formatContextSize, CONTEXT_PRESETS } from "../../../utils/context-size";
@@ -248,7 +248,14 @@ export class VllmDialogComponent implements OnInit {
     // Extra flags + env (free-form)
     extraFlags: [DEFAULT_OPTIONS.extraFlags],
     envText: [DEFAULT_OPTIONS.envText],
+    // Service unit (systemd run-as + restart policy)
+    user: [this.data.config?.user ?? ""],
+    group: [this.data.config?.group ?? ""],
+    restart: [this.data.config?.restart ?? "no"],
   });
+
+  /** Options for the Restart= select. */
+  readonly restartOptions = SERVICE_RESTART_VALUES;
 
   /** Host suggestions (network IPs + defaults). */
   readonly filteredHosts = toSignal(
@@ -433,6 +440,11 @@ export class VllmDialogComponent implements OnInit {
         f.envText.setValue(envLines + "\n");
       }
     }
+
+    // Service unit (systemd run-as + restart policy)
+    f.user.setValue(cfg.user ?? "");
+    f.group.setValue(cfg.group ?? "");
+    f.restart.setValue(cfg.restart ?? "no");
   }
 
   /** Flag lines not covered by structured fields (kept verbatim, one per line). */
@@ -613,18 +625,21 @@ export class VllmDialogComponent implements OnInit {
     if (this.form.invalid) return;
 
     const environment = this.parseEnvironment();
-    const prev = this.data.config;
     const cfg: ServiceConfig = {
       name: this.form.controls.name.value!.trim(),
       type: "vllm" as ServiceType,
       command: this.form.controls.command.value!.trim(),
       flags: this.buildFlags(),
       ...(Object.keys(environment).length ? { environment } : {}),
-      // Fields managed by the generic service dialog — pass through untouched
-      ...(prev?.user ? { user: prev.user } : {}),
-      ...(prev?.group ? { group: prev.group } : {}),
-      ...(prev?.restart ? { restart: prev.restart } : {}),
     };
+
+    // Service unit run-as + restart policy (systemd User=/Group=/Restart=)
+    const user = ((this.form.controls.user.value as string) ?? "").trim();
+    const group = ((this.form.controls.group.value as string) ?? "").trim();
+    const restart = this.form.controls.restart.value as ServiceRestart;
+    if (user) cfg.user = user;
+    if (group) cfg.group = group;
+    if (restart && restart !== "no") cfg.restart = restart;
 
     this.dialogRef.close(cfg);
   }

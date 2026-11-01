@@ -262,6 +262,31 @@ describe("VllmDialogComponent", () => {
     expect(component.parseEnvironment()).toEqual({ HF_TOKEN: "hf_x" });
   });
 
+  it("prefills and saves service unit run-as + restart fields", () => {
+    create({ ...VLLM_CONFIG, user: "llama", group: "ai", restart: "always" });
+    expect(component.form.controls.user.value).toBe("llama");
+    expect(component.form.controls.group.value).toBe("ai");
+    expect(component.form.controls.restart.value).toBe("always");
+
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.user).toBe("llama");
+    expect(saved.group).toBe("ai");
+    expect(saved.restart).toBe("always");
+  });
+
+  it("omits empty user/group and the default restart policy on save", () => {
+    create({ ...VLLM_CONFIG, user: "llama", restart: "on-failure" });
+    component.form.controls.user.setValue("  ");
+    component.form.controls.group.setValue("");
+    component.form.controls.restart.setValue("no");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.user).toBeUndefined();
+    expect(saved.group).toBeUndefined();
+    expect(saved.restart).toBeUndefined();
+  });
+
   it("parses '--enable-chunked-prefill false' as off and emits the --no- variant", () => {
     create({ name: "vllm-x", type: "vllm", command: "/bin/vllm", flags: ["--enable-chunked-prefill false"] });
     expect(component.form.controls.enableChunkedPrefill.value).toBe("off");

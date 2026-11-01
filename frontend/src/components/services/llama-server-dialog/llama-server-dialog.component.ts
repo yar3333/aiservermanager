@@ -10,7 +10,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
-import { ServiceConfig, ServiceType } from "../../../models/service";
+import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
 import { findFlag, flagBool, flagValueFloat, flagValueNum, flagValueStr } from "./flag-parsing";
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
@@ -383,7 +383,14 @@ export class LlamaServerDialogComponent implements OnInit {
     // Additional
     extraFlags: [""],
     envText: [""],
+    // Service unit (systemd run-as + restart policy)
+    user: [this.data.config?.user ?? ""],
+    group: [this.data.config?.group ?? ""],
+    restart: [this.data.config?.restart ?? "no"],
   });
+
+  /** Options for the Restart= select. */
+  readonly restartOptions = SERVICE_RESTART_VALUES;
 
   // ── Device + Host autocomplete ──
 
@@ -882,18 +889,21 @@ export class LlamaServerDialogComponent implements OnInit {
     if (this.form.invalid) return;
 
     const environment = this.parseEnvironment();
-    const prev = this.data.config;
     const cfg: ServiceConfig = {
       name: this.form.controls.name.value!.trim(),
       type: "llama-server" as ServiceType,
       command: this.form.controls.command.value!.trim(),
       flags: this.buildFlags(),
       ...(Object.keys(environment).length ? { environment } : {}),
-      // Fields managed by the generic service dialog — pass through untouched
-      ...(prev?.user ? { user: prev.user } : {}),
-      ...(prev?.group ? { group: prev.group } : {}),
-      ...(prev?.restart ? { restart: prev.restart } : {}),
     };
+
+    // Service unit run-as + restart policy (systemd User=/Group=/Restart=)
+    const user = ((this.form.controls.user.value as string) ?? "").trim();
+    const group = ((this.form.controls.group.value as string) ?? "").trim();
+    const restart = this.form.controls.restart.value as ServiceRestart;
+    if (user) cfg.user = user;
+    if (group) cfg.group = group;
+    if (restart && restart !== "no") cfg.restart = restart;
 
     this.dialogRef.close(cfg);
   }
