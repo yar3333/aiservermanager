@@ -29,6 +29,14 @@ export class HfService {
     await firstValueFrom(this.http.delete(`${this.baseUrl}/models/${org}/${rest.join("/")}`));
   }
 
+  /** Delete a single weight file (quantization) from a model's snapshots (name = "org/model"). */
+  async deleteLocalModelFile(name: string, fileName: string): Promise<void> {
+    const [org, ...rest] = name.split("/");
+    await firstValueFrom(
+      this.http.delete(`${this.baseUrl}/models/${org}/${rest.join("/")}/files/${encodeURIComponent(fileName)}`),
+    );
+  }
+
   /** Blob files in the shared hub/blobs referenced by no model (older than 24h). */
   async getOrphanBlobs(): Promise<HfOrphanBlob[]> {
     return firstValueFrom(this.http.get<HfOrphanBlob[]>(`${this.baseUrl}/models/orphans`));

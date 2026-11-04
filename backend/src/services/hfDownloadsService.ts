@@ -2,12 +2,15 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { ExecTools } from "../helpers/ExecTools";
-import { HfDownload, HfLocalModel, HfOrphanBlob, HfStatus } from "../models/HfDownload";
+import { HfDownload, HfLocalModel, HfLocalModelFile, HfOrphanBlob, HfStatus } from "../models/HfDownload";
 
 type HfAction = "pause" | "resume" | "cancel";
 
 /** Unreferenced blob files younger than this are treated as in-flight download chunks. */
 const ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** Budget for one `hf cache rm` run — deleting a multi-hundred-GB repo takes a while. */
+const HF_CLI_TIMEOUT_MS = 2 * 60 * 1000;
 
 interface ProcEntry {
   pid: number;
@@ -68,20 +71,25 @@ export class HfDownloadsService {
 
   /** Whether the `hf` CLI is available (Linux only). Works under systemd's minimal PATH. */
   async isInstalled(): Promise<HfStatus> {
-    if (process.platform !== "linux") return { installed: false };
+    const binPath = await this.resolveHfBin();
+    if (!binPath) return { installed: false };
+    return this.hfStatusFor(binPath);
+  }
+
+  /** Absolute path of the `hf` CLI, or null when it is not installed (Linux only). */
+  private async resolveHfBin(): Promise<string | null> {
+    if (process.platform !== "linux") return null;
     const which = await ExecTools.safeExec("command -v hf", { env: { PATH: this.pathWithUserBins() } });
     const binPath = which.stdout.trim();
-    if (binPath) {
-      return this.hfStatusFor(binPath);
-    }
+    if (binPath) return binPath;
     // Fallback: standard pipx/uv/pip --user install location (may not be on PATH at all)
     const candidate = path.join(os.homedir(), ".local", "bin", "hf");
     try {
       await fs.promises.access(candidate, fs.constants.X_OK);
     } catch {
-      return { installed: false };
+      return null;
     }
-    return this.hfStatusFor(candidate);
+    return candidate;
   }
 
   private async hfStatusFor(binPath: string): Promise<HfStatus> {
@@ -175,15 +183,18 @@ export class HfDownloadsService {
           const name = HfDownloadsService.parseModelDirName(e.name);
           if (!name) return null;
           const dir = path.join(hub, e.name);
-          return { name, dir, size: await this.dirSize(dir) };
+          const [size, files] = await Promise.all([this.dirSize(dir), this.listWeightFiles(dir)]);
+          return { name, dir, size, files };
         }),
     );
     return models.filter((m): m is HfLocalModel => m !== null).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Delete a model's cache directory, then clean up hub-level blobs it referenced
-   *  that are no longer linked from any remaining model. Only blobs referenced by the
-   *  deleted model are considered — chunks of an in-progress download are never touched. */
+  /** Delete a model's cache directory. `hf cache rm` is tried first — it is the official
+   *  implementation of cache bookkeeping (refs, tree metadata, shared blobs); on any
+   *  failure the directory is removed directly and the hub blobs it referenced are
+   *  cleaned up. Only blobs referenced by the deleted model are considered — chunks of an
+   *  in-progress download are never touched. */
   async deleteLocalModel(name: string): Promise<void> {
     if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(name) || name.includes("..")) {
       throw new Error(`Invalid model name: ${name}`);
@@ -200,6 +211,14 @@ export class HfDownloadsService {
     if (hubReal && !real.startsWith(hubReal + path.sep)) {
       throw new Error("Invalid model path");
     }
+
+    if (await this.deleteViaCli(hub, name)) {
+      try {
+        await fs.promises.access(real);
+      } catch {
+        return; // CLI removed it — done
+      }
+    }
     const targets = await this.collectExternalTargets(real, hubReal);
 
     await fs.promises.rm(real, { recursive: true });
@@ -213,6 +232,38 @@ export class HfDownloadsService {
     }
   }
 
+  /**
+   * Remove a whole repo through `hf cache rm`. The CLI exits 0 even when the repo is not
+   * in the cache (it prints a warning), so success is read from its JSON report
+   * (`{"dry_run":false,"repos":1,"revisions":1,"size":"999.6M"}`) rather than the exit code.
+   */
+  private async deleteViaCli(hub: string, name: string): Promise<boolean> {
+    const bin = await this.resolveHfBin();
+    if (!bin) return false;
+    const res = await ExecTools.safeExecWithCode(
+      `"${bin}" cache rm "model/${name}" --yes --json --cache-dir "${hub}"`,
+      { timeout: HF_CLI_TIMEOUT_MS },
+    );
+    const report = HfDownloadsService.parseCacheRmReport(res.stdout);
+    if (!report) {
+      console.warn(`[HfDownloadsService] hf cache rm ${name} reported no removal, falling back to direct delete: ${res.stderr.trim() || res.stdout.trim()}`);
+    }
+    return report;
+  }
+
+  /** True when an `hf cache rm --json` report says something was actually deleted. */
+  private static parseCacheRmReport(stdout: string): boolean {
+    const m = /\{[^{}]*\}/.exec(stdout);
+    if (!m) return false;
+    let parsed: { dry_run?: boolean; repos?: number };
+    try {
+      parsed = JSON.parse(m[0]) as { dry_run?: boolean; repos?: number };
+    } catch {
+      return false;
+    }
+    return parsed.dry_run !== true && (parsed.repos ?? 0) > 0;
+  }
+
   /** Realpaths of external symlink targets referenced by ANY model in the cache. */
   private async referencedExternalTargets(hub: string, hubReal: string | null): Promise<Set<string>> {
     const used = new Set<string>();
@@ -223,6 +274,188 @@ export class HfDownloadsService {
       for (const t of await this.collectExternalTargets(path.join(hub, e.name), hubReal)) used.add(t);
     }
     return used;
+  }
+
+  /**
+   * Delete one weight file (a quantization) of a cached model. The path is relative to a
+   * snapshot revision dir; every revision linking it is cleaned and its blob is removed
+   * when no file in the cache references the blob any more.
+   */
+  async deleteLocalModelFile(name: string, fileName: string): Promise<void> {
+    if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(name) || name.includes("..")) {
+      throw new Error(`Invalid model name: ${name}`);
+    }
+    if (!fileName || fileName.split(/[\\/]/).some((p) => p === ".." || p === "")) {
+      throw new Error("Invalid file path");
+    }
+    const hub = this.hubDir();
+    const hubReal = await fs.promises.realpath(hub).catch(() => null);
+    const modelDir = path.join(hub, `models--${name.replace("/", "--")}`);
+    let modelReal: string;
+    try {
+      modelReal = await fs.promises.realpath(modelDir);
+    } catch {
+      throw new Error(`Model not found: ${name}`);
+    }
+    if (hubReal && !modelReal.startsWith(hubReal + path.sep)) {
+      throw new Error("Invalid model path");
+    }
+
+    const snapRoot = path.join(modelReal, "snapshots");
+    const blobs: string[] = [];
+    let removed = 0;
+    for (const rev of await this.listDirs(snapRoot)) {
+      const revDir = path.join(snapRoot, rev);
+      const revReal = await fs.promises.realpath(revDir).catch(() => null);
+      if (revReal === null) continue;
+      const target = path.join(revDir, fileName);
+      // The parent must live inside the revision dir — a repo could ship a directory
+      // symlink that would otherwise point the delete outside the cache.
+      const parentReal = await fs.promises.realpath(path.dirname(target)).catch(() => "");
+      if (parentReal !== revReal && !parentReal.startsWith(revReal + path.sep)) continue;
+      let st: fs.Stats;
+      try {
+        st = await fs.promises.lstat(target);
+      } catch {
+        continue; // revision without this file
+      }
+      if (st.isDirectory()) continue;
+      // Symlinks point at the real payload in a blobs dir — that is what frees the space.
+      if (st.isSymbolicLink()) blobs.push(await fs.promises.realpath(target).catch(() => ""));
+      await fs.promises.rm(target, { force: true });
+      await this.removeEmptyParents(target, revDir);
+      removed++;
+    }
+    if (removed === 0) throw new Error(`File not found: ${name}/${fileName}`);
+
+    const targets = [...new Set(blobs.filter(Boolean))];
+    if (targets.length === 0) return;
+    const stillUsed = await this.referencedBlobTargets(hub);
+    for (const t of targets) {
+      if (stillUsed.has(t)) continue;
+      const modelBlobs = path.join(modelReal, "blobs");
+      const hubBlobs = hubReal === null ? null : path.join(hubReal, "blobs");
+      const blobsRoot = t.startsWith(modelBlobs + path.sep)
+        ? modelBlobs
+        : hubBlobs !== null && t.startsWith(hubBlobs + path.sep)
+          ? hubBlobs
+          : null;
+      if (blobsRoot === null) continue; // payload outside the cache — leave it alone
+      await fs.promises.rm(t, { force: true }).catch(() => {});
+      await this.removeEmptyParents(t, blobsRoot);
+    }
+  }
+
+  /** Realpaths of every symlink target referenced by any model in the cache — both the
+   *  shared <hub>/blobs (huggingface_hub 1.x) and per-model blobs (classic layout). */
+  private async referencedBlobTargets(hub: string): Promise<Set<string>> {
+    const used = new Set<string>();
+    const entries = await fs.promises.readdir(hub, { withFileTypes: true }).catch(() => [] as fs.Dirent[]);
+    const walk = async (d: string): Promise<void> => {
+      let dirEntries: fs.Dirent[];
+      try {
+        dirEntries = await fs.promises.readdir(d, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of dirEntries) {
+        const p = path.join(d, e.name);
+        try {
+          if (e.isDirectory()) await walk(p);
+          else if (e.isSymbolicLink()) used.add(await fs.promises.realpath(p));
+        } catch {
+          // broken symlink or vanished entry — skip
+        }
+      }
+    };
+    for (const e of entries) {
+      if (e.isDirectory() && e.name.startsWith("models--")) await walk(path.join(hub, e.name));
+    }
+    return used;
+  }
+
+  /** Names of subdirectories, or [] when the dir is unreadable (missing / no permission). */
+  private async listDirs(dir: string): Promise<string[]> {
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  }
+
+  /** Weight-file extensions — GGUF quants and safetensors weights. */
+  private static readonly WEIGHT_FILE_RE = /\.(gguf|safetensors)$/i;
+
+  /** Shard suffixes of a weight file: "-NNNNN-of-NNNNN" before the extension. */
+  private static readonly SHARD_RE = /^(.*?)-(\d{5})-of-(\d{5})\.(gguf|safetensors)$/i;
+
+  /** Weight files of a cached model, one entry per quantization. Walks every snapshot
+   *  revision; a blob linked from several revisions is reported once (first path wins).
+   *  Symlink sizes follow through to the real blob. */
+  private async listWeightFiles(modelDir: string): Promise<HfLocalModelFile[]> {
+    const snapRoot = path.join(modelDir, "snapshots");
+    const files: HfLocalModelFile[] = [];
+    const seen = new Set<string>();
+    for (const rev of (await this.listDirs(snapRoot)).sort()) {
+      const revDir = path.join(snapRoot, rev);
+      const walk = async (d: string): Promise<void> => {
+        let entries: fs.Dirent[];
+        try {
+          entries = await fs.promises.readdir(d, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const e of entries) {
+          const p = path.join(d, e.name);
+          try {
+            if (e.isDirectory()) {
+              await walk(p);
+              continue;
+            }
+            if (!HfDownloadsService.WEIGHT_FILE_RE.test(e.name)) continue;
+            const real = await fs.promises.realpath(p);
+            if (seen.has(real)) continue;
+            const st = await fs.promises.stat(p);
+            if (!st.isFile()) continue;
+            seen.add(real);
+            files.push({ name: path.relative(revDir, p), size: st.size });
+          } catch {
+            // broken symlink or vanished file — skip
+          }
+        }
+      };
+      await walk(revDir);
+    }
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    return this.groupShards(files);
+  }
+
+  /** Merge "-NNNNN-of-NNNNN" shards of one weight file into a single entry. */
+  private groupShards(files: HfLocalModelFile[]): HfLocalModelFile[] {
+    const result: HfLocalModelFile[] = [];
+    let i = 0;
+    while (i < files.length) {
+      const m = HfDownloadsService.SHARD_RE.exec(files[i].name);
+      if (!m) {
+        result.push(files[i]);
+        i++;
+        continue;
+      }
+      const base = `${m[1]}.${m[4]}`;
+      const shards: string[] = [];
+      let size = 0;
+      while (i < files.length) {
+        const mm = HfDownloadsService.SHARD_RE.exec(files[i].name);
+        if (!mm || `${mm[1]}.${mm[4]}` !== base) break;
+        shards.push(files[i].name);
+        size += files[i].size;
+        i++;
+      }
+      result.push({ name: base, size, shards });
+    }
+    return result;
   }
 
   /** Blob files under <hub>/blobs referenced by no model and untouched for

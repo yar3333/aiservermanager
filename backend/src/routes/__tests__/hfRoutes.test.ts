@@ -17,6 +17,7 @@ describe("HF routes", () => {
       sendAction: jest.fn(),
       listLocalModels: jest.fn(),
       deleteLocalModel: jest.fn(),
+      deleteLocalModelFile: jest.fn(),
       listOrphanBlobs: jest.fn(),
       cleanupOrphanBlobs: jest.fn(),
     } as unknown as HfDownloadsService;
@@ -131,6 +132,36 @@ describe("HF routes", () => {
     it("returns 400 for an invalid model name", async () => {
       (mockSvc as any).deleteLocalModel.mockRejectedValue(new Error("Invalid model name: ../etc"));
       const res = await request(app).delete("/api/hf/models/org/..%2Fetc");
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("DELETE /api/hf/models/:org/:name/files/*splat", () => {
+    it("deletes a single quantization file", async () => {
+      (mockSvc as any).deleteLocalModelFile.mockResolvedValue(undefined);
+      const res = await request(app).delete("/api/hf/models/org/model-a/files/model-q4.gguf");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect((mockSvc as any).deleteLocalModelFile).toHaveBeenCalledWith("org/model-a", "model-q4.gguf");
+    });
+
+    it("passes through nested file paths", async () => {
+      (mockSvc as any).deleteLocalModelFile.mockResolvedValue(undefined);
+      const res = await request(app).delete("/api/hf/models/org/model-a/files/UD-Q4_K_XL/shard-1.gguf");
+      expect(res.status).toBe(200);
+      expect((mockSvc as any).deleteLocalModelFile).toHaveBeenCalledWith("org/model-a", "UD-Q4_K_XL/shard-1.gguf");
+    });
+
+    it("returns 404 when the file does not exist", async () => {
+      (mockSvc as any).deleteLocalModelFile.mockRejectedValue(new Error("File not found: org/m/a.gguf"));
+      const res = await request(app).delete("/api/hf/models/org/m/files/a.gguf");
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("File not found: org/m/a.gguf");
+    });
+
+    it("returns 400 on an invalid file path", async () => {
+      (mockSvc as any).deleteLocalModelFile.mockRejectedValue(new Error("Invalid file path"));
+      const res = await request(app).delete("/api/hf/models/org/m/files/a%2F..%2F..%2Fescape");
       expect(res.status).toBe(400);
     });
   });

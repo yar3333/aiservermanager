@@ -7,7 +7,7 @@ import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatIconModule } from "@angular/material/icon";
 import { HfService } from "../../services/hf.service";
 import { LmStudioService } from "../../services/lm-studio.service";
-import { HfDownload, HfLocalModel, HfOrphanBlob } from "../../models/hf";
+import { HfDownload, HfLocalModel, HfLocalModelFile, HfOrphanBlob } from "../../models/hf";
 import { LmStudioModel, LmStudioModelFile } from "../../models/lm-studio";
 
 const POLL_MS = 2000;
@@ -39,10 +39,10 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
   readonly lmLoading = signal(true);
   /** LM Studio model whose delete is in flight (disables its button). */
   readonly lmDeleting = signal<string | null>(null);
-  /** LM Studio model whose quantization files are expanded (model name or null). */
-  readonly lmExpanded = signal<string | null>(null);
-  /** LM Studio file whose delete is in flight ("model/file" — disables its button). */
-  readonly lmFileDeleting = signal<string | null>(null);
+  /** Model whose weight files are expanded — "hf:<name>" / "lm:<name>", null = all collapsed. */
+  readonly expanded = signal<string | null>(null);
+  /** Weight file whose delete is in flight — "<section>:<model>/<file>" (disables its button). */
+  readonly fileDeleting = signal<string | null>(null);
 
   /** Models currently being downloaded are shown as cards, not in the static list. */
   readonly staticModels = computed(() => {
@@ -104,8 +104,14 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleLmExpand(m: LmStudioModel): void {
-    this.lmExpanded.set(this.lmExpanded() === m.name ? null : m.name);
+  /** Expand/collapse the weight-file (quantization) list of one model. */
+  toggleExpand(key: string): void {
+    this.expanded.set(this.expanded() === key ? null : key);
+  }
+
+  /** Empty list for a backend that predates the per-quantization file info. */
+  hfFiles(m: HfLocalModel): HfLocalModelFile[] {
+    return m.files ?? [];
   }
 
   async deleteLmModel(m: LmStudioModel): Promise<void> {
@@ -124,11 +130,11 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
 
   async deleteLmFile(m: LmStudioModel, f: LmStudioModelFile): Promise<void> {
     const paths = f.shards ?? [f.name];
-    const key = `${m.name}/${f.name}`;
-    if (this.lmFileDeleting()) return;
+    const key = `lm:${m.name}/${f.name}`;
+    if (this.fileDeleting()) return;
     const what = f.shards ? `${f.name} (${f.shards.length} shard files)` : f.name;
     if (!confirm(`Delete file ${what} (${this.formatBytes(f.size)})?`)) return;
-    this.lmFileDeleting.set(key);
+    this.fileDeleting.set(key);
     try {
       for (const p of paths) {
         await this.lmStudioService.deleteModelFile(m.name, p);
@@ -137,7 +143,28 @@ export class LlmModelsDialogComponent implements OnInit, OnDestroy {
     } catch (err: unknown) {
       this.error.set(this.errorText(err, `Failed to delete ${f.name}`));
     } finally {
-      this.lmFileDeleting.set(null);
+      this.fileDeleting.set(null);
+    }
+  }
+
+  /** Delete one quantization of an HF-cached model; its blobs go with it when unreferenced. */
+  async deleteHfFile(m: HfLocalModel, f: HfLocalModelFile): Promise<void> {
+    const paths = f.shards ?? [f.name];
+    const key = `hf:${m.name}/${f.name}`;
+    if (this.fileDeleting()) return;
+    const what = f.shards ? `${f.name} (${f.shards.length} shard files)` : f.name;
+    if (!confirm(`Delete ${what} (${this.formatBytes(f.size)}) from the Hugging Face cache?`)) return;
+    this.fileDeleting.set(key);
+    try {
+      for (const p of paths) {
+        await this.hfService.deleteLocalModelFile(m.name, p);
+      }
+      await this.refreshModels();
+      await this.refreshOrphans();
+    } catch (err: unknown) {
+      this.error.set(this.errorText(err, `Failed to delete ${f.name}`));
+    } finally {
+      this.fileDeleting.set(null);
     }
   }
 

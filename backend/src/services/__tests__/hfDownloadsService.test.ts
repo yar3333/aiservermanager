@@ -376,7 +376,7 @@ describe("HfDownloadsService", () => {
       const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
       const models = await svc.listLocalModels();
       expect(models).toEqual([
-        { name: "org/model-a", dir: dirA, size: 1500 },
+        { name: "org/model-a", dir: dirA, size: 1500, files: [] },
       ]);
     });
 
@@ -449,6 +449,103 @@ describe("HfDownloadsService", () => {
       const svc = new HfDownloadsService(procRoot, path.join(tmp, "no-such-cache"));
       await expect(svc.listLocalModels()).resolves.toEqual([]);
     });
+
+    describe("weight files (quantizations)", () => {
+      let modelDir: string;
+      let snap: string;
+      let shared: string;
+
+      beforeEach(() => {
+        modelDir = path.join(hub, "models--org--gguf");
+        snap = path.join(modelDir, "snapshots", "rev1");
+        shared = path.join(hub, "blobs");
+        fs.mkdirSync(path.join(snap, "UD-Q4_K_XL"), { recursive: true });
+        fs.mkdirSync(shared, { recursive: true });
+      });
+
+      /** A snapshot symlink into the shared hub blobs, returning its size. */
+      function link(relPath: string, size: number): void {
+        const target = path.join(shared, `${relPath.replace(/[\\/]/g, "_")}.${size}`);
+        fs.writeFileSync(target, "x".repeat(size));
+        const linkPath = path.join(snap, relPath);
+        fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+        fs.symlinkSync(path.relative(path.dirname(linkPath), target), linkPath);
+      }
+
+      it("lists gguf quantizations from nested dirs with resolved sizes", async () => {
+        link("UD-Q4_K_XL/model-UD-Q4_K_XL.gguf", 300);
+        link("MTP/mtp-Q8_0.gguf", 100);
+        fs.writeFileSync(path.join(snap, "README.md"), "x".repeat(50));
+
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const [m] = await svc.listLocalModels();
+        expect(m.files).toEqual([
+          { name: "MTP/mtp-Q8_0.gguf", size: 100 },
+          { name: "UD-Q4_K_XL/model-UD-Q4_K_XL.gguf", size: 300 },
+        ]);
+      });
+
+      it("groups shards of one quantization into a single entry", async () => {
+        link("UD-Q4_K_XL/model-UD-Q4_K_XL-00001-of-00002.gguf", 700);
+        link("UD-Q4_K_XL/model-UD-Q4_K_XL-00002-of-00002.gguf", 300);
+
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const [m] = await svc.listLocalModels();
+        expect(m.files).toEqual([
+          {
+            name: "UD-Q4_K_XL/model-UD-Q4_K_XL.gguf",
+            size: 1000,
+            shards: [
+              "UD-Q4_K_XL/model-UD-Q4_K_XL-00001-of-00002.gguf",
+              "UD-Q4_K_XL/model-UD-Q4_K_XL-00002-of-00002.gguf",
+            ],
+          },
+        ]);
+      });
+
+      it("groups safetensors weight shards", async () => {
+        link("model-00001-of-00002.safetensors", 600);
+        link("model-00002-of-00002.safetensors", 400);
+        link("model.safetensors.index.json", 10);
+
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const [m] = await svc.listLocalModels();
+        expect(m.files).toEqual([
+          {
+            name: "model.safetensors",
+            size: 1000,
+            shards: ["model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"],
+          },
+        ]);
+      });
+
+      it("reports a blob linked from several revisions once", async () => {
+        link("model.gguf", 512);
+        const rev2 = path.join(modelDir, "snapshots", "rev2");
+        fs.mkdirSync(rev2, { recursive: true });
+        fs.symlinkSync(path.relative(rev2, path.join(shared, "model.gguf.512")), path.join(rev2, "model.gguf"));
+
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const [m] = await svc.listLocalModels();
+        expect(m.files).toEqual([{ name: "model.gguf", size: 512 }]);
+      });
+
+      it("skips broken quant symlinks", async () => {
+        link("good.gguf", 256);
+        fs.symlinkSync("../../../blobs/gone", path.join(snap, "broken.gguf"));
+
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const [m] = await svc.listLocalModels();
+        expect(m.files).toEqual([{ name: "good.gguf", size: 256 }]);
+      });
+
+      it("returns an empty list for a model without snapshots", async () => {
+        fs.mkdirSync(path.join(hub, "models--org--flat"), { recursive: true });
+        const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+        const models = await svc.listLocalModels();
+        expect(models.find((m) => m.name === "org/flat")?.files).toEqual([]);
+      });
+    });
   });
 
   describe("deleteLocalModel", () => {
@@ -458,6 +555,11 @@ describe("HfDownloadsService", () => {
       hub = path.join(tmp, "cache", "hub");
       fs.mkdirSync(path.join(hub, "models--org--model-a", "sub"), { recursive: true });
       fs.writeFileSync(path.join(hub, "models--org--model-a", "w.bin"), "x".repeat(100));
+      // Keep the direct-removal path under test: no hf CLI on PATH and none in ~/.local/bin.
+      jest.spyOn(ExecTools, "safeExec").mockResolvedValue({ stdout: "", stderr: "" });
+      const enoent = new Error("ENOENT") as NodeJS.ErrnoException;
+      enoent.code = "ENOENT";
+      jest.spyOn(fs.promises, "access").mockRejectedValue(enoent);
     });
 
     it("removes the model's cache directory", async () => {
@@ -511,6 +613,209 @@ describe("HfDownloadsService", () => {
       const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
       await svc.deleteLocalModel("org/model-c");
       expect(fs.existsSync(path.join(shared, "big"))).toBe(true);
+    });
+  });
+
+  describe("deleteLocalModel via hf cache rm", () => {
+    let hub: string;
+    let dirA: string;
+
+    beforeEach(() => {
+      hub = path.join(tmp, "cache", "hub");
+      dirA = path.join(hub, "models--org--model-a");
+      fs.mkdirSync(dirA, { recursive: true });
+      fs.writeFileSync(path.join(dirA, "w.bin"), "x".repeat(100));
+      jest.spyOn(ExecTools, "safeExec").mockResolvedValue({ stdout: "/usr/local/bin/hf\n", stderr: "" });
+      jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    });
+
+    it("deletes the repo with --yes --json and an explicit --cache-dir", async () => {
+      const exec = jest.spyOn(ExecTools, "safeExecWithCode").mockImplementation(async () => {
+        fs.rmSync(dirA, { recursive: true, force: true });
+        return { stdout: '{"dry_run": false, "repos": 1, "revisions": 1, "size": "1.5G"}', stderr: "", exitCode: 0 };
+      });
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect(exec.mock.calls[0][0]).toBe(
+        `"/usr/local/bin/hf" cache rm "model/org/model-a" --yes --json --cache-dir "${hub}"`,
+      );
+      expect(fs.existsSync(dirA)).toBe(false);
+    });
+
+    it("falls back to direct removal when the CLI found nothing in the cache", async () => {
+      jest.spyOn(ExecTools, "safeExecWithCode").mockResolvedValue({
+        stdout: "Warning: Could not find in cache:\n  - model/org/model-a\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+      expect(fs.existsSync(dirA)).toBe(false);
+    });
+
+    it("falls back to direct removal when the CLI exits with an error", async () => {
+      jest.spyOn(ExecTools, "safeExecWithCode").mockResolvedValue({
+        stdout: "",
+        stderr: "Permission denied",
+        exitCode: 1,
+      });
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+      expect(fs.existsSync(dirA)).toBe(false);
+    });
+
+    it("still removes the directory when the CLI reports success but leaves it in place", async () => {
+      jest.spyOn(ExecTools, "safeExecWithCode").mockResolvedValue({
+        stdout: '{"dry_run": false, "repos": 1, "revisions": 1}',
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+      expect(fs.existsSync(dirA)).toBe(false);
+    });
+
+    it("does not shell out when the CLI is missing", async () => {
+      jest.spyOn(ExecTools, "safeExec").mockResolvedValue({ stdout: "", stderr: "" });
+      const enoent = new Error("ENOENT") as NodeJS.ErrnoException;
+      enoent.code = "ENOENT";
+      jest.spyOn(fs.promises, "access").mockRejectedValue(enoent);
+      const exec = jest.spyOn(ExecTools, "safeExecWithCode");
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModel("org/model-a");
+      expect(exec).not.toHaveBeenCalled();
+      expect(fs.existsSync(dirA)).toBe(false);
+    });
+
+    it("keeps refusing invalid names and unknown models before calling the CLI", async () => {
+      const exec = jest.spyOn(ExecTools, "safeExecWithCode");
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModel("no-slash")).rejects.toThrow("Invalid model name");
+      await expect(svc.deleteLocalModel("org/missing")).rejects.toThrow("Model not found");
+      expect(exec).not.toHaveBeenCalled();
+      expect(fs.existsSync(dirA)).toBe(true);
+    });
+  });
+
+  describe("deleteLocalModelFile", () => {
+    let hub: string;
+    let shared: string;
+
+    beforeEach(() => {
+      hub = path.join(tmp, "cache", "hub");
+      shared = path.join(hub, "blobs");
+      fs.mkdirSync(shared, { recursive: true });
+    });
+
+    /** Cached model with one revision; returns the snapshot dir. */
+    function modelWithQuant(modelName: string, relPath: string, blobName: string, size = 512): string {
+      const snap = path.join(hub, `models--${modelName.replace("/", "--")}`, "snapshots", "rev1");
+      const linkPath = path.join(snap, relPath);
+      const blob = path.join(shared, blobName);
+      fs.mkdirSync(path.dirname(blob), { recursive: true });
+      fs.writeFileSync(blob, "x".repeat(size));
+      fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+      fs.symlinkSync(path.relative(path.dirname(linkPath), blob), linkPath);
+      return snap;
+    }
+
+    it("removes the quant link, its blob and the empty quant dir", async () => {
+      const snap = modelWithQuant("org/m", "UD-Q4_K_XL/q4.gguf", "b-q4");
+      modelWithQuant("org/m", "q8.gguf", "b-q8", 256);
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModelFile("org/m", "UD-Q4_K_XL/q4.gguf");
+
+      expect(fs.existsSync(path.join(snap, "UD-Q4_K_XL"))).toBe(false); // empty subdir pruned
+      expect(fs.existsSync(path.join(snap, "q8.gguf"))).toBe(true);
+      expect(fs.existsSync(path.join(shared, "b-q4"))).toBe(false);
+      expect(fs.existsSync(path.join(shared, "b-q8"))).toBe(true);
+    });
+
+    it("keeps a blob another model still references", async () => {
+      const snap = modelWithQuant("org/m", "q4.gguf", "b-shared");
+      modelWithQuant("org/other", "q4.gguf", "b-shared", 128); // same blob name = same file
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModelFile("org/m", "q4.gguf");
+
+      expect(fs.existsSync(path.join(snap, "q4.gguf"))).toBe(false);
+      expect(fs.existsSync(path.join(shared, "b-shared"))).toBe(true);
+    });
+
+    it("removes per-model blobs of the classic cache layout", async () => {
+      const modelDir = path.join(hub, "models--org--classic");
+      const blob = path.join(modelDir, "blobs", "etag123");
+      const snap = path.join(modelDir, "snapshots", "rev1");
+      fs.mkdirSync(path.dirname(blob), { recursive: true });
+      fs.mkdirSync(snap, { recursive: true });
+      fs.writeFileSync(blob, "x".repeat(512));
+      fs.symlinkSync(path.relative(snap, blob), path.join(snap, "model.gguf"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModelFile("org/classic", "model.gguf");
+
+      expect(fs.existsSync(blob)).toBe(false);
+      expect(fs.existsSync(snap)).toBe(true); // revision dir itself is kept
+      expect(fs.existsSync(path.join(modelDir, "blobs"))).toBe(true);
+    });
+
+    it("removes the file from every revision that links it", async () => {
+      const snap = modelWithQuant("org/m", "q4.gguf", "b-q4");
+      const rev2 = path.join(hub, "models--org--m", "snapshots", "rev2");
+      fs.mkdirSync(rev2, { recursive: true });
+      fs.symlinkSync(path.relative(rev2, path.join(shared, "b-q4")), path.join(rev2, "q4.gguf"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await svc.deleteLocalModelFile("org/m", "q4.gguf");
+
+      expect(fs.existsSync(path.join(snap, "q4.gguf"))).toBe(false);
+      expect(fs.existsSync(path.join(rev2, "q4.gguf"))).toBe(false);
+      expect(fs.existsSync(path.join(shared, "b-q4"))).toBe(false);
+    });
+
+    it("throws File not found when no revision has the file", async () => {
+      modelWithQuant("org/m", "q4.gguf", "b-q4");
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModelFile("org/m", "missing.gguf")).rejects.toThrow("File not found");
+      expect(fs.existsSync(path.join(shared, "b-q4"))).toBe(true);
+    });
+
+    it("throws Model not found for a missing model", async () => {
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModelFile("org/nope", "a.gguf")).rejects.toThrow("Model not found");
+    });
+
+    it("refuses to follow a directory symlink that leaves the revision dir", async () => {
+      const snap = modelWithQuant("org/m", "q4.gguf", "b-q4");
+      const outside = path.join(tmp, "outside");
+      fs.mkdirSync(outside, { recursive: true });
+      const victim = path.join(outside, "victim.gguf");
+      fs.writeFileSync(victim, "x".repeat(64));
+      fs.symlinkSync(outside, path.join(snap, "evil"));
+
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModelFile("org/m", "evil/victim.gguf")).rejects.toThrow("File not found");
+      expect(fs.existsSync(victim)).toBe(true);
+      expect(fs.existsSync(path.join(snap, "q4.gguf"))).toBe(true);
+    });
+
+    it("rejects invalid model names and traversal paths", async () => {
+      const snap = modelWithQuant("org/m", "q4.gguf", "b-q4");
+      const svc = new HfDownloadsService(procRoot, path.join(tmp, "cache"));
+      await expect(svc.deleteLocalModelFile("no-slash", "a.gguf")).rejects.toThrow("Invalid model name");
+      await expect(svc.deleteLocalModelFile("org/m", "../b-q4")).rejects.toThrow("Invalid file path");
+      await expect(svc.deleteLocalModelFile("org/m", "/abs/b-q4")).rejects.toThrow("Invalid file path");
+      await expect(svc.deleteLocalModelFile("org/m", "sub/../../b-q4")).rejects.toThrow("Invalid file path");
+      expect(fs.existsSync(path.join(snap, "q4.gguf"))).toBe(true);
+      expect(fs.existsSync(path.join(shared, "b-q4"))).toBe(true);
     });
   });
 
