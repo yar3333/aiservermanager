@@ -26,6 +26,7 @@ describe("ServicesComponent", () => {
     fetchConfigs: jest.Mock;
     control: jest.Mock;
     deleteConfig: jest.Mock;
+    archiveService: jest.Mock;
     saveConfig: jest.Mock;
   };
   let dialog: { open: jest.Mock };
@@ -37,6 +38,7 @@ describe("ServicesComponent", () => {
       fetchConfigs: jest.fn().mockReturnValue(of(CONFIGS)),
       control: jest.fn().mockReturnValue(of({ name: "llama-server", running: false, enabled: true, installed: true })),
       deleteConfig: jest.fn().mockReturnValue(of({ ok: true })),
+      archiveService: jest.fn().mockReturnValue(of({ ok: true })),
       saveConfig: jest.fn().mockReturnValue(of({} as ServiceConfig)),
     };
     dialog = { open: jest.fn().mockReturnValue({ afterClosed: () => of(undefined) }) };
@@ -128,6 +130,35 @@ describe("ServicesComponent", () => {
     await component.deleteService("llama-server");
     expect(snackBar.open).toHaveBeenCalledWith(
       'Delete "llama-server": unit stop failed',
+      "Dismiss",
+      expect.objectContaining({ duration: 8000 }),
+    );
+  });
+
+  it("archives a custom service after confirmation", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
+    await component.archiveService("llama-server");
+    expect(serviceService.archiveService).toHaveBeenCalledWith("llama-server");
+    expect(serviceService.fetchServices).toHaveBeenCalled();
+  });
+
+  it("skips archiving when confirmation is declined", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(false);
+    await component.archiveService("llama-server");
+    expect(serviceService.archiveService).not.toHaveBeenCalled();
+  });
+
+  it("shows the backend error message on archive failure", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
+    serviceService.archiveService.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500, error: { error: "unit stop failed" } })),
+    );
+    await component.archiveService("llama-server");
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Archive "llama-server": unit stop failed',
       "Dismiss",
       expect.objectContaining({ duration: 8000 }),
     );

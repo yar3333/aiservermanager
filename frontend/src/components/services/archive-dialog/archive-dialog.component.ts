@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit, WritableSignal } from "@angular/core";
+import { Component, signal, computed, inject, OnInit } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HttpErrorResponse } from "@angular/common/http";
 import { MatButtonModule } from "@angular/material/button";
@@ -9,6 +9,12 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../../services/service.service";
 import { ServiceConfig } from "../../../models/service";
+
+/** A row in the combined list: a conf service with its archive state. */
+export interface ArchiveEntry {
+  name: string;
+  archived: boolean;
+}
 
 @Component({
   selector: "app-archive-dialog",
@@ -25,10 +31,29 @@ export class ArchiveDialogComponent implements OnInit {
   readonly active = signal<ServiceConfig[]>([]);
   readonly archived = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
-  /** Name currently being moved — disables all move buttons while in flight. */
+  /** Name currently being moved — disables all action buttons while in flight. */
   readonly busy = signal<string | null>(null);
 
-  /** Becomes true after any successful move, so the caller reloads on close. */
+  /** Quick filter by service name (case-insensitive substring). */
+  readonly filter = signal("");
+
+  /** All conf services (active + archived) in one list, sorted by name. */
+  readonly entries = computed<ArchiveEntry[]>(() => [
+    ...this.active().map((c) => ({ name: c.name, archived: false })),
+    ...this.archived().map((c) => ({ name: c.name, archived: true })),
+  ].sort((a, b) => a.name.localeCompare(b.name)));
+
+  readonly filtered = computed(() => {
+    const q = this.filter().trim().toLowerCase();
+    const list = this.entries();
+    return q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
+  });
+
+  onFilterInput(event: Event): void {
+    this.filter.set((event.target as HTMLInputElement).value);
+  }
+
+  /** Becomes true after any successful change, so the caller reloads on close. */
   private dirty = false;
 
   async ngOnInit(): Promise<void> {
@@ -50,8 +75,12 @@ export class ArchiveDialogComponent implements OnInit {
   async archive(name: string): Promise<void> {
     this.busy.set(name);
     try {
+      const item = this.active().find((c) => c.name === name);
       await firstValueFrom(this.serviceService.archiveService(name));
-      this.move(name, this.active, this.archived);
+      if (item) {
+        this.active.set(this.active().filter((c) => c.name !== name));
+        this.archived.set([...this.archived(), item]);
+      }
       this.dirty = true;
     } catch (err) {
       this.showError(`Archive "${name}": ${this.errorText(err)}`);
@@ -64,8 +93,12 @@ export class ArchiveDialogComponent implements OnInit {
   async restore(name: string): Promise<void> {
     this.busy.set(name);
     try {
+      const item = this.archived().find((c) => c.name === name);
       await firstValueFrom(this.serviceService.restoreService(name));
-      this.move(name, this.archived, this.active);
+      if (item) {
+        this.archived.set(this.archived().filter((c) => c.name !== name));
+        this.active.set([...this.active(), item]);
+      }
       this.dirty = true;
     } catch (err) {
       this.showError(`Restore "${name}": ${this.errorText(err)}`);
@@ -74,11 +107,23 @@ export class ArchiveDialogComponent implements OnInit {
     }
   }
 
-  private move(name: string, from: WritableSignal<ServiceConfig[]>, to: WritableSignal<ServiceConfig[]>): void {
-    const item = from().find((c) => c.name === name);
-    if (!item) return;
-    from.set(from().filter((c) => c.name !== name));
-    to.set([...to(), item].sort((a, b) => a.name.localeCompare(b.name)));
+  /** Delete a conf service (active or archived) after confirmation. Archived services have no unit. */
+  async remove(name: string, archived: boolean): Promise<void> {
+    const message = archived
+      ? `Delete archived service "${name}"? Its config will be permanently removed.`
+      : `Delete service "${name}"? Its systemd unit will be uninstalled and its config permanently removed.`;
+    if (!confirm(message)) return;
+    this.busy.set(name);
+    try {
+      await firstValueFrom(this.serviceService.deleteConfig(name));
+      this.active.set(this.active().filter((c) => c.name !== name));
+      this.archived.set(this.archived().filter((c) => c.name !== name));
+      this.dirty = true;
+    } catch (err) {
+      this.showError(`Delete "${name}": ${this.errorText(err)}`);
+    } finally {
+      this.busy.set(null);
+    }
   }
 
   private showError(message: string): void {

@@ -146,6 +146,42 @@ describe("ServiceConfigController (archive)", () => {
     });
   });
 
+  describe("deleteService", () => {
+    it("removes an active config and uninstalls the OS service", async () => {
+      writeConfig("my-svc", servicesDir);
+      const controller = makeController();
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.deleteService("my-svc");
+
+      expect(result.ok).toBe(true);
+      expect(controller.uninstall).toHaveBeenCalledWith("my-svc");
+      expect(fs.existsSync(path.join(servicesDir, "my-svc.conf"))).toBe(false);
+    });
+
+    it("removes an archived config (no unit to keep it around)", async () => {
+      writeConfig("my-svc", archiveDir);
+      const controller = makeController();
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.deleteService("my-svc");
+
+      expect(result.ok).toBe(true);
+      expect(fs.existsSync(path.join(archiveDir, "my-svc.conf"))).toBe(false);
+    });
+
+    it("returns an error when neither an active nor an archived config exists", async () => {
+      const controller = makeController();
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.deleteService("nope");
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/not found/);
+      expect(controller.uninstall).not.toHaveBeenCalled();
+    });
+  });
+
   describe("createOrUpdate", () => {
     it("passes user/group/restart from the config to install", async () => {
       const controller = makeController();

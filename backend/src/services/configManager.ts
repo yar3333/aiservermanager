@@ -111,4 +111,19 @@ export class ConfigManager {
     fs.renameSync(from, this.configPath(name));
     return true;
   }
+
+  /** Whether an archived config file exists for the given service name. */
+  hasArchived(name: string): boolean {
+    return fs.existsSync(this.archivePath(name));
+  }
+
+  /** Delete an archived service config file. Returns true if the file existed. */
+  deleteArchived(name: string): boolean {
+    const p = this.archivePath(name);
+    if (fs.existsSync(p)) {
+      fs.unlinkSync(p);
+      return true;
+    }
+    return false;
+  }
 }

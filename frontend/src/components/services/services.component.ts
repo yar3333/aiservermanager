@@ -176,7 +176,7 @@ export class ServicesComponent implements OnInit {
   }
 
   archiveServices(): void {
-    const ref = this.dialog.open(ArchiveDialogComponent, { minWidth: "840px" });
+    const ref = this.dialog.open(ArchiveDialogComponent, { minWidth: "560px" });
     ref.afterClosed().subscribe((result) => {
       if (result) {
         this.load();
@@ -216,6 +216,18 @@ export class ServicesComponent implements OnInit {
       await this.load();
     } catch (err) {
       this.showError(`Delete "${name}": ${this.errorText(err)}`);
+    }
+  }
+
+  /** Move a custom service to the archive: stop, uninstall the unit, shelve its config. */
+  async archiveService(name: string): Promise<void> {
+    if (!confirm(`Move service "${name}" to the archive? It will be stopped, uninstalled, and its config shelved. You can restore it from the archive.`)) return;
+    this.selectedServiceService.select(name);
+    try {
+      await firstValueFrom(this.serviceService.archiveService(name));
+      await this.load();
+    } catch (err) {
+      this.showError(`Archive "${name}": ${this.errorText(err)}`);
     }
   }
 

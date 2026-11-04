@@ -22,7 +22,7 @@
         <span>Managed services</span>
       </button>
       <button mat-menu-item (click)="archiveServices()">
-        <mat-icon>archive</mat-icon>
+        <mat-icon>inventory_2</mat-icon>
         <span>Archive</span>
       </button>
       <button mat-menu-item [matMenuTriggerFor]="addMenu">
@@ -124,6 +124,10 @@
                   <button mat-menu-item (click)="cloneService(svc)">
                     <mat-icon>content_copy</mat-icon>
                     <span>Clone</span>
+                  </button>
+                  <button mat-menu-item (click)="archiveService(svc.name)">
+                    <mat-icon>inventory_2</mat-icon>
+                    <span>Move to Archive</span>
                   </button>
                   <button mat-menu-item (click)="deleteService(svc.name)">
                     <mat-icon>delete</mat-icon>

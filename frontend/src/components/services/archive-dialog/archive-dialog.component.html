@@ -3,68 +3,66 @@
 
   <mat-dialog-content>
     <p class="dialog-description">
-      Move a service to the archive to stop, uninstall, and shelve its config. Restore it any time from the archive.
+      Archive a service to stop, uninstall, and shelve its config — restore it any time. Archived services are shown grayed out.
     </p>
 
-    <div class="panels">
-      <div class="panel">
-        <div class="panel-header">
-          <mat-icon>apps</mat-icon>
-          Services
-        </div>
-        <div class="panel-list">
-          @if (loading()) {
-            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-          } @else if (active().length > 0) {
-            @for (cfg of active(); track cfg.name) {
-              <div class="panel-item">
-                <span class="item-name" [title]="cfg.name">{{ cfg.name }}</span>
-                <button
-                  mat-icon-button
-                  class="move-btn"
-                  title="Move to archive"
-                  [disabled]="busy() !== null"
-                  (click)="archive(cfg.name)"
-                >
-                  <mat-icon>archive</mat-icon>
-                </button>
-              </div>
-            }
-          } @else {
-            <p class="empty-panel">No services</p>
-          }
-        </div>
-      </div>
+    <input
+      class="archive-filter"
+      type="text"
+      placeholder="Filter by name…"
+      [value]="filter()"
+      (input)="onFilterInput($event)"
+    />
 
-      <div class="panel">
-        <div class="panel-header">
-          <mat-icon>archive</mat-icon>
-          Archive
-        </div>
-        <div class="panel-list">
-          @if (loading()) {
-            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-          } @else if (archived().length > 0) {
-            @for (cfg of archived(); track cfg.name) {
-              <div class="panel-item">
-                <span class="item-name" [title]="cfg.name">{{ cfg.name }}</span>
-                <button
-                  mat-icon-button
-                  class="move-btn"
-                  title="Restore from archive"
-                  [disabled]="busy() !== null"
-                  (click)="restore(cfg.name)"
-                >
-                  <mat-icon>unarchive</mat-icon>
-                </button>
-              </div>
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    } @else if (filtered().length > 0) {
+      <div class="entry-list">
+        @for (entry of filtered(); track entry.name) {
+          <div class="entry">
+            <span class="entry-name" [class.archived]="entry.archived" [title]="entry.name">{{ entry.name }}</span>
+            @if (entry.archived) {
+              <button
+                mat-icon-button
+                class="entry-btn"
+                title="Restore from archive"
+                [disabled]="busy() !== null"
+                (click)="restore(entry.name)"
+              >
+                <mat-icon>restore</mat-icon>
+              </button>
+            } @else {
+              <button
+                mat-icon-button
+                class="entry-btn"
+                title="Move to archive"
+                [disabled]="busy() !== null"
+                (click)="archive(entry.name)"
+              >
+                <mat-icon>inventory_2</mat-icon>
+              </button>
             }
-          } @else {
-            <p class="empty-panel">Archive is empty</p>
-          }
-        </div>
+            <button
+              mat-icon-button
+              class="entry-btn delete-btn"
+              title="Delete service"
+              [disabled]="busy() !== null"
+              (click)="remove(entry.name, entry.archived)"
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
       </div>
-    </div>
+    } @else {
+      <p class="empty-panel">
+        @if (filter().trim()) {
+          No services match "{{ filter().trim() }}".
+        } @else {
+          No services configured.
+        }
+      </p>
+    }
   </mat-dialog-content>
 
   <mat-dialog-actions align="end">

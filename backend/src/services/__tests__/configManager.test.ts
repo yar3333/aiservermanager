@@ -79,6 +79,26 @@ describe("ConfigManager (archive)", () => {
     expect(cm.restore("nope")).toBe(false);
   });
 
+  it("hasArchived() reports whether the archive holds a config", () => {
+    writeConfig("in-arc", archiveDir);
+    const cm = new ConfigManager();
+    expect(cm.hasArchived("in-arc")).toBe(true);
+    expect(cm.hasArchived("nope")).toBe(false);
+  });
+
+  it("deleteArchived() removes the archived config file", () => {
+    writeConfig("my-svc", archiveDir);
+    const cm = new ConfigManager();
+
+    expect(cm.deleteArchived("my-svc")).toBe(true);
+    expect(fs.existsSync(path.join(archiveDir, "my-svc.conf"))).toBe(false);
+  });
+
+  it("deleteArchived() returns false when the archived config does not exist", () => {
+    const cm = new ConfigManager();
+    expect(cm.deleteArchived("nope")).toBe(false);
+  });
+
   it("listArchived() returns archived configs sorted by name", () => {
     writeConfig("zzz", archiveDir);
     writeConfig("aaa", archiveDir, { command: "/usr/bin/ls", flags: ["-l"] });

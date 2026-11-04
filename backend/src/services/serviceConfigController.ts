@@ -115,11 +115,14 @@ export class ServiceConfigController {
 
   /**
    * Delete a service: stop if running → uninstall OS service → remove config.
+   * Works for both active and archived configs — an archived service has no unit,
+   * so the uninstall is a harmless no-op and the archived config file is removed.
    * @returns { ok, error? }
    */
   async deleteService(name: string): Promise<{ ok: boolean; error?: string }> {
-    const cfg = this.configManager.get(name);
-    if (!cfg) {
+    const hasActive = this.configManager.get(name) !== null;
+    const hasArchived = !hasActive && this.configManager.hasArchived(name);
+    if (!hasActive && !hasArchived) {
       return { ok: false, error: `Config "${name}" not found` };
     }
 
@@ -134,8 +137,12 @@ export class ServiceConfigController {
       }
     }
 
-    // Remove config file
-    this.configManager.delete(name);
+    // Remove config file from whichever location holds it
+    if (hasActive) {
+      this.configManager.delete(name);
+    } else {
+      this.configManager.deleteArchived(name);
+    }
 
     return { ok: true };
   }

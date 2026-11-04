@@ -17,6 +17,7 @@ describe("ArchiveDialogComponent", () => {
     fetchArchivedConfigs: jest.Mock;
     archiveService: jest.Mock;
     restoreService: jest.Mock;
+    deleteConfig: jest.Mock;
   };
   let dialogRef: { close: jest.Mock };
   let snackBar: { open: jest.Mock };
@@ -27,6 +28,7 @@ describe("ArchiveDialogComponent", () => {
       fetchArchivedConfigs: jest.fn().mockReturnValue(of([cfg("archived-x")])),
       archiveService: jest.fn().mockReturnValue(of({ ok: true })),
       restoreService: jest.fn().mockReturnValue(of({ ok: true })),
+      deleteConfig: jest.fn().mockReturnValue(of({ ok: true })),
     };
     dialogRef = { close: jest.fn() };
     snackBar = { open: jest.fn() };
@@ -45,35 +47,67 @@ describe("ArchiveDialogComponent", () => {
     fixture.detectChanges();
   });
 
-  it("loads active and archived services", async () => {
+  it("loads active and archived services into one combined sorted list", async () => {
     await fixture.whenStable();
-    expect(component.active().map((c) => c.name)).toEqual(["svc-a", "svc-b"]);
-    expect(component.archived().map((c) => c.name)).toEqual(["archived-x"]);
     expect(component.loading()).toBe(false);
+    expect(component.entries()).toEqual([
+      { name: "archived-x", archived: true },
+      { name: "svc-a", archived: false },
+      { name: "svc-b", archived: false },
+    ]);
   });
 
-  it("archiving a service calls the API and moves it into the archive list", async () => {
+  it("archiving a service flips its entry to archived", async () => {
     await fixture.whenStable();
     await component.archive("svc-a");
     expect(serviceService.archiveService).toHaveBeenCalledWith("svc-a");
     expect(component.active().map((c) => c.name)).toEqual(["svc-b"]);
-    expect(component.archived().map((c) => c.name)).toEqual(["archived-x", "svc-a"]);
+    expect(component.entries().find((e) => e.name === "svc-a")?.archived).toBe(true);
   });
 
-  it("restoring a service calls the API and moves it back to the active list", async () => {
+  it("restoring a service flips its entry back to active", async () => {
     await fixture.whenStable();
     await component.restore("archived-x");
     expect(serviceService.restoreService).toHaveBeenCalledWith("archived-x");
     expect(component.archived().map((c) => c.name)).toEqual([]);
-    expect(component.active().map((c) => c.name)).toEqual(["archived-x", "svc-a", "svc-b"]);
+    expect(component.entries().find((e) => e.name === "archived-x")?.archived).toBe(false);
+  });
+
+  it("removes a service from the list after confirmed deletion", async () => {
+    await fixture.whenStable();
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    await component.remove("svc-a", false);
+    expect(serviceService.deleteConfig).toHaveBeenCalledWith("svc-a");
+    expect(component.entries().map((e) => e.name)).toEqual(["archived-x", "svc-b"]);
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Delete service "svc-a"? Its systemd unit will be uninstalled and its config permanently removed.',
+    );
+  });
+
+  it("can delete an archived service through the same endpoint", async () => {
+    await fixture.whenStable();
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    await component.remove("archived-x", true);
+    expect(serviceService.deleteConfig).toHaveBeenCalledWith("archived-x");
+    expect(component.entries().map((e) => e.name)).toEqual(["svc-a", "svc-b"]);
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Delete archived service "archived-x"? Its config will be permanently removed.',
+    );
+  });
+
+  it("skips deletion when confirmation is declined", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(false);
+    await component.remove("svc-a", false);
+    expect(serviceService.deleteConfig).not.toHaveBeenCalled();
+    expect(component.entries()).toHaveLength(3);
   });
 
   it("keeps the item in place and shows an error when the API fails", async () => {
     await fixture.whenStable();
     serviceService.archiveService.mockReturnValueOnce(throwError(() => new Error("boom")));
     await component.archive("svc-a");
-    expect(component.active().map((c) => c.name)).toEqual(["svc-a", "svc-b"]);
-    expect(component.archived().map((c) => c.name)).toEqual(["archived-x"]);
+    expect(component.entries().find((e) => e.name === "svc-a")?.archived).toBe(false);
     expect(snackBar.open).toHaveBeenCalled();
   });
 
@@ -88,6 +122,20 @@ describe("ArchiveDialogComponent", () => {
       "Dismiss",
       expect.objectContaining({ duration: 6000 }),
     );
+  });
+
+  it("filters the combined list by name (case-insensitive substring)", async () => {
+    await fixture.whenStable();
+    expect(component.filtered()).toHaveLength(3);
+
+    component.filter.set("ARCH");
+    expect(component.filtered().map((e) => e.name)).toEqual(["archived-x"]);
+
+    component.filter.set("svc");
+    expect(component.filtered().map((e) => e.name)).toEqual(["svc-a", "svc-b"]);
+
+    component.filter.set("no-such");
+    expect(component.filtered()).toHaveLength(0);
   });
 
   it("closes with a truthy result only after a change was made", async () => {
