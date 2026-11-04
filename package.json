@@ -1,6 +1,6 @@
 {
   "name": "aiservermanager",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
   "description": "Web application to manage llama.cpp and ComfyUI on your server",
   "scripts": {
