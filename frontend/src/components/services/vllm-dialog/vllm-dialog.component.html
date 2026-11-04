@@ -186,22 +186,6 @@
       </div>
 
       <div class="form-row">
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('deviceIds')">
-          <mat-select
-            formControlName="deviceIds"
-            multiple
-            placeholder="Select GPU devices"
-            matTooltip="Selected GPU indices are saved into the service environment as HIP_VISIBLE_DEVICES (AMD) or CUDA_VISIBLE_DEVICES (NVIDIA). Empty = leave env as-is (all GPUs)"
-          >
-            @for (gpu of availableGpus(); track gpu.pciBusId) {
-              <mat-option [value]="gpu.gpuIndex">{{ gpu.gpuIndex }} — {{ gpu.vendor }} {{ gpu.name }}</mat-option>
-            }
-          </mat-select>
-          <mat-label>Visible GPUs (multi-select)</mat-label>
-        </mat-form-field>
-      </div>
-
-      <div class="form-row">
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('attentionBackend')">
           <mat-select
             formControlName="attentionBackend"
@@ -222,6 +206,19 @@
             matTooltip="Explicit KV cache size in bytes. 0 = auto (derived from GPU memory utilization)"
           />
           <mat-label>KV Cache Memory (bytes)</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('deviceIds')">
+          <mat-select
+            formControlName="deviceIds"
+            multiple
+            placeholder="GPU numbers"
+            matTooltip="Selected GPU numbers are saved into the service environment as HIP_VISIBLE_DEVICES (AMD) or CUDA_VISIBLE_DEVICES (NVIDIA). Empty = leave env as-is (all GPUs)"
+          >
+            @for (gpu of availableGpus(); track gpu.pciBusId) {
+              <mat-option [value]="gpu.gpuIndex">{{ gpu.gpuIndex }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Visible GPUs</mat-label>
         </mat-form-field>
       </div>
     </mat-expansion-panel>
