@@ -1,19 +1,36 @@
+/* Fixed-height dialog, flexible internals: title/description/filter/actions take
+   their natural height, the entry list absorbs the rest and is the only scroller.
+   No viewport arithmetic — resizing the window resizes the list automatically. */
 .dialog-container {
   min-width: 560px;
   max-width: 640px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
 }
 
 mat-dialog-title {
+  flex: 0 0 auto;
   margin-bottom: 8px;
 }
 
+mat-dialog-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .dialog-description {
+  flex: 0 0 auto;
   margin: 0 0 12px;
   color: #666;
   font-size: 0.9rem;
 }
 
 .archive-filter {
+  flex: 0 0 auto;
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
@@ -30,16 +47,17 @@ mat-dialog-title {
   }
 }
 
-/* Only the list scrolls — the filter stays pinned above it.
-   Height = viewport minus the dialog chrome (title, description, filter, actions)
-   so the dialog itself never gets its own scrollbar. */
+mat-dialog-actions {
+  flex: 0 0 auto;
+}
+
 .entry-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 4px 0;
-  max-height: calc(100vh - 400px);
-  min-height: 120px;
-  overflow-y: auto;
 }
 
 .entry {

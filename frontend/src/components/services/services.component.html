@@ -47,99 +47,101 @@
   </div>
 
   @if (filtered().length > 0) {
-    <table class="services-list">
-      <tbody>
-        @for (svc of filtered(); track svc.name) {
-          <tr [class.custom]="svc.hasConfig" (click)="selectedServiceService.select(svc.name)">
-            <td>
-              <div class="service-name">
-                <span class="status-dot" [class.running]="svc.running"></span>
-                <span class="name-text" [class.disabled]="!svc.enabled">{{ svc.name }}</span>
-              </div>
-            </td>
-            <td class="service-actions-cell">
-              @if (svc.installed) {
-                @if (!svc.running) {
+    <div class="services-scroll">
+      <table class="services-list">
+        <tbody>
+          @for (svc of filtered(); track svc.name) {
+            <tr [class.custom]="svc.hasConfig" (click)="selectedServiceService.select(svc.name)">
+              <td>
+                <div class="service-name">
+                  <span class="status-dot" [class.running]="svc.running"></span>
+                  <span class="name-text" [class.disabled]="!svc.enabled">{{ svc.name }}</span>
+                </div>
+              </td>
+              <td class="service-actions-cell">
+                @if (svc.installed) {
+                  @if (!svc.running) {
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      [disabled]="busy()?.name === svc.name"
+                      (click)="control(svc.name, 'start'); $event.stopPropagation()"
+                    >
+                      <mat-icon>play_arrow</mat-icon>
+                      Start
+                    </button>
+                  } @else {
+                    <button
+                      mat-raised-button
+                      color="warn"
+                      [disabled]="busy()?.name === svc.name"
+                      (click)="control(svc.name, 'stop'); $event.stopPropagation()"
+                    >
+                      <mat-icon>stop</mat-icon>
+                      Stop
+                    </button>
+                  }
+                  @if (svc.enabled) {
+                    <button
+                      mat-stroked-button
+                      [disabled]="busy()?.name === svc.name"
+                      (click)="control(svc.name, 'disable'); $event.stopPropagation()"
+                    >
+                      <mat-icon>lock</mat-icon>
+                      Disable
+                    </button>
+                  } @else {
+                    <button
+                      mat-stroked-button
+                      [disabled]="svc.enabled || busy()?.name === svc.name"
+                      (click)="control(svc.name, 'enable'); $event.stopPropagation()"
+                    >
+                      <mat-icon>lock_open</mat-icon>
+                      Enable
+                    </button>
+                  }
+                } @else if (svc.hasConfig) {
                   <button
                     mat-raised-button
                     color="primary"
                     [disabled]="busy()?.name === svc.name"
-                    (click)="control(svc.name, 'start'); $event.stopPropagation()"
+                    (click)="installService(svc.name); $event.stopPropagation()"
                   >
-                    <mat-icon>play_arrow</mat-icon>
-                    Start
-                  </button>
-                } @else {
-                  <button
-                    mat-raised-button
-                    color="warn"
-                    [disabled]="busy()?.name === svc.name"
-                    (click)="control(svc.name, 'stop'); $event.stopPropagation()"
-                  >
-                    <mat-icon>stop</mat-icon>
-                    Stop
+                    <mat-icon>download</mat-icon>
+                    Install
                   </button>
                 }
-                @if (svc.enabled) {
-                  <button
-                    mat-stroked-button
-                    [disabled]="busy()?.name === svc.name"
-                    (click)="control(svc.name, 'disable'); $event.stopPropagation()"
-                  >
-                    <mat-icon>lock</mat-icon>
-                    Disable
+              </td>
+              <td class="service-actions-cell">
+                <div [style.visibility]="svc.hasConfig ? 'visible' : 'hidden'">
+                  <button mat-icon-button [matMenuTriggerFor]="serviceMenu" title="Service actions">
+                    <mat-icon>more_vert</mat-icon>
                   </button>
-                } @else {
-                  <button
-                    mat-stroked-button
-                    [disabled]="svc.enabled || busy()?.name === svc.name"
-                    (click)="control(svc.name, 'enable'); $event.stopPropagation()"
-                  >
-                    <mat-icon>lock_open</mat-icon>
-                    Enable
-                  </button>
-                }
-              } @else if (svc.hasConfig) {
-                <button
-                  mat-raised-button
-                  color="primary"
-                  [disabled]="busy()?.name === svc.name"
-                  (click)="installService(svc.name); $event.stopPropagation()"
-                >
-                  <mat-icon>download</mat-icon>
-                  Install
-                </button>
-              }
-            </td>
-            <td class="service-actions-cell">
-              <div [style.visibility]="svc.hasConfig ? 'visible' : 'hidden'">
-                <button mat-icon-button [matMenuTriggerFor]="serviceMenu" title="Service actions">
-                  <mat-icon>more_vert</mat-icon>
-                </button>
-                <mat-menu #serviceMenu="matMenu" yPosition="below">
-                  <button mat-menu-item (click)="editService(svc)">
-                    <mat-icon>edit</mat-icon>
-                    <span>Edit</span>
-                  </button>
-                  <button mat-menu-item (click)="cloneService(svc)">
-                    <mat-icon>content_copy</mat-icon>
-                    <span>Clone</span>
-                  </button>
-                  <button mat-menu-item (click)="archiveService(svc.name)">
-                    <mat-icon>inventory_2</mat-icon>
-                    <span>Move to Archive</span>
-                  </button>
-                  <button mat-menu-item (click)="deleteService(svc.name)">
-                    <mat-icon>delete</mat-icon>
-                    <span>Delete</span>
-                  </button>
-                </mat-menu>
-              </div>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+                  <mat-menu #serviceMenu="matMenu" yPosition="below">
+                    <button mat-menu-item (click)="editService(svc)">
+                      <mat-icon>edit</mat-icon>
+                      <span>Edit</span>
+                    </button>
+                    <button mat-menu-item (click)="cloneService(svc)">
+                      <mat-icon>content_copy</mat-icon>
+                      <span>Clone</span>
+                    </button>
+                    <button mat-menu-item (click)="archiveService(svc.name)">
+                      <mat-icon>inventory_2</mat-icon>
+                      <span>Move to Archive</span>
+                    </button>
+                    <button mat-menu-item (click)="deleteService(svc.name)">
+                      <mat-icon>delete</mat-icon>
+                      <span>Delete</span>
+                    </button>
+                  </mat-menu>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   } @else if (!loading()) {
     <div class="empty">
       @if (filter().trim()) {

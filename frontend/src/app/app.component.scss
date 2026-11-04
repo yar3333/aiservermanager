@@ -104,13 +104,21 @@
   overflow-y: auto;
 }
 
+// The services header (title + filter) stays pinned; only the list inside scrolls
+// (flex chain propagates the column height down to .services-scroll).
 .services-col {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .services-col app-services {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   margin-top: 0;
 }
 
