@@ -184,14 +184,17 @@
           <mat-label>CPU Offload (GiB)</mat-label>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('device')">
-          <input
-            matInput
+          <mat-select
             formControlName="device"
-            type="text"
-            placeholder="auto"
-            matTooltip="Device(s) for vLLM execution, e.g. 'auto', 'cuda:0,1' or 'rocm'"
-          />
-          <mat-label>Device</mat-label>
+            multiple
+            placeholder="Select GPU devices"
+            matTooltip="GPU devices for vLLM execution (rocm). Empty = auto-detection"
+          >
+            @for (dev of availableDevices(); track dev.path) {
+              <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Device (multi-select)</mat-label>
         </mat-form-field>
       </div>
 

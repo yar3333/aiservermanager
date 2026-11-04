@@ -134,6 +134,65 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_BF16_CONFIG));
   });
 
+  it("populates device multi-select from a comma-separated --device flag", () => {
+    create({
+      name: "vllm-dev",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: ["serve test/model", "--device rocm0,rocm1,rocm2,rocm3"],
+    });
+    expect(component.form.controls.device.value).toEqual(["rocm0", "rocm1", "rocm2", "rocm3"]);
+    expect(component.isControlChanged("device")).toBe(true);
+  });
+
+  it("round-trips --device through save() and omits it when the selection is empty", () => {
+    create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model", "--device rocm0,rocm1"] });
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toEqual(["serve test/model", "--device rocm0,rocm1"]);
+
+    component.form.controls.device.setValue([]);
+    component.save();
+    const cleared = dialogRef.close.mock.calls[1][0] as ServiceConfig;
+    expect(cleared.flags).toEqual(["serve test/model"]);
+  });
+
+  it("keeps a legacy free-form --device value as a single selection entry", () => {
+    create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model", "--device auto"] });
+    expect(component.form.controls.device.value).toEqual(["auto"]);
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toContain("--device auto");
+  });
+
+  it("offers only rocm devices from GPU info in the device selector", () => {
+    dialogRef = { close: jest.fn() };
+    const data: VllmDialogData = { config: null, allConfigs: [], clone: false };
+    TestBed.configureTestingModule({
+      imports: [VllmDialogComponent],
+      providers: [
+        { provide: MatDialogRef, useValue: dialogRef },
+        { provide: MAT_DIALOG_DATA, useValue: data },
+        {
+          provide: ServiceService,
+          useValue: {
+            getLlamaAutocomplete: jest.fn().mockReturnValue(
+              of([
+                { path: "rocm0", source: "GPU device" },
+                { path: "cuda1", source: "GPU device" },
+                { path: "rocm3", source: "GPU device" },
+              ]),
+            ),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(VllmDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    expect(component.availableDevices().map((d) => d.path)).toEqual(["rocm0", "rocm3"]);
+  });
+
   it("populates served model name(s) from repeated --served-model-name (comma-separated)", () => {
     create({
       name: "vllm-alias",

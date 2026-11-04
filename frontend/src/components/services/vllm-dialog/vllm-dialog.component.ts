@@ -14,7 +14,7 @@ import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } fr
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
 import { findFlag, findAllFlags } from "./flag-parsing";
 import { parseContextSize, formatContextSize, CONTEXT_PRESETS } from "../../../utils/context-size";
-import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
+import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith, map } from "rxjs";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 
 export interface VllmDialogData {
@@ -43,7 +43,7 @@ const DEFAULT_OPTIONS = {
   swapSpace: 4,
   cpuOffloadGb: 0,
   kvCacheMemory: 0,
-  device: "",
+  device: [] as string[],
   attentionBackend: "",
   // Context & Scheduling
   maxModelLen: 0,
@@ -215,7 +215,7 @@ export class VllmDialogComponent implements OnInit {
     swapSpace: [DEFAULT_OPTIONS.swapSpace],
     cpuOffloadGb: [DEFAULT_OPTIONS.cpuOffloadGb],
     kvCacheMemory: [DEFAULT_OPTIONS.kvCacheMemory],
-    device: [DEFAULT_OPTIONS.device],
+    device: [[] as string[]],
     attentionBackend: [DEFAULT_OPTIONS.attentionBackend],
     // Context & Scheduling
     maxModelLen: [""],
@@ -256,6 +256,19 @@ export class VllmDialogComponent implements OnInit {
 
   /** Options for the Restart= select. */
   readonly restartOptions = SERVICE_RESTART_VALUES;
+
+  /**
+   * GPU device names for the --device multi-select. vLLM runs on ROCm only and its
+   * binary has no --list-devices, so the list comes from GPU info (rocmN per device)
+   * instead of probing the command like the llama dialog does.
+   */
+  readonly availableDevices = toSignal(
+    this.serviceService.getLlamaAutocomplete("device", "").pipe(
+      map((devices) => devices.filter((d) => d.path.toLowerCase().startsWith("rocm"))),
+      catchError(() => of<AutocompleteSuggestion[]>([])),
+    ),
+    { initialValue: [] },
+  );
 
   /** Host suggestions (network IPs + defaults). */
   readonly filteredHosts = toSignal(
@@ -388,7 +401,15 @@ export class VllmDialogComponent implements OnInit {
     f.swapSpace.setValue(flagFloat(flags, "--swap-space", DEFAULT_OPTIONS.swapSpace));
     f.cpuOffloadGb.setValue(flagFloat(flags, "--cpu-offload-gb", DEFAULT_OPTIONS.cpuOffloadGb));
     f.kvCacheMemory.setValue(flagNum(flags, "--kv-cache-memory-bytes", DEFAULT_OPTIONS.kvCacheMemory));
-    f.device.setValue(flagStr(flags, "--device", ""));
+    const deviceVal = flagStr(flags, "--device", "");
+    f.device.setValue(
+      deviceVal
+        ? deviceVal
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean)
+        : [],
+    );
     f.attentionBackend.setValue(flagStr(flags, "--attention-backend", DEFAULT_OPTIONS.attentionBackend));
 
     // Context & Scheduling
@@ -546,7 +567,8 @@ export class VllmDialogComponent implements OnInit {
     );
     this.addIf(flags, "--swap-space", c.swapSpace.value, DEFAULT_OPTIONS.swapSpace);
     this.addIf(flags, "--cpu-offload-gb", c.cpuOffloadGb.value, DEFAULT_OPTIONS.cpuOffloadGb);
-    this.addIf(flags, "--device", (c.device.value ?? "").trim(), DEFAULT_OPTIONS.device);
+    const deviceArr = c.device.value ?? [];
+    if (deviceArr.length) flags.push(`--device ${deviceArr.join(",")}`);
 
     // Context & Scheduling
     this.addIf(flags, "--max-model-len", +parseContextSize(c.maxModelLen.value ?? ""), DEFAULT_OPTIONS.maxModelLen);
