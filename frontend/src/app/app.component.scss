@@ -99,9 +99,28 @@
   min-height: 0;
 }
 
+// GPU column: SystemBar (CPU/RAM) stays pinned, only the GPU table card scrolls
+// (same flex chain as .services-col).
 .gpu-col {
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gpu-col app-system-bar {
+  flex: 0 0 auto;
+}
+
+.gpu-col app-gpu-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gpu-col .empty-card {
+  flex-shrink: 0;
 }
 
 // The services header (title + filter) stays pinned; only the list inside scrolls

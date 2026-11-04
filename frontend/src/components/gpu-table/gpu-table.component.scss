@@ -1,5 +1,21 @@
 @use "@angular/material" as mat;
 
+// The host (.gpu-col app-gpu-table) is a fixed-height flex column: the card fills it
+// and only the card body scrolls, so the card frame stays put.
+mat-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+mat-card-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .gpu-table {
   width: 100%;
   white-space: nowrap;
@@ -108,8 +124,4 @@
 
 .mat-row:hover {
   background: #fafafa;
-}
-
-mat-card-content {
-  overflow-x: hidden;
 }
