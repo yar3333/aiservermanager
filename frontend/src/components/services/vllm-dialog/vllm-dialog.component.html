@@ -102,7 +102,7 @@
           'swapSpace',
           'cpuOffloadGb',
           'kvCacheMemory',
-          'device',
+          'deviceIds',
           'attentionBackend'
         )
       "
@@ -183,18 +183,18 @@
           />
           <mat-label>CPU Offload (GiB)</mat-label>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('device')">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('deviceIds')">
           <mat-select
-            formControlName="device"
+            formControlName="deviceIds"
             multiple
             placeholder="Select GPU devices"
-            matTooltip="GPU devices for vLLM execution (rocm). Empty = auto-detection"
+            matTooltip="Selected GPU indices are saved into the service environment as HIP_VISIBLE_DEVICES (AMD) or CUDA_VISIBLE_DEVICES (NVIDIA). Empty = leave env as-is (all GPUs)"
           >
-            @for (dev of availableDevices(); track dev.path) {
-              <mat-option [value]="dev.path">{{ dev.path }}</mat-option>
+            @for (gpu of availableGpus(); track gpu.pciBusId) {
+              <mat-option [value]="gpu.gpuIndex">{{ gpu.gpuIndex }} — {{ gpu.vendor }} {{ gpu.name }}</mat-option>
             }
           </mat-select>
-          <mat-label>Device (multi-select)</mat-label>
+          <mat-label>Visible GPUs (multi-select)</mat-label>
         </mat-form-field>
       </div>
 
@@ -600,7 +600,7 @@
           rows="4"
           wrap="off"
           class="env-textarea"
-          placeholder="HF_TOKEN=hf_xxx&#10;HIP_VISIBLE_DEVICES=0,1,2,3"
+          placeholder="HF_TOKEN=hf_xxx&#10;FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE"
           matTooltip="Environment variables for the service process (KEY=VALUE, one per line)"
         ></textarea>
         <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>

@@ -4,6 +4,8 @@ import { of } from "rxjs";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog.component";
 import { ServiceConfig } from "../../../models/service";
 import { ServiceService } from "../../../services/service.service";
+import { GpuService } from "../../../services/gpu.service";
+import { Gpu } from "../../../models/gpu";
 
 /** Mirrors ~/.config/aiservermanager/services/vllm-qwen-fp8-4gpu.conf */
 const VLLM_CONFIG: ServiceConfig = {
@@ -59,12 +61,18 @@ const VLLM_BF16_CONFIG: ServiceConfig = {
   environment: { HF_TOKEN: "hf_test", FLASH_ATTENTION_TRITON_AMD_ENABLE: "TRUE" },
 };
 
+/** Mixed AMD + NVIDIA host used by the GPU multi-select tests. */
+const GPUS: Gpu[] = [
+  { index: 0, vendor: "AMD", brand: "MSI", name: "Radeon RX 7900 XTX", gpuIndex: 0, vramTotal: 24, pciBusId: "03:00.0" },
+  { index: 1, vendor: "NVIDIA", brand: "-", name: "RTX 4090", gpuIndex: 1, vramTotal: 24, pciBusId: "04:00.0" },
+];
+
 describe("VllmDialogComponent", () => {
   let fixture: ComponentFixture<VllmDialogComponent>;
   let component: VllmDialogComponent;
   let dialogRef: { close: jest.Mock };
 
-  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = [], clone = false) {
+  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = [], clone = false, gpus: Gpu[] = []) {
     dialogRef = { close: jest.fn() };
     const data: VllmDialogData = { config, allConfigs, clone };
     TestBed.configureTestingModule({
@@ -73,6 +81,7 @@ describe("VllmDialogComponent", () => {
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: ServiceService, useValue: { getLlamaAutocomplete: jest.fn().mockReturnValue(of([])) } },
+        { provide: GpuService, useValue: { fetchGpus: jest.fn().mockReturnValue(of(gpus)) } },
       ],
     });
     fixture = TestBed.createComponent(VllmDialogComponent);
@@ -134,63 +143,126 @@ describe("VllmDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(expect.objectContaining(VLLM_BF16_CONFIG));
   });
 
-  it("populates device multi-select from a comma-separated --device flag", () => {
+  it("populates the GPU multi-select from HIP_VISIBLE_DEVICES and keeps it out of the env textarea", () => {
     create({
       name: "vllm-dev",
       type: "vllm",
       command: "/bin/vllm",
-      flags: ["serve test/model", "--device rocm0,rocm1,rocm2,rocm3"],
+      flags: ["serve test/model"],
+      environment: { HF_TOKEN: "hf_x", HIP_VISIBLE_DEVICES: "0,1,2,3" },
     });
-    expect(component.form.controls.device.value).toEqual(["rocm0", "rocm1", "rocm2", "rocm3"]);
-    expect(component.isControlChanged("device")).toBe(true);
+    expect(component.form.controls.deviceIds.value).toEqual([0, 1, 2, 3]);
+    expect(component.form.controls.envText.value).toBe("HF_TOKEN=hf_x\n");
+    expect(component.isControlChanged("deviceIds")).toBe(true);
   });
 
-  it("round-trips --device through save() and omits it when the selection is empty", () => {
-    create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model", "--device rocm0,rocm1"] });
+  it("populates the GPU multi-select from CUDA_VISIBLE_DEVICES", () => {
+    create({
+      name: "vllm-dev",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: ["serve test/model"],
+      environment: { CUDA_VISIBLE_DEVICES: "1" },
+    });
+    expect(component.form.controls.deviceIds.value).toEqual([1]);
+    expect(component.form.controls.envText.value).toBe("");
+  });
+
+  it("prefers HIP_VISIBLE_DEVICES when both vars exist and keeps the CUDA one in the textarea", () => {
+    create({
+      name: "vllm-dev",
+      type: "vllm",
+      command: "/bin/vllm",
+      flags: ["serve test/model"],
+      environment: { CUDA_VISIBLE_DEVICES: "5", HIP_VISIBLE_DEVICES: "0,1" },
+    });
+    expect(component.form.controls.deviceIds.value).toEqual([0, 1]);
+    expect(component.form.controls.envText.value).toBe("CUDA_VISIBLE_DEVICES=5\n");
+  });
+
+  it("writes HIP_VISIBLE_DEVICES into the environment when an AMD GPU is selected", () => {
+    create(
+      { name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model"], environment: { HF_TOKEN: "hf_x" } },
+      [],
+      false,
+      GPUS,
+    );
+    component.form.controls.deviceIds.setValue([0]);
     component.save();
     const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
-    expect(saved.flags).toEqual(["serve test/model", "--device rocm0,rocm1"]);
-
-    component.form.controls.device.setValue([]);
-    component.save();
-    const cleared = dialogRef.close.mock.calls[1][0] as ServiceConfig;
-    expect(cleared.flags).toEqual(["serve test/model"]);
+    expect(saved.environment).toEqual({ HF_TOKEN: "hf_x", HIP_VISIBLE_DEVICES: "0" });
+    expect(saved.flags).toEqual(["serve test/model"]);
   });
 
-  it("keeps a legacy free-form --device value as a single selection entry", () => {
+  it("writes CUDA_VISIBLE_DEVICES when only NVIDIA GPUs are selected", () => {
+    create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model"] }, [], false, GPUS);
+    component.form.controls.deviceIds.setValue([1]);
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.environment).toEqual({ CUDA_VISIBLE_DEVICES: "1" });
+  });
+
+  it("round-trips a GPU selection through the editor unchanged", () => {
+    create(
+      {
+        name: "vllm-dev",
+        type: "vllm",
+        command: "/bin/vllm",
+        flags: ["serve test/model"],
+        environment: { HF_TOKEN: "hf_x", HIP_VISIBLE_DEVICES: "0,2" },
+      },
+      [],
+      false,
+      GPUS,
+    );
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.environment).toEqual({ HF_TOKEN: "hf_x", HIP_VISIBLE_DEVICES: "0,2" });
+  });
+
+  it("leaves env untouched when the picker is empty (manual *_VISIBLE_DEVICES preserved)", () => {
+    create(null, [], false, GPUS);
+    component.form.controls.name.setValue("vllm-dev");
+    component.form.controls.command.setValue("/bin/vllm");
+    component.form.controls.model.setValue("test/model");
+    component.form.controls.envText.setValue("HIP_VISIBLE_DEVICES=0,1\n");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.environment).toEqual({ HIP_VISIBLE_DEVICES: "0,1" });
+  });
+
+  it("selection replaces a manual *_VISIBLE_DEVICES line from the env textarea", () => {
+    create(null, [], false, GPUS);
+    component.form.controls.name.setValue("vllm-dev");
+    component.form.controls.command.setValue("/bin/vllm");
+    component.form.controls.model.setValue("test/model");
+    component.form.controls.envText.setValue("HF_TOKEN=x\nCUDA_VISIBLE_DEVICES=0,1\n");
+    component.form.controls.deviceIds.setValue([0]);
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.environment).toEqual({ HF_TOKEN: "x", HIP_VISIBLE_DEVICES: "0" });
+  });
+
+  it("keeps a legacy free-form --device value verbatim in extra flags", () => {
     create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model", "--device auto"] });
-    expect(component.form.controls.device.value).toEqual(["auto"]);
+    expect(component.form.controls.deviceIds.value).toEqual([]);
+    expect(component.form.controls.extraFlags.value).toBe("--device auto");
     component.save();
     const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
     expect(saved.flags).toContain("--device auto");
   });
 
-  it("offers only rocm devices from GPU info in the device selector", () => {
-    dialogRef = { close: jest.fn() };
-    const data: VllmDialogData = { config: null, allConfigs: [], clone: false };
-    TestBed.configureTestingModule({
-      imports: [VllmDialogComponent],
-      providers: [
-        { provide: MatDialogRef, useValue: dialogRef },
-        { provide: MAT_DIALOG_DATA, useValue: data },
-        {
-          provide: ServiceService,
-          useValue: {
-            getLlamaAutocomplete: jest.fn().mockReturnValue(
-              of([
-                { path: "rocm0", source: "GPU device" },
-                { path: "cuda1", source: "GPU device" },
-                { path: "rocm3", source: "GPU device" },
-              ]),
-            ),
-          },
-        },
-      ],
-    });
-    fixture = TestBed.createComponent(VllmDialogComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-    expect(component.availableDevices().map((d) => d.path)).toEqual(["rocm0", "rocm3"]);
+  it("keeps a legacy --device-ids flag verbatim in extra flags", () => {
+    create({ name: "vllm-dev", type: "vllm", command: "/bin/vllm", flags: ["serve test/model", "--device-ids 0,1"] });
+    expect(component.form.controls.extraFlags.value).toBe("--device-ids 0,1");
+    component.save();
+    const saved = dialogRef.close.mock.calls[0][0] as ServiceConfig;
+    expect(saved.flags).toContain("--device-ids 0,1");
+  });
+
+  it("offers GPUs from GPU info as multi-select options", () => {
+    create(null, [], false, GPUS);
+    expect(component.availableGpus().map((g) => g.gpuIndex)).toEqual([0, 1]);
   });
 
   it("populates served model name(s) from repeated --served-model-name (comma-separated)", () => {

@@ -12,9 +12,11 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
+import { GpuService } from "../../../services/gpu.service";
+import { Gpu } from "../../../models/gpu";
 import { findFlag, findAllFlags } from "./flag-parsing";
 import { parseContextSize, formatContextSize, CONTEXT_PRESETS } from "../../../utils/context-size";
-import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith, map } from "rxjs";
+import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 
 export interface VllmDialogData {
@@ -43,7 +45,7 @@ const DEFAULT_OPTIONS = {
   swapSpace: 4,
   cpuOffloadGb: 0,
   kvCacheMemory: 0,
-  device: [] as string[],
+  deviceIds: [] as number[],
   attentionBackend: "",
   // Context & Scheduling
   maxModelLen: 0,
@@ -156,6 +158,7 @@ export class VllmDialogComponent implements OnInit {
   private dialogRef = inject(MatDialogRef<VllmDialogComponent>);
   private data: VllmDialogData = inject(MAT_DIALOG_DATA);
   private serviceService = inject(ServiceService);
+  private gpuService = inject(GpuService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
 
@@ -215,7 +218,7 @@ export class VllmDialogComponent implements OnInit {
     swapSpace: [DEFAULT_OPTIONS.swapSpace],
     cpuOffloadGb: [DEFAULT_OPTIONS.cpuOffloadGb],
     kvCacheMemory: [DEFAULT_OPTIONS.kvCacheMemory],
-    device: [[] as string[]],
+    deviceIds: [[] as number[]],
     attentionBackend: [DEFAULT_OPTIONS.attentionBackend],
     // Context & Scheduling
     maxModelLen: [""],
@@ -257,18 +260,10 @@ export class VllmDialogComponent implements OnInit {
   /** Options for the Restart= select. */
   readonly restartOptions = SERVICE_RESTART_VALUES;
 
-  /**
-   * GPU device names for the --device multi-select. vLLM runs on ROCm only and its
-   * binary has no --list-devices, so the list comes from GPU info (rocmN per device)
-   * instead of probing the command like the llama dialog does.
-   */
-  readonly availableDevices = toSignal(
-    this.serviceService.getLlamaAutocomplete("device", "").pipe(
-      map((devices) => devices.filter((d) => d.path.toLowerCase().startsWith("rocm"))),
-      catchError(() => of<AutocompleteSuggestion[]>([])),
-    ),
-    { initialValue: [] },
-  );
+  /** GPUs for the --device-ids multi-select; values are runtime HIP/CUDA device numbers. */
+  readonly availableGpus = toSignal(this.gpuService.fetchGpus().pipe(catchError(() => of<Gpu[]>([]))), {
+    initialValue: [],
+  });
 
   /** Host suggestions (network IPs + defaults). */
   readonly filteredHosts = toSignal(
@@ -401,15 +396,6 @@ export class VllmDialogComponent implements OnInit {
     f.swapSpace.setValue(flagFloat(flags, "--swap-space", DEFAULT_OPTIONS.swapSpace));
     f.cpuOffloadGb.setValue(flagFloat(flags, "--cpu-offload-gb", DEFAULT_OPTIONS.cpuOffloadGb));
     f.kvCacheMemory.setValue(flagNum(flags, "--kv-cache-memory-bytes", DEFAULT_OPTIONS.kvCacheMemory));
-    const deviceVal = flagStr(flags, "--device", "");
-    f.device.setValue(
-      deviceVal
-        ? deviceVal
-            .split(",")
-            .map((d) => d.trim())
-            .filter(Boolean)
-        : [],
-    );
     f.attentionBackend.setValue(flagStr(flags, "--attention-backend", DEFAULT_OPTIONS.attentionBackend));
 
     // Context & Scheduling
@@ -452,9 +438,23 @@ export class VllmDialogComponent implements OnInit {
     // Extra flags: any "--"-prefixed flag line not covered by structured fields.
     f.extraFlags.setValue(this.extractExtraFlags(flags).join("\n"));
 
-    // Environment
+    // Environment. *_VISIBLE_DEVICES is owned by the GPU multi-select (HIP wins when
+    // both are present); the rest of the vars stay in the free-form textarea.
     if (cfg.environment) {
-      const envLines = Object.entries(cfg.environment)
+      const entries = Object.entries(cfg.environment);
+      const visible =
+        entries.find(([k]) => k === "HIP_VISIBLE_DEVICES") ??
+        entries.find(([k]) => k === "CUDA_VISIBLE_DEVICES");
+      if (visible) {
+        f.deviceIds.setValue(
+          visible[1]
+            .split(",")
+            .map((n) => parseInt(n.trim(), 10))
+            .filter((n) => !isNaN(n)),
+        );
+      }
+      const envLines = entries
+        .filter(([key]) => key !== visible?.[0])
         .map(([key, value]) => `${key}=${value}`)
         .join("\n");
       if (envLines) {
@@ -483,7 +483,6 @@ export class VllmDialogComponent implements OnInit {
       "--swap-space",
       "--cpu-offload-gb",
       "--kv-cache-memory-bytes",
-      "--device",
       "--attention-backend",
       "--max-model-len",
       "--max-num-seqs",
@@ -567,8 +566,6 @@ export class VllmDialogComponent implements OnInit {
     );
     this.addIf(flags, "--swap-space", c.swapSpace.value, DEFAULT_OPTIONS.swapSpace);
     this.addIf(flags, "--cpu-offload-gb", c.cpuOffloadGb.value, DEFAULT_OPTIONS.cpuOffloadGb);
-    const deviceArr = c.device.value ?? [];
-    if (deviceArr.length) flags.push(`--device ${deviceArr.join(",")}`);
 
     // Context & Scheduling
     this.addIf(flags, "--max-model-len", +parseContextSize(c.maxModelLen.value ?? ""), DEFAULT_OPTIONS.maxModelLen);
@@ -647,6 +644,7 @@ export class VllmDialogComponent implements OnInit {
     if (this.form.invalid) return;
 
     const environment = this.parseEnvironment();
+    this.applyVisibleDevices(environment);
     const cfg: ServiceConfig = {
       name: this.form.controls.name.value!.trim(),
       type: "vllm" as ServiceType,
@@ -664,6 +662,24 @@ export class VllmDialogComponent implements OnInit {
     if (restart && restart !== "no") cfg.restart = restart;
 
     this.dialogRef.close(cfg);
+  }
+
+  /**
+   * Write the GPU multi-select into CUDA/HIP_VISIBLE_DEVICES. HIP when the selected GPUs
+   * include an AMD one (or nothing resolvable was selected and the host has AMD GPUs),
+   * CUDA otherwise. With an empty selection the env is left as typed in the textarea.
+   */
+  private applyVisibleDevices(environment: Record<string, string>): void {
+    const selected = this.form.controls.deviceIds.value ?? [];
+    if (!selected.length) return;
+    delete environment["HIP_VISIBLE_DEVICES"];
+    delete environment["CUDA_VISIBLE_DEVICES"];
+    const gpus = this.availableGpus();
+    const selectedGpus = gpus.filter((g) => selected.includes(g.gpuIndex));
+    const amd = selectedGpus.length
+      ? selectedGpus.some((g) => g.vendor === "AMD")
+      : gpus.some((g) => g.vendor === "AMD");
+    environment[amd ? "HIP_VISIBLE_DEVICES" : "CUDA_VISIBLE_DEVICES"] = selected.join(",");
   }
 
   cancel(): void {
