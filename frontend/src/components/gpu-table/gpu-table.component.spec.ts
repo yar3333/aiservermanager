@@ -55,6 +55,12 @@ describe("GpuTableComponent", () => {
     expect(component.makeGpuNameShort("RTX 4090")).toBe("RTX 4090");
   });
 
+  it("shortens NVIDIA GeForce names", () => {
+    expect(component.makeGpuNameShort("NVIDIA GeForce RTX 4090")).toBe("RTX 4090");
+    expect(component.makeGpuNameShort("NVIDIA GeForce GTX 1660 SUPER")).toBe("GTX 1660 SUPER");
+    expect(component.makeGpuNameShort("NVIDIA A100")).toBe("NVIDIA A100");
+  });
+
   it("marks vendor css classes", () => {
     expect(component.getVendorCssClass(makeGpu({ vendor: "NVIDIA" }))["gpu-vendor-nvidia"]).toBe(true);
     expect(component.getVendorCssClass(makeGpu({ vendor: "AMD" }))["gpu-vendor-amd"]).toBe(true);

@@ -45,6 +45,7 @@ export class GpuTableComponent {
 
   makeGpuNameShort(name: string): string {
     name = name.replace(/^AMD Radeon RX /, "RX ");
+    name = name.replace(/^NVIDIA GeForce RTX /, "RTX ");
     return name;
   }
 }
