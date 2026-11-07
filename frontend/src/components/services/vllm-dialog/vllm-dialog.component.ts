@@ -15,6 +15,7 @@ import { ServiceService, AutocompleteSuggestion } from "../../../services/servic
 import { SystemService } from "../../../services/system.service";
 import { buildRunAsLabels } from "../../../utils/run-as-fields";
 import { syncDisabledControls } from "../../../utils/disabled-controls";
+import { uniqueServiceName } from "../../../utils/service-name";
 import { GpuService } from "../../../services/gpu.service";
 import { Gpu } from "../../../models/gpu";
 import { findFlag, findAllFlags } from "./flag-parsing";
@@ -207,7 +208,16 @@ export class VllmDialogComponent implements OnInit {
   // ── Form ──
 
   form = this.fb.group({
-    name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
+    name: [
+      this.data.config?.name ?? "",
+      {
+        validators: [
+          Validators.required,
+          Validators.pattern(NAME_REGEX),
+          uniqueServiceName(this.data.allConfigs ?? [], this.data.config?.name ?? null),
+        ],
+      },
+    ],
     command: [this.data.config?.command ?? "", Validators.required],
     // Identity
     host: [DEFAULT_OPTIONS.host],
@@ -355,10 +365,10 @@ export class VllmDialogComponent implements OnInit {
 
   /**
    * Which fields are locked, put on the controls because Angular ignores a `disabled`
-   * binding on an element carrying `formControlName`.
+   * binding on an element carrying `formControlName`. The name stays editable: saving
+   * under a new name renames the service, `uniqueServiceName` rejects a name in use.
    */
   private readonly lockedFields = syncDisabledControls(this.form, () => ({
-    name: this.isEdit && !this.isClone,
     group: this.runAs.isGroupDisabled(),
     toolCallParser: this.isToolCallParserDisabled(),
   }));

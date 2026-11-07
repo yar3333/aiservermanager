@@ -9,6 +9,8 @@
         <mat-error>Required</mat-error>
       } @else if (nameControl.errors?.["pattern"]) {
         <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
+      } @else if (nameControl.errors?.["nameTaken"]) {
+        <mat-error>Another service already uses this name</mat-error>
       }
     </mat-form-field>
 

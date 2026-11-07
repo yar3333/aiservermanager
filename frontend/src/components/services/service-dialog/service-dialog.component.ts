@@ -10,6 +10,7 @@ import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } fr
 import { SystemService } from "../../../services/system.service";
 import { buildRunAsLabels } from "../../../utils/run-as-fields";
 import { syncDisabledControls } from "../../../utils/disabled-controls";
+import { uniqueServiceName } from "../../../utils/service-name";
 
 export interface ServiceDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -47,7 +48,16 @@ export class ServiceDialogComponent {
   readonly isClone = this.data.clone === true;
 
   form = this.fb.group({
-    name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
+    name: [
+      this.data.config?.name ?? "",
+      {
+        validators: [
+          Validators.required,
+          Validators.pattern(NAME_REGEX),
+          uniqueServiceName(this.data.allConfigs ?? [], this.data.config?.name ?? null),
+        ],
+      },
+    ],
     command: [this.data.config?.command ?? "", Validators.required],
     flagsText: [""],
     envText: [""],
@@ -64,11 +74,11 @@ export class ServiceDialogComponent {
   readonly runAs = buildRunAsLabels(this.system.windows);
 
   /**
-   * Renaming an existing service would create a second one, so the name is locked in edit
-   * mode (Clone is the way to branch off a config), and Windows has no group to set.
+   * Windows has no group to set. The name is editable in every mode: saving a config under
+   * a new name is a rename (the service row is moved, its enabled and running state kept),
+   * and `uniqueServiceName` stops that from landing on a name another service already holds.
    */
   private readonly lockedFields = syncDisabledControls(this.form, () => ({
-    name: this.isEdit && !this.isClone,
     group: this.runAs.isGroupDisabled(),
   }));
 

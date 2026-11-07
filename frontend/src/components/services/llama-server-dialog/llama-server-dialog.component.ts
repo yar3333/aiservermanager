@@ -15,6 +15,7 @@ import { ServiceService, AutocompleteSuggestion } from "../../../services/servic
 import { SystemService } from "../../../services/system.service";
 import { buildRunAsLabels } from "../../../utils/run-as-fields";
 import { syncDisabledControls } from "../../../utils/disabled-controls";
+import { uniqueServiceName } from "../../../utils/service-name";
 import { findFlag, flagBool, flagValueFloat, flagValueNum, flagValueStr } from "./flag-parsing";
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
 import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
@@ -296,7 +297,16 @@ export class LlamaServerDialogComponent implements OnInit {
   // ── Form (must be before filteredHosts which references it) ──
 
   form = this.fb.group({
-    name: [this.data.config?.name ?? "", { validators: [Validators.required, Validators.pattern(NAME_REGEX)] }],
+    name: [
+      this.data.config?.name ?? "",
+      {
+        validators: [
+          Validators.required,
+          Validators.pattern(NAME_REGEX),
+          uniqueServiceName(this.data.allConfigs ?? [], this.data.config?.name ?? null),
+        ],
+      },
+    ],
     command: [this.data.config?.command ?? "", Validators.required],
     // Basic
     host: [DEFAULT_OPTIONS.host],
@@ -567,10 +577,10 @@ export class LlamaServerDialogComponent implements OnInit {
 
   /**
    * Which fields are locked, put on the controls because Angular ignores a `disabled`
-   * binding on an element carrying `formControlName`.
+   * binding on an element carrying `formControlName`. The name stays editable: saving
+   * under a new name renames the service, `uniqueServiceName` rejects a name in use.
    */
   private readonly lockedFields = syncDisabledControls(this.form, () => ({
-    name: this.isEdit && !this.isClone,
     group: this.runAs.isGroupDisabled(),
     tensorSplit: this.isTensorSplitDisabled(),
     fitTarget: this.isFitTargetDisabled(),

@@ -195,16 +195,30 @@ describe("ServiceDialogComponent", () => {
     expect(dialogRef.close.mock.calls[0][0].group).toBe("ai");
   });
 
-  it("locks the name field while editing an existing config", () => {
+  it("keeps the name editable while editing, so the service can be renamed", () => {
     create({ name: "comfyui", command: "C:\\AiPic\\run.cmd", flags: [] });
 
-    expect(component.form.controls.name.disabled).toBe(true);
+    const name = component.form.controls.name;
+    expect(name.disabled).toBe(false);
+    name.setValue("comfyui-cuda");
+    expect(name.valid).toBe(true);
+
+    component.save();
+    expect(dialogRef.close.mock.calls[0][0].name).toBe("comfyui-cuda");
   });
 
-  it("leaves the name editable when cloning an existing config", () => {
-    create({ name: "comfyui", command: "C:\\AiPic\\run.cmd", flags: [] }, [], false, true);
+  it("rejects a name another service already uses", () => {
+    const comfyui: ServiceConfig = { name: "comfyui", command: "C:\\AiPic\\run.cmd", flags: [] };
+    create(comfyui, [comfyui, { name: "llama-qwen", command: "/bin/llama-server", flags: [] }]);
 
-    expect(component.form.controls.name.disabled).toBe(false);
+    const name = component.form.controls.name;
+    expect(name.valid).toBe(true); // its own name must stay valid
+    name.setValue("llama-qwen");
+    expect(name.hasError("nameTaken")).toBe(true);
+    expect(component.form.valid).toBe(false);
+
+    component.save();
+    expect(dialogRef.close).not.toHaveBeenCalled();
   });
 
   it("cancel closes the dialog without a result", () => {
