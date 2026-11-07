@@ -70,6 +70,8 @@ export interface CliOverrides {
   configHome?: string;
   entryScript?: string;
   execPath?: string;
+  /** Target platform of the plan; tests pin it so they do not follow the host. */
+  platform?: NodeJS.Platform;
 }
 
 async function pickController(controllers: ServiceController[]): Promise<ServiceController | undefined> {
@@ -144,6 +146,7 @@ async function install(argv: string[], overrides: CliOverrides): Promise<number>
     configHome,
     entryScript: overrides.entryScript,
     nodePath: overrides.execPath,
+    platform: overrides.platform,
   });
   const configDir = path.join(configHome, ".config", "aiservermanager");
   console.log(`Installing "${SELF_SERVICE_NAME}" as an OS service…`);

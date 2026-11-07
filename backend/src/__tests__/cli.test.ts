@@ -77,25 +77,50 @@ describe("parseArgs", () => {
 });
 
 describe("run install", () => {
-  it("registers the manager itself through the platform controller", async () => {
+  it("registers the manager itself with the Windows program/args split", async () => {
     const controller = fakeController();
     const io = capture();
 
-    const code = await run(["install", "--port", "4399"], overrides(controller));
+    const code = await run(
+      ["install", "--port", "4399"],
+      overrides(controller, { platform: "win32", execPath: "C:\\nodejs\\node.exe" }),
+    );
 
     expect(code).toBe(0);
     expect(controller.installAndEnable).toHaveBeenCalledWith(
       "aiservermanager",
-      expect.stringContaining(ENTRY),
+      "C:\\nodejs\\node.exe C:\\app\\backend\\dist\\index.js",
       expect.objectContaining({
-        environment: expect.objectContaining({ PORT: "4399", HOST: "127.0.0.1", HOME }),
+        environment: expect.objectContaining({ PORT: "4399", HOST: "127.0.0.1", HOME, USERPROFILE: HOME }),
         restart: "always",
-        executable: process.execPath,
+        executable: "C:\\nodejs\\node.exe",
         args: [ENTRY],
       }),
     );
     expect(controller.perform).toHaveBeenCalledWith("aiservermanager", "start");
     expect(io.out()).toContain("http://127.0.0.1:4399");
+  });
+
+  it("hands systemd one ExecStart line and widens the service PATH", async () => {
+    const controller = fakeController();
+
+    const code = await run(
+      ["install", "--port", "4399", "--config-home", "/home/yan"],
+      overrides(controller, {
+        platform: "linux",
+        execPath: "/usr/bin/node",
+        entryScript: "/opt/aiservermanager/backend/dist/index.js",
+        configHome: "/home/yan",
+      }),
+    );
+
+    expect(code).toBe(0);
+    const [name, execStart, options] = (controller.installAndEnable as jest.Mock).mock.calls[0];
+    expect(name).toBe("aiservermanager");
+    expect(execStart).toBe("/usr/bin/node /opt/aiservermanager/backend/dist/index.js");
+    expect(options.executable).toBeUndefined();
+    expect(options.environment).toMatchObject({ HOME: "/home/yan", PORT: "4399" });
+    expect(options.environment.PATH).toContain("/opt/rocm/bin");
   });
 
   it("refuses without privileges and touches nothing", async () => {
