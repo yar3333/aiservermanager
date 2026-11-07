@@ -1,0 +1,267 @@
+<h2 mat-dialog-title>{{ isClone ? "Clone" : isEdit ? "Edit" : "Add" }} Avalon service</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="avalon-form">
+    <!-- Service identity -->
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
+      <input matInput formControlName="name" placeholder="e.g. avalon-qwen3_8_fn-q4-1gpu-256k" />
+      <mat-label>Service Name</mat-label>
+      @if (form.controls.name.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      } @else if (form.controls.name.errors?.["pattern"]) {
+        <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
+      } @else if (form.controls.name.errors?.["nameTaken"]) {
+        <mat-error>Another service already uses this name</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('command')">
+      <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/avalon/run.sh" />
+      <mat-label>Command (Avalon launcher)</mat-label>
+      @if (form.controls.command.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-autocomplete #commandAuto="matAutocomplete">
+      @for (ec of filteredCommands(); track ec.command) {
+        <mat-option [value]="ec.command">
+          <span class="auto-path">{{ ec.command }}</span>
+          <span class="auto-from">({{ ec.from }})</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
+
+    <!-- ═══════════ Model ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('model')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Model</mat-panel-title>
+        <mat-panel-description>Empty = the model built into run.sh</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <app-file-autocomplete
+        formControlName="model"
+        label="Model — first GGUF shard (MODEL)"
+        placeholder="/home/.../Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf"
+        fieldClass="full-width"
+        [existingPaths]="existingModelPaths()"
+      />
+    </mat-expansion-panel>
+
+    <!-- ═══════════ GPUs & Vision ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('gpus', 'mmproj', 'mmdev')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>GPUs &amp; Vision</mat-panel-title>
+        <mat-panel-description>Hosted-MoE layout: dense weights on GPU, experts in RAM</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('gpus')">
+          <input
+            matInput
+            formControlName="gpus"
+            type="text"
+            [matAutocomplete]="gpusAuto"
+            placeholder="ROCm0"
+            matTooltip="LLM card(s) as llama-server names them, comma-separated (GPUS). Passed to --device. --fit is tested on a single card only"
+          />
+          <mat-label>LLM GPU (GPUS)</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #gpusAuto="matAutocomplete">
+          @for (d of deviceNames(); track d) {
+            <mat-option [value]="d">{{ d }}</mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mmdev')">
+          <input
+            matInput
+            formControlName="mmdev"
+            type="text"
+            [matAutocomplete]="mmdevAuto"
+            placeholder="ROCm1"
+            matTooltip="Card for the vision projector (MMDEV). Must differ from the LLM card — 'cpu' or 'none' runs the ViT on the CPU. Ignored while vision is off"
+          />
+          <mat-label>Vision GPU (MMDEV)</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #mmdevAuto="matAutocomplete">
+          @for (d of mmdevSuggestions(); track d) {
+            <mat-option [value]="d">{{ d }}</mat-option>
+          }
+        </mat-autocomplete>
+      </div>
+
+      @if (isVisionOn()) {
+        <div class="subsection-label">Vision projector</div>
+      }
+      <app-file-autocomplete
+        formControlName="mmproj"
+        label="mmproj path (MMPROJ)"
+        [placeholder]="isVisionOn() ? '/path/to/mmproj-F16.gguf or none' : 'none — vision off'"
+        fieldClass="full-width"
+        [existingPaths]="existingMmprojPaths()"
+      />
+
+      @if (isVisionDeviceClash()) {
+        <div class="hint hint-warning" role="alert">
+          <mat-icon>warning</mat-icon>
+          <span>
+            Vision GPU equals the LLM GPU ({{ form.controls.gpus.value }}) — --fit takes that card's VRAM
+            completely and the projector fails to allocate. Pick another card or set the vision GPU to cpu.
+          </span>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Server & Context ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('host', 'port', 'ctxSize')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Server &amp; Context</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('host')">
+          <input
+            matInput
+            formControlName="host"
+            type="text"
+            [matAutocomplete]="hostAuto"
+            matTooltip="Address to bind (HOST). Default: 0.0.0.0"
+          />
+          <mat-label>Host</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #hostAuto="matAutocomplete">
+          @for (hs of filteredHosts(); track hs.path) {
+            <mat-option [value]="hs.path">
+              <span class="auto-path">{{ hs.path }}</span>
+              <span class="auto-from">({{ hs.source }})</span>
+            </mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('port')">
+          <input matInput formControlName="port" type="number" matTooltip="API port (PORT). Default: 4239" />
+          <mat-label>Port</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ctxSize')">
+          <input
+            matInput
+            formControlName="ctxSize"
+            type="text"
+            [matAutocomplete]="ctxAuto"
+            (blur)="onCtxSizeInput()"
+            (keyup.enter)="onCtxSizeInput()"
+            placeholder="e.g. 256K, 262144"
+            matTooltip="Context length (CTX). Supports 20000, 20K. Default: 256K"
+          />
+          <mat-label>Context (CTX)</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #ctxAuto="matAutocomplete">
+          @for (p of ctxPresets(); track p.label) {
+            <mat-option [value]="p.label">{{ p.label }}</mat-option>
+          }
+        </mat-autocomplete>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Parallel Requests ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('parallel')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Parallel Requests</mat-panel-title>
+        <mat-panel-description>run.sh pins --parallel 1; this overrides it through EXTRA</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('parallel')">
+          <input
+            matInput
+            formControlName="parallel"
+            type="number"
+            min="1"
+            matTooltip="Concurrent requests — written to EXTRA as --parallel N (last occurrence wins, so it replaces the --parallel 1 of run.sh). 1 = nothing emitted. EXTRA belongs to this field: other EXTRA arguments are replaced"
+          />
+          <mat-label>Concurrent requests (--parallel)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="hint">
+        <mat-icon>info</mat-icon>
+        <span>
+          Each slot carries its own KV cache, so N &gt; 1 needs the context of every slot to fit the
+          hosted-MoE cache left in VRAM. The launcher keeps the MTP draft on one card too.
+        </span>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Additional ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('extraFlags', 'envText')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Additional</mat-panel-title>
+        <mat-panel-description>Launcher arguments and environment variables</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('extraFlags')">
+        <textarea
+          matInput
+          formControlName="extraFlags"
+          rows="3"
+          wrap="off"
+          class="flags-textarea"
+          placeholder="--dry-run"
+          matTooltip="Arguments appended to the launcher command line, kept verbatim (one per line). run.sh reads no argv — configure it with the fields above and the environment below"
+        ></textarea>
+        <mat-label>Launcher arguments (one per line, unused by run.sh)</mat-label>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('envText')">
+        <textarea
+          matInput
+          formControlName="envText"
+          rows="4"
+          wrap="off"
+          class="env-textarea"
+          placeholder="BIN=/path/to/other/build/llama-server&#10;DRAFT=/path/to/mtp-head.gguf&#10;GGML_MOE_CACHE_LAYER_DEVICE=ROCm0"
+          matTooltip="Environment variables for the service process (KEY=VALUE, one per line). MODEL, GPUS, MMPROJ, MMDEV, HOST, PORT, CTX and EXTRA belong to the fields above and are ignored here"
+        ></textarea>
+        <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Service unit ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Service unit</mat-panel-title>
+        <mat-panel-description>systemd User / Group / Restart policy</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="user" placeholder="llama" [matTooltip]="runAs.userHint()" />
+          <mat-label>Run as user</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="group" placeholder="ai" [matTooltip]="runAs.groupHint()" />
+          <mat-label>Run as group</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="restart">
+            @for (r of restartOptions; track r) {
+              <mat-option [value]="r">{{ r === "no" ? "no (default)" : r }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Restart policy</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
+    {{ isEdit && !isClone ? "Save" : "Create" }}
+  </button>
+</mat-dialog-actions>

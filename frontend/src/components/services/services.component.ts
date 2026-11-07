@@ -19,6 +19,7 @@ import { ArchiveDialogComponent } from "./archive-dialog/archive-dialog.componen
 import { AccountPasswordService } from "../../services/account-password.service";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog/vllm-dialog.component";
+import { AvalonDialogComponent, AvalonDialogData } from "./avalon-dialog/avalon-dialog.component";
 import { MatIconModule } from "@angular/material/icon";
 
 /** Merged service status + optional config for custom services. */
@@ -288,6 +289,10 @@ export class ServicesComponent implements OnInit {
       const data: VllmDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(VllmDialogComponent, { data, minWidth: "800px" });
       this.handleDialogResult(ref, config, clone);
+    } else if (type === "avalon") {
+      const data: AvalonDialogData = { config, allConfigs: this.configs(), clone };
+      const ref = this.dialog.open(AvalonDialogComponent, { data, minWidth: "800px" });
+      this.handleDialogResult(ref, config, clone);
     } else {
       const data: ServiceDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
@@ -296,7 +301,9 @@ export class ServicesComponent implements OnInit {
   }
 
   private handleDialogResult(
-    ref: MatDialogRef<LlamaServerDialogComponent | ServiceDialogComponent | VllmDialogComponent>,
+    ref: MatDialogRef<
+      LlamaServerDialogComponent | ServiceDialogComponent | VllmDialogComponent | AvalonDialogComponent
+    >,
     config: ServiceConfig | null,
     clone = false,
   ): void {

@@ -27,6 +27,22 @@ env.CUDA_VISIBLE_DEVICES=0,1
     });
   });
 
+  it("recognises the avalon type and writes it back", () => {
+    const cfg = parseConfigFile(
+      "avalon-qwen",
+      `type=avalon
+command=/home/yar/MyDocs/AiChat/avalon/run.sh
+env.GPUS=ROCm0
+`,
+    );
+
+    expect(cfg.type).toBe("avalon");
+    expect(cfg.environment).toEqual({ GPUS: "ROCm0" });
+    expect(serializeConfig(cfg)).toBe(
+      "type=avalon\ncommand=/home/yar/MyDocs/AiChat/avalon/run.sh\nenv.GPUS=ROCm0\n",
+    );
+  });
+
   it("yields undefined environment when no env lines present (backward compat)", () => {
     const raw = `type=generic
 command=/usr/bin/python3
