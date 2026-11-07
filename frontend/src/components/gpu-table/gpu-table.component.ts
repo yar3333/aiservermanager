@@ -45,7 +45,9 @@ export class GpuTableComponent {
 
   makeGpuNameShort(name: string): string {
     name = name.replace(/^AMD Radeon RX /, "RX ");
-    name = name.replace(/^NVIDIA GeForce RTX /, "RTX ");
+    // The family (RTX, GTX, MX, …) is what tells the cards apart, "NVIDIA GeForce" is only
+    // a marketing prefix — dropped whole, so every family is shortened, not just RTX.
+    name = name.replace(/^NVIDIA GeForce /, "");
     return name;
   }
 }

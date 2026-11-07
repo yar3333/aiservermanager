@@ -58,6 +58,7 @@ describe("GpuTableComponent", () => {
   it("shortens NVIDIA GeForce names", () => {
     expect(component.makeGpuNameShort("NVIDIA GeForce RTX 4090")).toBe("RTX 4090");
     expect(component.makeGpuNameShort("NVIDIA GeForce GTX 1660 SUPER")).toBe("GTX 1660 SUPER");
+    expect(component.makeGpuNameShort("NVIDIA GeForce MX350")).toBe("MX350");
     expect(component.makeGpuNameShort("NVIDIA A100")).toBe("NVIDIA A100");
   });
 
