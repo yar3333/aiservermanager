@@ -1,9 +1,11 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { signal, WritableSignal } from "@angular/core";
 import { MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { of } from "rxjs";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog.component";
 import { ServiceConfig } from "../../../models/service";
 import { ServiceService } from "../../../services/service.service";
+import { SystemService } from "../../../services/system.service";
 import { GpuService } from "../../../services/gpu.service";
 import { Gpu } from "../../../models/gpu";
 
@@ -71,9 +73,17 @@ describe("VllmDialogComponent", () => {
   let fixture: ComponentFixture<VllmDialogComponent>;
   let component: VllmDialogComponent;
   let dialogRef: { close: jest.Mock };
+  let backendWindows: WritableSignal<boolean>;
 
-  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = [], clone = false, gpus: Gpu[] = []) {
+  function create(
+    config: ServiceConfig | null,
+    allConfigs: ServiceConfig[] = [],
+    clone = false,
+    gpus: Gpu[] = [],
+    windows = false,
+  ) {
     dialogRef = { close: jest.fn() };
+    backendWindows = signal(false);
     const data: VllmDialogData = { config, allConfigs, clone };
     TestBed.configureTestingModule({
       imports: [VllmDialogComponent],
@@ -82,6 +92,16 @@ describe("VllmDialogComponent", () => {
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: ServiceService, useValue: { getLlamaAutocomplete: jest.fn().mockReturnValue(of([])) } },
         { provide: GpuService, useValue: { fetchGpus: jest.fn().mockReturnValue(of(gpus)) } },
+        {
+          provide: SystemService,
+          useValue: {
+            windows: backendWindows.asReadonly(),
+            detectWindows: jest.fn().mockImplementation(async () => {
+              backendWindows.set(windows);
+              return windows;
+            }),
+          },
+        },
       ],
     });
     fixture = TestBed.createComponent(VllmDialogComponent);
@@ -404,6 +424,23 @@ describe("VllmDialogComponent", () => {
     expect(saved.user).toBe("llama");
     expect(saved.group).toBe("ai");
     expect(saved.restart).toBe("always");
+  });
+
+  it("locks the group field and says LocalSystem on a Windows backend", async () => {
+    create({ ...VLLM_CONFIG, user: "vllm", group: "ai" }, [], false, [], true);
+    await fixture.whenStable();
+
+    expect(component.runAs.userHint()).toBe("empty → LocalSystem");
+    expect(component.runAs.groupHint()).toBe("not used on Windows");
+    expect(component.form.controls.group.disabled).toBe(true);
+  });
+
+  it("keeps the group field editable on a Linux backend", async () => {
+    create({ ...VLLM_CONFIG, user: "vllm", group: "ai" });
+    await fixture.whenStable();
+
+    expect(component.runAs.userHint()).toBe("empty → root");
+    expect(component.form.controls.group.disabled).toBe(false);
   });
 
   it("omits empty user/group and the default restart policy on save", () => {

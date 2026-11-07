@@ -4,7 +4,7 @@
   <form [formGroup]="form" class="llama-form">
     <!-- Service identity -->
     <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
-      <input matInput formControlName="name" placeholder="e.g. llama-qwen3_6-27b-q8" [disabled]="isEdit && !isClone" />
+      <input matInput formControlName="name" placeholder="e.g. llama-qwen3_6-27b-q8" />
       <mat-label>Service Name</mat-label>
       @if (form.controls.name.errors?.["required"]) {
         <mat-error>Required</mat-error>
@@ -134,7 +134,6 @@
             matInput
             formControlName="tensorSplit"
             placeholder="10,10,10"
-            [disabled]="isTensorSplitDisabled()"
             matTooltip="Fraction of model to offload to each GPU (comma-separated proportions, e.g. 3,1)"
           />
           <mat-label>Tensor Split</mat-label>
@@ -171,7 +170,6 @@
             matInput
             formControlName="fitTarget"
             type="number"
-            [disabled]="isFitTargetDisabled()"
             matTooltip="Target margin per device in MiB for --fit option. Default: 1024"
           />
           <mat-label>Fit Target (MiB)</mat-label>
@@ -185,7 +183,6 @@
             matInput
             formControlName="fitCtx"
             type="number"
-            [disabled]="isFitTargetDisabled()"
             matTooltip="Minimum context size that can be set by --fit option. Default: 4096"
           />
           <mat-label>Fit Min Ctx</mat-label>
@@ -229,7 +226,6 @@
             matInput
             formControlName="nCpuMoe"
             type="number"
-            [disabled]="isCpuMoeLayersDisabled()"
             matTooltip="Keep MoE weights of first N layers in CPU. 0 = disabled"
           />
           <mat-label>N CPU MoE Layers</mat-label>
@@ -395,7 +391,6 @@
             matInput
             formControlName="ropeScale"
             type="number"
-            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE context scaling factor. Expands context by factor of N"
           />
           <mat-label>Scale Factor</mat-label>
@@ -409,7 +404,6 @@
             matInput
             formControlName="ropeFreqBase"
             type="number"
-            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE base frequency for NTK-aware scaling. 0 = loaded from model"
           />
           <mat-label>Freq Base</mat-label>
@@ -423,7 +417,6 @@
             matInput
             formControlName="ropeFreqScale"
             type="number"
-            [disabled]="isRopeParamsDisabled()"
             matTooltip="RoPE frequency scaling factor. Expands context by factor of 1/N. 0 = from model"
           />
           <mat-label>Freq Scale</mat-label>
@@ -613,7 +606,6 @@
             matInput
             formControlName="topK"
             type="number"
-            [disabled]="isMirostatEnabled()"
             matTooltip="Top-K sampling: limit to K most likely tokens. 0 = disabled. Default: 40"
           />
           <mat-label>Top-K</mat-label>
@@ -627,7 +619,6 @@
             matInput
             formControlName="topP"
             type="number"
-            [disabled]="isMirostatEnabled()"
             matTooltip="Top-P (nucleus) sampling: cumulative probability threshold. 1.0 = disabled. Default: 0.95"
           />
           <mat-label>Top-P</mat-label>
@@ -653,7 +644,6 @@
             matInput
             formControlName="typicalP"
             type="number"
-            [disabled]="isMirostatEnabled()"
             matTooltip="Locally typical sampling parameter p. 1.0 = disabled"
           />
           <mat-label>Typical-P</mat-label>
@@ -1022,7 +1012,6 @@
             matInput
             formControlName="port"
             type="number"
-            [disabled]="isPortDisabled()"
             matTooltip="Port to listen (default: 8080). Ignored when host is a UNIX socket"
           />
           <mat-label>Port</mat-label>
@@ -1086,7 +1075,6 @@
             matInput
             formControlName="cacheReuse"
             type="number"
-            [disabled]="isCacheReuseDisabled()"
             matTooltip="Min chunk size to attempt reusing from cache via KV shifting. Requires prompt caching"
           />
           <mat-label>Cache Reuse</mat-label>
@@ -1122,7 +1110,6 @@
             matInput
             formControlName="reasoningBudget"
             type="number"
-            [disabled]="isReasoningParamsDisabled()"
             matTooltip="Token budget for thinking. -1 = unlimited, 0 = immediate end, N>0 = token limit"
           />
           <mat-label>Reasoning Budget</mat-label>
@@ -1134,7 +1121,6 @@
         >
           <mat-select
             formControlName="reasoningFormat"
-            [disabled]="isReasoningParamsDisabled()"
             matTooltip="Format for reasoning output. none=raw, deepseek=reasoning_content field, deepseek-legacy=keep think tags"
           >
             <mat-option value="auto">auto</mat-option>
@@ -1190,12 +1176,12 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="user" placeholder="llama" matTooltip="systemd User=, empty → root" />
+          <input matInput formControlName="user" placeholder="llama" [matTooltip]="runAs.userHint()" />
           <mat-label>Run as user</mat-label>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="group" placeholder="ai" matTooltip="systemd Group=" />
+          <input matInput formControlName="group" placeholder="ai" [matTooltip]="runAs.groupHint()" />
           <mat-label>Run as group</mat-label>
         </mat-form-field>
 

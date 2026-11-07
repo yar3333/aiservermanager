@@ -3,7 +3,7 @@
 <mat-dialog-content>
   <form [formGroup]="form" class="dialog-form">
     <mat-form-field appearance="outline" class="full-width">
-      <input matInput formControlName="name" placeholder="e.g. llama-server" [disabled]="isEdit && !isClone" />
+      <input matInput formControlName="name" placeholder="e.g. llama-server" />
       <mat-label>Service Name</mat-label>
       @if (nameControl.errors?.["required"]) {
         <mat-error>Required</mat-error>
@@ -43,15 +43,15 @@
 
     <div class="run-as-row">
       <mat-form-field appearance="outline" class="half-width">
-        <input matInput formControlName="user" placeholder="llama" />
+        <input matInput formControlName="user" [placeholder]="runAs.userPlaceholder()" />
         <mat-label>Run as user</mat-label>
-        <mat-hint>systemd User=, empty → root</mat-hint>
+        <mat-hint>{{ runAs.userHint() }}</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="half-width">
         <input matInput formControlName="group" placeholder="ai" />
         <mat-label>Run as group</mat-label>
-        <mat-hint>systemd Group=</mat-hint>
+        <mat-hint>{{ runAs.groupHint() }}</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="half-width">

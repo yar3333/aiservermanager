@@ -12,6 +12,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
+import { SystemService } from "../../../services/system.service";
+import { buildRunAsLabels } from "../../../utils/run-as-fields";
+import { syncDisabledControls } from "../../../utils/disabled-controls";
 import { GpuService } from "../../../services/gpu.service";
 import { Gpu } from "../../../models/gpu";
 import { findFlag, findAllFlags } from "./flag-parsing";
@@ -161,6 +164,10 @@ export class VllmDialogComponent implements OnInit {
   private gpuService = inject(GpuService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+
+  /** Wording and the group field follow the backend OS, not the browser. */
+  private system = inject(SystemService);
+  readonly runAs = buildRunAsLabels(this.system.windows);
 
   readonly isEdit = this.data.config !== null;
   readonly isClone = this.data.clone === true;
@@ -346,7 +353,18 @@ export class VllmDialogComponent implements OnInit {
   /** --enable-auto-tool-choice requires a tool-call parser to make sense. */
   readonly isToolCallParserDisabled = computed(() => !this.formValue()?.enableAutoToolChoice);
 
+  /**
+   * Which fields are locked, put on the controls because Angular ignores a `disabled`
+   * binding on an element carrying `formControlName`.
+   */
+  private readonly lockedFields = syncDisabledControls(this.form, () => ({
+    name: this.isEdit && !this.isClone,
+    group: this.runAs.isGroupDisabled(),
+    toolCallParser: this.isToolCallParserDisabled(),
+  }));
+
   ngOnInit(): void {
+    void this.system.detectWindows();
     this.form.controls.command.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this._commandValue.set(v!));
@@ -660,6 +678,10 @@ export class VllmDialogComponent implements OnInit {
     if (user) cfg.user = user;
     if (group) cfg.group = group;
     if (restart && restart !== "no") cfg.restart = restart;
+
+    // Conf keys without a field in this dialog must survive a save.
+    if (this.data.config?.workingDirectory) cfg.workingDirectory = this.data.config.workingDirectory;
+    if (this.data.config?.stopCommand) cfg.stopCommand = this.data.config.stopCommand;
 
     this.dialogRef.close(cfg);
   }

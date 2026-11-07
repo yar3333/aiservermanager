@@ -1,0 +1,171 @@
+﻿param(
+    [string]$Domain = $env:SM_ACCOUNT_DOMAIN,
+    [string]$User = $env:SM_ACCOUNT_NAME,
+    [string]$Right = "SeServiceLogonRight"
+)
+
+# Grants a user right to a service account through the LSA policy API — the same
+# store secpol.msc edits. The Service Control Manager refuses to log a service
+# account on (error 1069, System log event 7041) until the account holds
+# SeServiceLogonRight, and registering the service does not grant it.
+#
+# Account is taken from the command line or from SM_ACCOUNT_DOMAIN /
+# SM_ACCOUNT_NAME, so the caller never puts the identity in a shell string.
+# Prints "OK: …" on success, "FAIL: …" plus a non-zero exit code otherwise.
+$code = @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class LsaRights
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LSA_UNICODE_STRING
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LSA_OBJECT_ATTRIBUTES
+    {
+        public int Length;
+        public IntPtr RootDirectory;
+        public IntPtr ObjectName;
+        public int Attributes;
+        public IntPtr SecurityDescriptor;
+        public IntPtr SecurityQualityOfService;
+    }
+
+    private const int POLICY_ALL_ACCESS = 0x000F003F;
+    private const int STATUS_OBJECT_NAME_NOT_FOUND = unchecked((int)0xC0000034);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int LsaOpenPolicy(IntPtr SystemName, ref LSA_OBJECT_ATTRIBUTES ObjectAttributes, int Access, out IntPtr PolicyHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int LsaAddAccountRights(IntPtr PolicyHandle, byte[] AccountSid, LSA_UNICODE_STRING[] UserRights, int CountOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern int LsaEnumerateAccountRights(IntPtr PolicyHandle, byte[] AccountSid, out IntPtr UserRights, out uint CountOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern int LsaFreeMemory(IntPtr Buffer);
+
+    [DllImport("advapi32.dll")]
+    private static extern int LsaClose(IntPtr PolicyHandle);
+
+    [DllImport("advapi32.dll")]
+    private static extern int LsaNtStatusToWinError(int Status);
+
+    private static int Open(out IntPtr policy)
+    {
+        var oa = new LSA_OBJECT_ATTRIBUTES { Length = Marshal.SizeOf(typeof(LSA_OBJECT_ATTRIBUTES)) };
+        return LsaOpenPolicy(IntPtr.Zero, ref oa, POLICY_ALL_ACCESS, out policy);
+    }
+
+    private static LSA_UNICODE_STRING ToLsaString(string value)
+    {
+        return new LSA_UNICODE_STRING
+        {
+            Length = (ushort)(value.Length * 2),
+            MaximumLength = (ushort)((value.Length + 1) * 2),
+            Buffer = Marshal.StringToHGlobalUni(value)
+        };
+    }
+
+    /** 0 on success, otherwise the Win32 error that the NT status maps to. */
+    public static int Grant(byte[] sid, string[] rights)
+    {
+        IntPtr policy;
+        int status = Open(out policy);
+        if (status != 0) return LsaNtStatusToWinError(status);
+        try
+        {
+            var strings = new LSA_UNICODE_STRING[rights.Length];
+            for (int i = 0; i < rights.Length; i++) strings[i] = ToLsaString(rights[i]);
+            status = LsaAddAccountRights(policy, sid, strings, rights.Length);
+            foreach (var s in strings) Marshal.FreeHGlobal(s.Buffer);
+            return status == 0 ? 0 : LsaNtStatusToWinError(status);
+        }
+        finally { LsaClose(policy); }
+    }
+
+    /** Rights already assigned to the account; empty when it has none. */
+    public static string[] Enumerate(byte[] sid)
+    {
+        IntPtr policy;
+        int status = Open(out policy);
+        if (status != 0) throw new COMException("LsaOpenPolicy failed", LsaNtStatusToWinError(status));
+        try
+        {
+            IntPtr rightsPtr;
+            uint count;
+            status = LsaEnumerateAccountRights(policy, sid, out rightsPtr, out count);
+            if (status == STATUS_OBJECT_NAME_NOT_FOUND) return new string[0];
+            if (status != 0) throw new COMException("LsaEnumerateAccountRights failed", LsaNtStatusToWinError(status));
+            try
+            {
+                var result = new string[count];
+                int size = Marshal.SizeOf(typeof(LSA_UNICODE_STRING));
+                for (uint i = 0; i < count; i++)
+                {
+                    var us = (LSA_UNICODE_STRING)Marshal.PtrToStructure(IntPtr.Add(rightsPtr, (int)i * size), typeof(LSA_UNICODE_STRING));
+                    result[i] = Marshal.PtrToStringUni(us.Buffer, us.Length / 2);
+                }
+                return result;
+            }
+            finally { LsaFreeMemory(rightsPtr); }
+        }
+        finally { LsaClose(policy); }
+    }
+}
+'@
+
+function Fail([string]$message) {
+    Write-Output "FAIL: $message"
+    exit 1
+}
+
+if (-not $User) { Fail "no account name (pass -User or set SM_ACCOUNT_NAME)" }
+
+try {
+    Add-Type -TypeDefinition $code -ErrorAction Stop
+} catch {
+    Fail "cannot load the LSA policy API: $($_.Exception.Message)"
+}
+
+# A user@domain identity carries its own domain; anything else needs one, and the
+# caller already expanded the "." (local machine) shorthand.
+try {
+    if (-not $Domain -and $User.Contains("@")) {
+        $identity = New-Object System.Security.Principal.NTAccount($User)
+    } elseif ($Domain) {
+        $identity = New-Object System.Security.Principal.NTAccount($Domain, $User)
+    } else {
+        $identity = New-Object System.Security.Principal.NTAccount($User)
+    }
+    $sid = $identity.Translate([System.Security.Principal.SecurityIdentifier])
+} catch {
+    Fail "cannot resolve account '$($(if ($Domain) { "$Domain\" }) + $User)': $($_.Exception.Message.Trim())"
+}
+
+$sidBytes = New-Object byte[] $sid.BinaryLength
+$sid.GetBinaryForm($sidBytes, 0)
+$fullName = "$($sid.Translate([System.Security.Principal.NTAccount]))"
+
+try {
+    if ([LsaRights]::Enumerate($sidBytes) -contains $Right) {
+        Write-Output "OK: $fullName already has $Right"
+        exit 0
+    }
+    $grantStatus = [LsaRights]::Grant($sidBytes, @($Right))
+} catch {
+    Fail "$($Right): $($_.Exception.Message.Trim())"
+}
+
+if ($grantStatus -ne 0) {
+    Fail "cannot grant $Right to $fullName (Win32 error $grantStatus). Granting a user right needs the 'Manage auditing and security log' privilege — run the backend elevated, or assign the right in secpol.msc (Local Policies → User Rights Assignment)."
+}
+
+Write-Output "OK: granted $Right to $fullName"

@@ -194,6 +194,7 @@ describe("ServiceConfigController (archive)", () => {
         user: "llama",
         group: "ai",
         restart: "always",
+        workingDirectory: "/srv/foo",
       });
 
       expect(result.ok).toBe(true);
@@ -202,11 +203,40 @@ describe("ServiceConfigController (archive)", () => {
         user: "llama",
         group: "ai",
         restart: "always",
+        workingDirectory: "/srv/foo",
+        executable: "/usr/bin/foo",
+        args: [],
       });
       const raw = fs.readFileSync(path.join(servicesDir, "my-svc.conf"), "utf-8");
       expect(raw).toContain("unit.user=llama");
       expect(raw).toContain("unit.group=ai");
       expect(raw).toContain("unit.restart=always");
+      expect(raw).toContain("unit.cwd=/srv/foo");
+    });
+
+    it("starts the service again when an edit replaced a running registration", async () => {
+      const controller = makeController({
+        getStatus: jest.fn().mockResolvedValue({ name: "my-svc", running: true, enabled: true, installed: true }),
+      });
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.createOrUpdate({ name: "my-svc", command: "/usr/bin/foo", flags: [] });
+
+      expect(result.ok).toBe(true);
+      expect(controller.perform).toHaveBeenCalledWith("my-svc", "enable");
+      expect(controller.perform).toHaveBeenCalledWith("my-svc", "start");
+    });
+
+    it("leaves a stopped service stopped after re-installing its config", async () => {
+      const controller = makeController({
+        getStatus: jest.fn().mockResolvedValue({ name: "my-svc", running: false, enabled: false, installed: true }),
+      });
+      const scc = new ServiceConfigController([controller]);
+
+      const result = await scc.createOrUpdate({ name: "my-svc", command: "/usr/bin/foo", flags: [] });
+
+      expect(result.ok).toBe(true);
+      expect(controller.perform).not.toHaveBeenCalled();
     });
 
     it("rejects invalid user, group and restart values", async () => {

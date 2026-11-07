@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc --build tsconfig.build.json && shx cp -r src/files dist/files",
+    "build": "tsc --build tsconfig.build.json && shx rm -rf dist/files && shx cp -r src/files dist/files",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn src/index.ts -p tsconfig.build.json",
     "test": "jest --verbose",

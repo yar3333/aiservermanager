@@ -7,6 +7,19 @@ const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** Valid systemd user/group name (subset accepted by the unit file). */
 export const USER_GROUP_REGEX = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
+/**
+ * Account a Windows service may run as: a bare name (local account),
+ * DOMAIN\name, .\name or name@domain (UPN). systemd accepts USER_GROUP_REGEX
+ * only, so the platform controllers decide which forms they can pass through.
+ */
+export const SERVICE_ACCOUNT_REGEX =
+  /^[A-Za-z0-9_.$@-]{1,128}(?:\\[A-Za-z0-9_.$-]{1,128})?$/;
+
+/** Whether the value names an account on either platform. */
+export function isServiceAccount(value: string): boolean {
+  return USER_GROUP_REGEX.test(value) || SERVICE_ACCOUNT_REGEX.test(value);
+}
+
 /** Supported systemd Restart= values. */
 export const RESTART_VALUES = [
   "no",
@@ -24,12 +37,30 @@ export type ServiceRestart = (typeof RESTART_VALUES)[number];
 export interface InstallOptions {
   /** Environment variables for the service process. */
   environment?: Record<string, string>;
-  /** Run the service as this user (systemd User=). */
+  /** Run the service as this user (systemd User= / Windows service account). */
   user?: string;
-  /** Run the service as this group (systemd Group=). */
+  /** Run the service as this group (systemd Group=). Ignored on Windows. */
   group?: string;
+  /**
+   * Password of the Windows service account. WinSW needs it to register the
+   * service so the Service Control Manager can log the account on; systemd
+   * does not have the concept and ignores it.
+   */
+  runAsPassword?: string;
+  /**
+   * Command that stops the service (systemd ExecStop= / WinSW <stopexecutable>).
+   * Needed when the program ignores the OS stop signal — for example a .cmd
+   * launcher whose real workload is a detached child process.
+   */
+  stopCommand?: string;
   /** Restart policy (systemd Restart=). Defaults to "no". */
   restart?: ServiceRestart;
+  /** Working directory of the service process (systemd WorkingDirectory=). */
+  workingDirectory?: string;
+  /** Program to launch, kept separate from its arguments for non-shell hosts (WinSW). */
+  executable?: string;
+  /** CLI argument fragments of the service, in order. */
+  args?: string[];
 }
 
 /** Build install options (environment + run-as settings) from a service config. */
@@ -38,7 +69,12 @@ export function buildInstallOptions(cfg: ServiceConfig): InstallOptions {
     environment: cfg.environment,
     user: cfg.user,
     group: cfg.group,
+    runAsPassword: cfg.runAsPassword,
+    stopCommand: cfg.stopCommand,
     restart: cfg.restart,
+    workingDirectory: cfg.workingDirectory,
+    executable: cfg.command,
+    args: cfg.flags,
   };
 }
 
@@ -54,18 +90,30 @@ export interface ServiceConfig {
   flags: string[];
   /** Extra environment variables passed to the service process (KEY → value). */
   environment?: Record<string, string>;
-  /** Run the service as this user (systemd User=). Unset → run as root. */
+  /** Run the service as this user (systemd User= / Windows service account). Unset → root / LocalSystem. */
   user?: string;
-  /** Run the service as this group (systemd Group=). */
+  /** Run the service as this group (systemd Group=). Ignored on Windows. */
   group?: string;
+  /**
+   * Password of the Windows service account, carried from the save request to
+   * the installer only. It is never read from or written to the config file —
+   * see parseConfigFile/serializeConfig — so every re-registration needs it
+   * again, and the Service Control Manager keeps its own protected copy.
+   */
+  runAsPassword?: string;
+  /** Command that stops the service (systemd ExecStop= / WinSW <stopexecutable>). */
+  stopCommand?: string;
   /** Restart policy (systemd Restart=). Unset → "no" (systemd default). */
   restart?: ServiceRestart;
+  /** Working directory of the service process. Unset → platform default. */
+  workingDirectory?: string;
 }
 
 /**
  * Parse a config file into a ServiceConfig. Lines with "type=", "command=",
- * "unit.user=", "unit.group=", "unit.restart=" or "env.KEY=" are metadata;
- * every other non-empty line is a raw CLI argument.
+ * "unit.user=", "unit.group=", "unit.password=", "unit.stop=", "unit.restart=",
+ * "unit.cwd=" or "env.KEY=" are metadata; every other non-empty line is a raw
+ * CLI argument.
  */
 export function parseConfigFile(name: string, raw: string): ServiceConfig {
   const flags: string[] = [];
@@ -74,7 +122,9 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
   let type: ServiceType | undefined;
   let user: string | undefined;
   let group: string | undefined;
+  let stopCommand: string | undefined;
   let restart: ServiceRestart | undefined;
+  let workingDirectory: string | undefined;
 
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
@@ -89,15 +139,25 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
       command = trimmed.slice("command=".length).trim();
     } else if (trimmed.startsWith("unit.user=")) {
       const val = trimmed.slice("unit.user=".length).trim();
-      if (USER_GROUP_REGEX.test(val)) user = val;
+      if (isServiceAccount(val)) user = val;
     } else if (trimmed.startsWith("unit.group=")) {
       const val = trimmed.slice("unit.group=".length).trim();
       if (USER_GROUP_REGEX.test(val)) group = val;
+    } else if (trimmed.startsWith("unit.password=")) {
+      // Deliberately dropped: the account password is never kept on disk, it
+      // arrives with the save request and is handed to WinSW once. Reading the
+      // key here only stops such a line from becoming a CLI argument.
+    } else if (trimmed.startsWith("unit.stop=")) {
+      const val = trimmed.slice("unit.stop=".length).trim();
+      if (val) stopCommand = val;
     } else if (trimmed.startsWith("unit.restart=")) {
       const val = trimmed.slice("unit.restart=".length).trim();
       if ((RESTART_VALUES as readonly string[]).includes(val)) {
         restart = val as ServiceRestart;
       }
+    } else if (trimmed.startsWith("unit.cwd=")) {
+      const val = trimmed.slice("unit.cwd=".length).trim();
+      if (val) workingDirectory = val;
     } else if (trimmed.startsWith("env.")) {
       const eqIdx = trimmed.indexOf("=");
       if (eqIdx > 0) {
@@ -120,18 +180,26 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
     environment: envKeys.length ? environment : undefined,
     user,
     group,
+    stopCommand,
     restart,
+    workingDirectory,
   };
 }
 
-/** Serialize a ServiceConfig back to a config file string. */
+/**
+ * Serialize a ServiceConfig back to a config file string.
+ *
+ * The account password is intentionally not written: it is only ever sent with
+ * a save request and handed to WinSW during registration, so nothing readable
+ * is left behind. Re-registering the service therefore asks for it again.
+ */
 export function serializeConfig(cfg: ServiceConfig): string {
   const lines: string[] = [];
   if (cfg.type) {
     lines.push(`type=${cfg.type}`);
   }
   lines.push(`command=${cfg.command}`);
-  if (cfg.user && USER_GROUP_REGEX.test(cfg.user)) {
+  if (cfg.user && isServiceAccount(cfg.user)) {
     lines.push(`unit.user=${cfg.user}`);
   }
   if (cfg.group && USER_GROUP_REGEX.test(cfg.group)) {
@@ -139,6 +207,12 @@ export function serializeConfig(cfg: ServiceConfig): string {
   }
   if (cfg.restart && (RESTART_VALUES as readonly string[]).includes(cfg.restart)) {
     lines.push(`unit.restart=${cfg.restart}`);
+  }
+  if (cfg.workingDirectory) {
+    lines.push(`unit.cwd=${cfg.workingDirectory}`);
+  }
+  if (cfg.stopCommand && !/[\r\n]/.test(cfg.stopCommand)) {
+    lines.push(`unit.stop=${cfg.stopCommand}`);
   }
   if (cfg.environment) {
     for (const [key, value] of Object.entries(cfg.environment)) {

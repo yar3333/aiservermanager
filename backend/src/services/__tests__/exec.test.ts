@@ -77,3 +77,48 @@ describe("safeExecPs1", () => {
     expect(result.stderr.length).toBeGreaterThan(0);
   });
 });
+
+describe("safeExecFileWithCode", () => {
+  const node = process.execPath;
+
+  it("runs an executable whose path contains spaces, without a shell", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "exec space-"));
+    const script = path.join(dir, "print arg.js");
+    fs.writeFileSync(script, "console.log(process.argv[2]);\n");
+
+    const result = await ExecTools.safeExecFileWithCode(node, [script, "a b & c"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe("a b & c");
+  });
+
+  it("propagates the exit code and captures stdout", async () => {
+    const ok = await ExecTools.safeExecFileWithCode(node, ["-e", "console.log('hi'); process.exit(3)"]);
+
+    expect(ok.exitCode).toBe(3);
+    expect(ok.stdout.trim()).toBe("hi");
+  });
+
+  it("reports a missing executable instead of throwing", async () => {
+    const result = await ExecTools.safeExecFileWithCode(path.join(os.tmpdir(), "ghost-dir", "ghost.exe"), []);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.length).toBeGreaterThan(0);
+  });
+
+  it("kills the process and reports the timeout", async () => {
+    const result = await ExecTools.safeExecFileWithCode(node, ["-e", "setTimeout(() => {}, 5000)"], {
+      timeout: 500,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Timeout after 500ms");
+  });
+
+  it("runs the process in the given working directory", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "exec cwd-"));
+    const result = await ExecTools.safeExecFileWithCode(node, ["-e", "console.log(process.cwd())"], { cwd: dir });
+
+    expect(fs.realpathSync(result.stdout.trim())).toBe(fs.realpathSync(dir));
+  });
+});

@@ -7,6 +7,9 @@ import { MatInputModule } from "@angular/material/input";
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { MatSelectModule } from "@angular/material/select";
 import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
+import { SystemService } from "../../../services/system.service";
+import { buildRunAsLabels } from "../../../utils/run-as-fields";
+import { syncDisabledControls } from "../../../utils/disabled-controls";
 
 export interface ServiceDialogData {
   /** Existing config for edit mode, or null for create. */
@@ -56,6 +59,19 @@ export class ServiceDialogComponent {
   /** Options for the Restart= select. */
   readonly restartOptions = SERVICE_RESTART_VALUES;
 
+  /** Wording and the group field follow the backend OS, not the browser. */
+  private system = inject(SystemService);
+  readonly runAs = buildRunAsLabels(this.system.windows);
+
+  /**
+   * Renaming an existing service would create a second one, so the name is locked in edit
+   * mode (Clone is the way to branch off a config), and Windows has no group to set.
+   */
+  private readonly lockedFields = syncDisabledControls(this.form, () => ({
+    name: this.isEdit && !this.isClone,
+    group: this.runAs.isGroupDisabled(),
+  }));
+
   get nameControl() {
     return this.form.get("name")!;
   }
@@ -92,6 +108,7 @@ export class ServiceDialogComponent {
   });
 
   ngOnInit(): void {
+    void this.system.detectWindows();
     this.commandControl.valueChanges.subscribe((v) => this._commandValue.set(v as string));
     if (this.data.config?.flags?.length) {
       this.form.get("flagsText")!.setValue(this.data.config.flags.join("\n") + "\n");
@@ -140,6 +157,10 @@ export class ServiceDialogComponent {
     if (group) cfg.group = group;
     const restart = this.form.get("restart")!.value as ServiceRestart;
     if (restart && restart !== "no") cfg.restart = restart;
+
+    // Conf keys without a field in this dialog must survive a save.
+    if (this.data.config?.workingDirectory) cfg.workingDirectory = this.data.config.workingDirectory;
+    if (this.data.config?.stopCommand) cfg.stopCommand = this.data.config.stopCommand;
 
     this.dialogRef.close(cfg);
   }

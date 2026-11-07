@@ -1,5 +1,12 @@
 import { multiInject } from "inversify";
-import { ServiceConfig, buildExecStart, buildInstallOptions, USER_GROUP_REGEX, RESTART_VALUES } from "../models/ServiceConfig";
+import {
+  ServiceConfig,
+  buildExecStart,
+  buildInstallOptions,
+  isServiceAccount,
+  USER_GROUP_REGEX,
+  RESTART_VALUES,
+} from "../models/ServiceConfig";
 import { ConfigManager } from "./configManager";
 import { ServiceController } from "./serviceController";
 
@@ -42,7 +49,7 @@ export class ServiceConfigController {
   /**
    * Create or update a service config and its OS service.
    * No name change — that logic lives on the frontend (delete → create).
-   * Preserves the enabled state when updating an existing service.
+   * Preserves the enabled and running state when updating an existing service.
    * @returns { ok, config?, error? }
    */
   async createOrUpdate(cfg: ServiceConfig): Promise<{ ok: boolean; config?: ServiceConfig; error?: string }> {
@@ -71,12 +78,19 @@ export class ServiceConfigController {
       }
     }
 
-    // Validate run-as settings
-    if (cfg.user !== undefined && !USER_GROUP_REGEX.test(cfg.user)) {
+    // The user may be a systemd name or a Windows account (DOMAIN\name,
+    // name@domain); the group is a systemd-only setting.
+    if (cfg.user !== undefined && !isServiceAccount(cfg.user)) {
       return { ok: false, error: `Invalid user name: "${cfg.user}"` };
     }
     if (cfg.group !== undefined && !USER_GROUP_REGEX.test(cfg.group)) {
       return { ok: false, error: `Invalid group name: "${cfg.group}"` };
+    }
+    if (cfg.runAsPassword !== undefined && /[\r\n]/.test(cfg.runAsPassword)) {
+      return { ok: false, error: "Service account password must be a single line" };
+    }
+    if (cfg.stopCommand !== undefined && /[\r\n]/.test(cfg.stopCommand)) {
+      return { ok: false, error: "Stop command must be a single line" };
     }
     if (cfg.restart !== undefined && !(RESTART_VALUES as readonly string[]).includes(cfg.restart)) {
       return { ok: false, error: `Invalid restart policy: "${cfg.restart}"` };
@@ -90,10 +104,11 @@ export class ServiceConfigController {
     if (controller) {
       const execStart = buildExecStart(cfg);
 
-      // Check if service was already installed — preserve its enabled state
+      // Check if service was already installed — preserve its enabled/running state
       const priorStatus = await controller.getStatus(cfg.name);
       const wasInstalled = priorStatus.installed;
       const wasEnabled = wasInstalled && priorStatus.enabled;
+      const wasRunning = wasInstalled && priorStatus.running;
 
       const result = await controller.install(cfg.name, execStart, buildInstallOptions(cfg));
       if (result.error) {
@@ -106,6 +121,15 @@ export class ServiceConfigController {
         const enableResult = await controller.perform(cfg.name, "enable");
         if (enableResult.error) {
           return { ok: false, error: enableResult.error };
+        }
+      }
+
+      // Re-registration stops a running service (WinSW has no in-place update),
+      // so an edit must not leave a previously running service stopped.
+      if (wasRunning) {
+        const startResult = await controller.perform(cfg.name, "start");
+        if (startResult.error) {
+          return { ok: false, error: startResult.error };
         }
       }
     }
@@ -180,9 +204,10 @@ export class ServiceConfigController {
   /**
    * Restore a service from the archive: move config back to services/ → reinstall OS service.
    * The service is installed but not enabled or started.
+   * @param runAsPassword Windows service account password, asked at this moment and never stored.
    * @returns { ok, error? }
    */
-  async restoreService(name: string): Promise<{ ok: boolean; error?: string }> {
+  async restoreService(name: string, runAsPassword?: string): Promise<{ ok: boolean; error?: string }> {
     const cfg = this.configManager.listArchived().find((c) => c.name === name);
     if (!cfg) {
       return { ok: false, error: `Archived config "${name}" not found` };
@@ -198,7 +223,9 @@ export class ServiceConfigController {
     const controller = await this.getActiveController();
     if (controller) {
       const execStart = buildExecStart(cfg);
-      const result = await controller.install(name, execStart, buildInstallOptions(cfg));
+      const password = runAsPassword?.trim();
+      const options = password ? { ...buildInstallOptions(cfg), runAsPassword: password } : buildInstallOptions(cfg);
+      const result = await controller.install(name, execStart, options);
       if (result.error) {
         // Config is back in services/ — user can retry from the services UI.
         return { ok: false, error: result.error };

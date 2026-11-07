@@ -4,7 +4,7 @@
   <form [formGroup]="form" class="vllm-form">
     <!-- Service identity -->
     <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
-      <input matInput formControlName="name" placeholder="e.g. vllm-qwen-bf16-4gpu" [disabled]="isEdit && !isClone" />
+      <input matInput formControlName="name" placeholder="e.g. vllm-qwen-bf16-4gpu" />
       <mat-label>Service Name</mat-label>
       @if (form.controls.name.errors?.["required"]) {
         <mat-error>Required</mat-error>
@@ -493,7 +493,6 @@
         >
           <mat-select
             formControlName="toolCallParser"
-            [disabled]="isToolCallParserDisabled()"
             matTooltip="Parser for tool calls. Requires --enable-auto-tool-choice"
           >
             @for (p of toolCallParsers; track p) {
@@ -616,12 +615,12 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="user" placeholder="llama" matTooltip="systemd User=, empty → root" />
+          <input matInput formControlName="user" placeholder="llama" [matTooltip]="runAs.userHint()" />
           <mat-label>Run as user</mat-label>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="form-col">
-          <input matInput formControlName="group" placeholder="ai" matTooltip="systemd Group=" />
+          <input matInput formControlName="group" placeholder="ai" [matTooltip]="runAs.groupHint()" />
           <mat-label>Run as group</mat-label>
         </mat-form-field>
 

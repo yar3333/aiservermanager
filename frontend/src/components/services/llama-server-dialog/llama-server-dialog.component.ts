@@ -12,6 +12,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { ServiceConfig, ServiceRestart, SERVICE_RESTART_VALUES, ServiceType } from "../../../models/service";
 import { ServiceService, AutocompleteSuggestion } from "../../../services/service.service";
+import { SystemService } from "../../../services/system.service";
+import { buildRunAsLabels } from "../../../utils/run-as-fields";
+import { syncDisabledControls } from "../../../utils/disabled-controls";
 import { findFlag, flagBool, flagValueFloat, flagValueNum, flagValueStr } from "./flag-parsing";
 import { FileAutocompleteComponent } from "../../shared/file-autocomplete/file-autocomplete.component";
 import { of, debounceTime, distinctUntilChanged, switchMap, catchError, startWith } from "rxjs";
@@ -254,6 +257,10 @@ export class LlamaServerDialogComponent implements OnInit {
   private serviceService = inject(ServiceService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+
+  /** Wording and the group field follow the backend OS, not the browser. */
+  private system = inject(SystemService);
+  readonly runAs = buildRunAsLabels(this.system.windows);
 
   readonly isEdit = this.data.config !== null;
   readonly isClone = this.data.clone === true;
@@ -558,7 +565,31 @@ export class LlamaServerDialogComponent implements OnInit {
     this.form.get("ctxSize")?.setValue(formatted, { emitEvent: false });
   }
 
+  /**
+   * Which fields are locked, put on the controls because Angular ignores a `disabled`
+   * binding on an element carrying `formControlName`.
+   */
+  private readonly lockedFields = syncDisabledControls(this.form, () => ({
+    name: this.isEdit && !this.isClone,
+    group: this.runAs.isGroupDisabled(),
+    tensorSplit: this.isTensorSplitDisabled(),
+    fitTarget: this.isFitTargetDisabled(),
+    fitCtx: this.isFitTargetDisabled(),
+    nCpuMoe: this.isCpuMoeLayersDisabled(),
+    ropeScale: this.isRopeParamsDisabled(),
+    ropeFreqBase: this.isRopeParamsDisabled(),
+    ropeFreqScale: this.isRopeParamsDisabled(),
+    topK: this.isMirostatEnabled(),
+    topP: this.isMirostatEnabled(),
+    typicalP: this.isMirostatEnabled(),
+    port: this.isPortDisabled(),
+    cacheReuse: this.isCacheReuseDisabled(),
+    reasoningBudget: this.isReasoningParamsDisabled(),
+    reasoningFormat: this.isReasoningParamsDisabled(),
+  }));
+
   ngOnInit(): void {
+    void this.system.detectWindows();
     this.form.controls.command.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this._commandValue.set(v!));
@@ -904,6 +935,10 @@ export class LlamaServerDialogComponent implements OnInit {
     if (user) cfg.user = user;
     if (group) cfg.group = group;
     if (restart && restart !== "no") cfg.restart = restart;
+
+    // Conf keys without a field in this dialog must survive a save.
+    if (this.data.config?.workingDirectory) cfg.workingDirectory = this.data.config.workingDirectory;
+    if (this.data.config?.stopCommand) cfg.stopCommand = this.data.config.stopCommand;
 
     this.dialogRef.close(cfg);
   }

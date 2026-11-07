@@ -60,6 +60,17 @@ export interface LogFileInfo {
   exists: boolean;
 }
 
+/** Identity of the backend process that answered the request. */
+export interface ServerIdentityInfo {
+  pid: number;
+  platform: string;
+  host: string;
+  port: number;
+  startedAt: string;
+  /** Can manage OS services — Administrator on Windows, root/sudo on Linux. */
+  privileged: boolean;
+}
+
 export interface SystemInfoDetail {
   os: OsRelease;
   hostname: string;
@@ -68,6 +79,7 @@ export interface SystemInfoDetail {
   disks: DiskInfo[];
   logs: LogFileInfo[];
   timeshift?: TimeshiftInfo;
+  server?: ServerIdentityInfo;
 }
 
 export interface TimeshiftInfo {

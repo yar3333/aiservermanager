@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Container } from "inversify";
 import { ExecTools } from "../helpers/ExecTools";
+import { ServerIdentity } from "../helpers/ServerIdentity";
 import { SYSTEM_INFO_PROVIDER } from "../di/types";
 import { SystemInfoProvider } from "../services/systemInfoProvider";
 
@@ -22,7 +23,8 @@ export default function systemRoutes(container: Container) {
         res.status(501).json({ error: "System info is not available on this platform" });
         return;
       }
-      res.json(await provider.getSystemInfo());
+      const info = await provider.getSystemInfo();
+      res.json({ ...info, server: await ServerIdentity.describe() });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
     }

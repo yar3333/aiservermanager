@@ -26,9 +26,13 @@ export class ServiceService {
     return this.http.post<ServiceStatus>(`${this.url}/control`, { name, action });
   }
 
-  /** Install the systemd unit for a custom service that has a config but no unit yet. */
-  installService(name: string): Observable<ServiceStatus> {
-    return this.http.post<ServiceStatus>(`${this.url}/install`, { name });
+  /**
+   * Register the OS service for a custom config. On Windows a service that runs
+   * as a user needs that account's password here — the UI asks for it at this
+   * moment and the backend never stores it.
+   */
+  installService(name: string, runAsPassword?: string): Observable<ServiceStatus> {
+    return this.http.post<ServiceStatus>(`${this.url}/install`, { name, runAsPassword });
   }
 
   /** List all user-created service configs. */
@@ -61,9 +65,12 @@ export class ServiceService {
     return this.http.post<{ ok: boolean }>(`${this.url}/config/${name}/archive`, {});
   }
 
-  /** Restore a service from the archive: move config back and reinstall the unit. */
-  restoreService(name: string): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(`${this.url}/config/${name}/restore`, {});
+  /**
+   * Restore a service from the archive: move config back and reinstall the unit.
+   * runAsPassword is the Windows service account password, asked before this call.
+   */
+  restoreService(name: string, runAsPassword?: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.url}/config/${name}/restore`, { runAsPassword });
   }
 
   /** List all installed services on the system (excludes custom). */

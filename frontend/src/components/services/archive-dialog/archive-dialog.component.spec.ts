@@ -5,6 +5,7 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { of, throwError } from "rxjs";
 import { ArchiveDialogComponent } from "./archive-dialog.component";
 import { ServiceService } from "../../../services/service.service";
+import { AccountPasswordService } from "../../../services/account-password.service";
 import { ServiceConfig } from "../../../models/service";
 
 const cfg = (name: string): ServiceConfig => ({ name, command: `/bin/${name}`, flags: [] });
@@ -21,6 +22,7 @@ describe("ArchiveDialogComponent", () => {
   };
   let dialogRef: { close: jest.Mock };
   let snackBar: { open: jest.Mock };
+  let accountPassword: { askFor: jest.Mock };
 
   beforeEach(async () => {
     serviceService = {
@@ -32,11 +34,13 @@ describe("ArchiveDialogComponent", () => {
     };
     dialogRef = { close: jest.fn() };
     snackBar = { open: jest.fn() };
+    accountPassword = { askFor: jest.fn().mockResolvedValue(undefined) };
 
     await TestBed.configureTestingModule({
       imports: [ArchiveDialogComponent],
       providers: [
         { provide: ServiceService, useValue: serviceService },
+        { provide: AccountPasswordService, useValue: accountPassword },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MatSnackBar, useValue: snackBar },
       ],
@@ -68,9 +72,39 @@ describe("ArchiveDialogComponent", () => {
   it("restoring a service flips its entry back to active", async () => {
     await fixture.whenStable();
     await component.restore("archived-x");
-    expect(serviceService.restoreService).toHaveBeenCalledWith("archived-x");
+    expect(serviceService.restoreService).toHaveBeenCalledWith("archived-x", undefined);
     expect(component.archived().map((c) => c.name)).toEqual([]);
     expect(component.entries().find((e) => e.name === "archived-x")?.archived).toBe(false);
+  });
+
+  it("asks for the account password before restoring a service that runs as a user", async () => {
+    await fixture.whenStable();
+    serviceService.fetchArchivedConfigs.mockReturnValueOnce(
+      of([{ ...cfg("archived-x"), user: "ynote2\\Yaroslav" }]),
+    );
+    await component.ngOnInit();
+    accountPassword.askFor.mockResolvedValue("s3cr3t");
+
+    await component.restore("archived-x");
+
+    expect(accountPassword.askFor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "archived-x", user: "ynote2\\Yaroslav" }),
+    );
+    expect(serviceService.restoreService).toHaveBeenCalledWith("archived-x", "s3cr3t");
+  });
+
+  it("does not restore the service when the password prompt is cancelled", async () => {
+    await fixture.whenStable();
+    serviceService.fetchArchivedConfigs.mockReturnValueOnce(
+      of([{ ...cfg("archived-x"), user: "ynote2\\Yaroslav" }]),
+    );
+    await component.ngOnInit();
+    accountPassword.askFor.mockResolvedValue(null);
+
+    await component.restore("archived-x");
+
+    expect(serviceService.restoreService).not.toHaveBeenCalled();
+    expect(component.entries().find((e) => e.name === "archived-x")?.archived).toBe(true);
   });
 
   it("removes a service from the list after confirmed deletion", async () => {

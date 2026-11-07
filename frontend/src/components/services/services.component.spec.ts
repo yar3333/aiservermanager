@@ -6,6 +6,9 @@ import { Observable, of, throwError } from "rxjs";
 import { ServicesComponent, ServiceWithConfig } from "./services.component";
 import { ServiceService } from "../../services/service.service";
 import { ServiceListService } from "../../services/service-list.service";
+import { SystemService } from "../../services/system.service";
+import { AccountPasswordService } from "../../services/account-password.service";
+import { ServerIdentityInfo } from "../../models/gpu";
 import { LlamaServerDialogComponent } from "./llama-server-dialog/llama-server-dialog.component";
 import { ServiceConfig, ServiceStatus } from "../../models/service";
 
@@ -18,6 +21,15 @@ const CONFIGS: ServiceConfig[] = [
   { name: "llama-server", type: "llama-server", command: "/bin/llama-server", flags: ["--model m.gguf"] },
 ];
 
+const PRIVILEGED_SERVER: ServerIdentityInfo = {
+  pid: 1234,
+  platform: "linux",
+  host: "127.0.0.1",
+  port: 4243,
+  startedAt: "2026-11-06T17:00:00.000Z",
+  privileged: true,
+};
+
 describe("ServicesComponent", () => {
   let fixture: ComponentFixture<ServicesComponent>;
   let component: ServicesComponent;
@@ -25,28 +37,38 @@ describe("ServicesComponent", () => {
     fetchServices: jest.Mock;
     fetchConfigs: jest.Mock;
     control: jest.Mock;
+    installService: jest.Mock;
     deleteConfig: jest.Mock;
     archiveService: jest.Mock;
     saveConfig: jest.Mock;
   };
   let dialog: { open: jest.Mock };
   let snackBar: { open: jest.Mock };
+  let systemService: { getSystemInfo: jest.Mock };
+  let accountPassword: { askFor: jest.Mock };
 
   beforeEach(async () => {
     serviceService = {
       fetchServices: jest.fn().mockReturnValue(of(STATUSES)),
       fetchConfigs: jest.fn().mockReturnValue(of(CONFIGS)),
       control: jest.fn().mockReturnValue(of({ name: "llama-server", running: false, enabled: true, installed: true })),
+      installService: jest.fn().mockReturnValue(of({ name: "llama-server", running: false, enabled: true, installed: true })),
       deleteConfig: jest.fn().mockReturnValue(of({ ok: true })),
       archiveService: jest.fn().mockReturnValue(of({ ok: true })),
       saveConfig: jest.fn().mockReturnValue(of({} as ServiceConfig)),
     };
+    systemService = {
+      getSystemInfo: jest.fn().mockResolvedValue({ server: PRIVILEGED_SERVER } as never),
+    };
     dialog = { open: jest.fn().mockReturnValue({ afterClosed: () => of(undefined) }) };
     snackBar = { open: jest.fn() };
+    accountPassword = { askFor: jest.fn().mockResolvedValue(undefined) };
     await TestBed.configureTestingModule({
       imports: [ServicesComponent],
       providers: [
         { provide: ServiceService, useValue: serviceService },
+        { provide: SystemService, useValue: systemService },
+        { provide: AccountPasswordService, useValue: accountPassword },
         { provide: MatDialog, useValue: dialog },
         { provide: MatSnackBar, useValue: snackBar },
       ],
@@ -199,5 +221,59 @@ describe("ServicesComponent", () => {
   it("hasFlags reports whether a config has flags", () => {
     expect(component.hasFlags(CONFIGS[0])).toBe(true);
     expect(component.hasFlags({ name: "x", command: "/x", flags: [] })).toBe(false);
+  });
+
+  it("reads the answering backend identity once", async () => {
+    await fixture.whenStable();
+    expect(systemService.getSystemInfo).toHaveBeenCalledTimes(1);
+    expect(component.serverIdentity()).toEqual(PRIVILEGED_SERVER);
+    expect(component.backendUnprivileged()).toBe(false);
+  });
+
+  it("warns when the answering backend is not elevated", async () => {
+    await fixture.whenStable();
+
+    component.serverIdentity.set({ ...PRIVILEGED_SERVER, privileged: false });
+    fixture.detectChanges();
+
+    expect(component.backendUnprivileged()).toBe(true);
+    const warning = (fixture.nativeElement as HTMLElement).querySelector(".privilege-warning");
+    expect(warning?.textContent).toContain("not elevated");
+    expect(warning?.textContent).toContain("pid 1234");
+  });
+
+  it("reinstalls a custom service after confirmation", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(true);
+    await component.reinstallService("llama-server");
+    expect(serviceService.installService).toHaveBeenCalledWith("llama-server", undefined);
+  });
+
+  it("skips reinstall when confirmation is declined", async () => {
+    await fixture.whenStable();
+    jest.spyOn(window, "confirm").mockReturnValue(false);
+    await component.reinstallService("llama-server");
+    expect(serviceService.installService).not.toHaveBeenCalled();
+  });
+
+  it("asks for the account password right before registering a service that runs as a user", async () => {
+    await fixture.whenStable();
+    component.configs.set([...CONFIGS, { name: "comfyui", command: "C:\\run.cmd", flags: [], user: "ynote2\\Yaroslav" }]);
+    accountPassword.askFor.mockResolvedValue("s3cr3t");
+
+    await component.installService("comfyui");
+
+    expect(accountPassword.askFor).toHaveBeenCalledWith(expect.objectContaining({ name: "comfyui" }));
+    expect(serviceService.installService).toHaveBeenCalledWith("comfyui", "s3cr3t");
+  });
+
+  it("does not register the service when the password prompt is cancelled", async () => {
+    await fixture.whenStable();
+    component.configs.set([...CONFIGS, { name: "comfyui", command: "C:\\run.cmd", flags: [], user: "ynote2\\Yaroslav" }]);
+    accountPassword.askFor.mockResolvedValue(null);
+
+    await component.installService("comfyui");
+
+    expect(serviceService.installService).not.toHaveBeenCalled();
   });
 });

@@ -116,6 +116,24 @@
     background: #e8eaf6 !important;
     color: #303f9f !important;
   }
+
+  .server-chip-ok {
+    font-weight: 600;
+    background: #e8f5e9 !important;
+    color: #2e7d32 !important;
+  }
+
+  .server-chip-warn {
+    font-weight: 600;
+    background: #ffebee !important;
+    color: #c62828 !important;
+  }
+}
+
+.server-warning {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #c62828;
 }
 
 .os-uptime {

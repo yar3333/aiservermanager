@@ -2,6 +2,7 @@ import {
   ServiceConfig,
   buildEnvironmentLines,
   buildExecStart,
+  buildInstallOptions,
   parseConfigFile,
   serializeConfig,
 } from "../ServiceConfig";
@@ -209,5 +210,156 @@ describe("buildExecStart", () => {
     };
 
     expect(buildExecStart(cfg)).toBe("/usr/bin/python3 --port 8080");
+  });
+});
+
+describe("unit.cwd", () => {
+  it("parses unit.cwd= as the working directory", () => {
+    const cfg = parseConfigFile(
+      "svc",
+      `command=/usr/bin/python3
+unit.cwd=/srv/worker
+--flag
+`,
+    );
+
+    expect(cfg.workingDirectory).toBe("/srv/worker");
+    expect(cfg.flags).toEqual(["--flag"]);
+  });
+
+  it("keeps Windows paths with spaces intact", () => {
+    const cfg = parseConfigFile("svc", "command=C:\\AiPic\\run.cmd\nunit.cwd=C:\\AiPic\\system dir\n");
+
+    expect(cfg.workingDirectory).toBe("C:\\AiPic\\system dir");
+  });
+
+  it("treats a bare cwd= line as a CLI flag", () => {
+    const cfg = parseConfigFile("svc", "command=/usr/bin/python3\ncwd=/srv/worker\n");
+
+    expect(cfg.workingDirectory).toBeUndefined();
+    expect(cfg.flags).toEqual(["cwd=/srv/worker"]);
+  });
+
+  it("round-trips the working directory", () => {
+    const original: ServiceConfig = {
+      name: "svc",
+      command: "C:\\AiPic\\run_comfy.cmd",
+      flags: [],
+      workingDirectory: "C:\\AiPic\\system",
+    };
+
+    expect(serializeConfig(original)).toBe(
+      "command=C:\\AiPic\\run_comfy.cmd\nunit.cwd=C:\\AiPic\\system\n",
+    );
+    expect(parseConfigFile(original.name, serializeConfig(original))).toEqual(original);
+  });
+});
+
+describe("buildInstallOptions", () => {
+  it("passes the program and its argument fragments separately for non-shell hosts", () => {
+    const options = buildInstallOptions({
+      name: "svc",
+      command: "C:\\AiPic\\run_comfy.cmd",
+      flags: ["--port 8188"],
+      environment: { AG_VIDEO_TYPE: "amd" },
+      workingDirectory: "C:\\AiPic\\system",
+      restart: "on-failure",
+    });
+
+    expect(options.executable).toBe("C:\\AiPic\\run_comfy.cmd");
+    expect(options.args).toEqual(["--port 8188"]);
+    expect(options.workingDirectory).toBe("C:\\AiPic\\system");
+    expect(options.environment).toEqual({ AG_VIDEO_TYPE: "amd" });
+    expect(options.restart).toBe("on-failure");
+  });
+
+  it("leaves the working directory unset when the config does not set one", () => {
+    const options = buildInstallOptions({ name: "svc", command: "/bin/true", flags: [] });
+
+    expect(options.workingDirectory).toBeUndefined();
+    expect(options.args).toEqual([]);
+  });
+
+  it("carries the run-as password and stop command to the controller", () => {
+    const options = buildInstallOptions({
+      name: "svc",
+      command: "C:\\AiPic\\run_comfy.cmd",
+      flags: [],
+      user: "ynote2\\Yaroslav",
+      runAsPassword: "s3cret",
+      stopCommand: "C:\\tools\\stop-comfy.cmd /fast",
+    });
+
+    expect(options.user).toBe("ynote2\\Yaroslav");
+    expect(options.runAsPassword).toBe("s3cret");
+    expect(options.stopCommand).toBe("C:\\tools\\stop-comfy.cmd /fast");
+  });
+});
+
+describe("Windows run-as account and stop command", () => {
+  it("accepts a Windows account name", () => {
+    const cfg = parseConfigFile(
+      "svc",
+      `command=C:\\AiPic\\run_comfy.cmd
+unit.user=ynote2\\Yaroslav
+--port 8188
+`,
+    );
+
+    expect(cfg.user).toBe("ynote2\\Yaroslav");
+    expect(cfg.flags).toEqual(["--port 8188"]);
+  });
+
+  it("accepts a local and a UPN account form", () => {
+    expect(parseConfigFile("svc", "command=c\nunit.user=.\\svc-ai\n").user).toBe(".\\svc-ai");
+    expect(parseConfigFile("svc", "command=c\nunit.user=ai@corp.example\n").user).toBe("ai@corp.example");
+  });
+
+  it("rejects an account name with a space or a path separator", () => {
+    expect(parseConfigFile("svc", "command=c\nunit.user=Domain Not Work\n").user).toBeUndefined();
+    expect(parseConfigFile("svc", "command=c\nunit.user=C:\\evil\\path\n").user).toBeUndefined();
+  });
+
+  it("never reads the account password from disk", () => {
+    const cfg = parseConfigFile("svc", "command=c\nunit.password=s3cr3t\n--port 8080\n");
+
+    expect(cfg.runAsPassword).toBeUndefined();
+    // The key is still recognised, so the line cannot become a CLI argument.
+    expect(cfg.flags).toEqual(["--port 8080"]);
+  });
+
+  it("never writes the account password to disk", () => {
+    const raw = serializeConfig({
+      name: "svc",
+      command: "C:\\AiPic\\run_comfy.cmd",
+      flags: [],
+      user: "ynote2\\Yaroslav",
+      runAsPassword: "s3cr3t",
+    });
+
+    expect(raw).toContain("unit.user=ynote2\\Yaroslav");
+    expect(raw).not.toContain("s3cr3t");
+    expect(raw).not.toContain("unit.password=");
+  });
+
+  it("round-trips the account and stop command", () => {
+    const original: ServiceConfig = {
+      name: "svc",
+      command: "C:\\AiPic\\run_comfy.cmd",
+      flags: ["--port 8188"],
+      user: "ynote2\\Yaroslav",
+      stopCommand: "C:\\tools\\stop-comfy.cmd /fast",
+    };
+
+    const raw = serializeConfig(original);
+    expect(raw).toContain("unit.user=ynote2\\Yaroslav");
+    expect(raw).toContain("unit.stop=C:\\tools\\stop-comfy.cmd /fast");
+    expect(parseConfigFile(original.name, raw)).toEqual(original);
+  });
+
+  it("writes no optional unit lines when they are absent", () => {
+    const raw = serializeConfig({ name: "svc", command: "/bin/true", flags: [], user: "llama" });
+
+    expect(raw).toBe("command=/bin/true\nunit.user=llama\n");
   });
 });

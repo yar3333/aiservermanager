@@ -51,7 +51,11 @@ export default function serviceRoutes(container: Container) {
     }
   });
 
-  /** Install the systemd unit for a custom service that has a config but no unit yet: { name: "llama" } */
+  /**
+   * Install the OS service for a custom config that is not registered yet:
+   * { name: "llama", runAsPassword?: "…" }. The password is asked by the UI at
+   * this moment for a Windows service that runs as a user; it is not stored.
+   */
   router.post("/install", async (req: Request, res: Response) => {
     try {
       const { name } = req.body;
@@ -59,8 +63,10 @@ export default function serviceRoutes(container: Container) {
         return res.status(400).json({ error: "'name' is required" });
       }
 
+      const runAsPassword = typeof req.body.runAsPassword === "string" ? req.body.runAsPassword : undefined;
+
       const sm = container.get<ServiceManager>(SERVICE_MANAGER);
-      const result = await sm.installService(name);
+      const result = await sm.installService(name, runAsPassword);
       res.json(result);
     } catch (err) {
       const status = (err as Error).message.startsWith("Unknown service") ? 404 : 500;
@@ -110,6 +116,8 @@ export default function serviceRoutes(container: Container) {
         environment: body.environment ?? {},
         user: typeof body.user === "string" && body.user.trim() ? body.user.trim() : undefined,
         group: typeof body.group === "string" && body.group.trim() ? body.group.trim() : undefined,
+        // Asked for at save time on Windows; never written to the config file.
+        runAsPassword: typeof body.runAsPassword === "string" && body.runAsPassword ? body.runAsPassword : undefined,
         restart: body.restart,
       };
 
@@ -174,8 +182,9 @@ export default function serviceRoutes(container: Container) {
   router.post("/config/:name/restore", async (req: Request, res: Response) => {
     try {
       const name = Array.isArray(req.params.name) ? req.params.name[0] : req.params.name;
+      const runAsPassword = typeof req.body?.runAsPassword === "string" ? req.body.runAsPassword : undefined;
       const scc = container.get<ServiceConfigController>(SERVICE_CONFIG_CONTROLLER);
-      const result = await scc.restoreService(name);
+      const result = await scc.restoreService(name, runAsPassword);
 
       if (!result.ok) {
         return res.status(404).json({ error: result.error });

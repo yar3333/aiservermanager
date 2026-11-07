@@ -2,11 +2,28 @@ import * as fs from "fs";
 import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
-import { buildEnvironmentLines, InstallOptions } from "../../models/ServiceConfig";
+import { buildEnvironmentLines, InstallOptions, USER_GROUP_REGEX } from "../../models/ServiceConfig";
 import { JournalLine, ServiceController } from "../serviceController";
 import { ConfigManager } from "../configManager";
 
 const SYSTEM_UNIT_DIR = "/etc/systemd/system";
+
+/**
+ * systemd resolves User= against its own name rules (USER_GROUP_REGEX), so a
+ * Windows-style account — HOST\name, .\name or name@domain — is not a name it
+ * knows. Passing such a user through would drop the field and start the program
+ * as root, so the unit is not written at all and the reason is reported instead.
+ */
+export function systemdRunAsUserError(name: string, user: string | undefined): string | undefined {
+  if (!user || USER_GROUP_REGEX.test(user)) return undefined;
+
+  return (
+    `Run-as user "${user}" is not a name systemd accepts: User= takes a bare account name, without ` +
+    `"HOST\\", ".\\" or "@domain" — those forms name a Windows account. Service "${name}" was not ` +
+    `installed: the unit written without that user would run the program as root. ` +
+    `Put the bare user name there, or leave the field empty to run as root on purpose.`
+  );
+}
 
 /** Manage services via systemctl (Linux with systemd). */
 export class SystemctlController implements ServiceController {
@@ -127,14 +144,20 @@ export class SystemctlController implements ServiceController {
       "[Service]",
       "Type=simple",
     ];
-    if (options?.user) {
+    if (options?.user && USER_GROUP_REGEX.test(options.user)) {
       lines.push(`User=${options.user}`);
     }
-    if (options?.group) {
+    if (options?.group && USER_GROUP_REGEX.test(options.group)) {
       lines.push(`Group=${options.group}`);
     }
+    if (options?.workingDirectory) {
+      lines.push(`WorkingDirectory=${options.workingDirectory}`);
+    }
+    lines.push(`ExecStart=${execStart}`);
+    if (options?.stopCommand) {
+      lines.push(`ExecStop=${options.stopCommand}`);
+    }
     lines.push(
-      `ExecStart=${execStart}`,
       ...envLines,
       `Restart=${options?.restart ?? "no"}`,
       "",
@@ -149,6 +172,11 @@ export class SystemctlController implements ServiceController {
    * Write the unit file and reload the daemon. Does NOT enable.
    */
   async install(name: string, execStart: string, options?: InstallOptions): Promise<ServiceStatus> {
+    const userError = systemdRunAsUserError(name, options?.user);
+    if (userError) {
+      return { name, running: false, enabled: false, installed: false, error: userError };
+    }
+
     const sudo = "sudo ";
     const unitPath = path.join(SYSTEM_UNIT_DIR, `${name}.service`);
     const unitContent = this.buildUnitContent(name, execStart, options);

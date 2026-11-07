@@ -46,6 +46,17 @@
     </mat-menu>
   </div>
 
+  @if (backendUnprivileged()) {
+    <div class="privilege-warning" role="alert">
+      <mat-icon>warning</mat-icon>
+      <span>
+        Backend pid {{ serverIdentity()!.pid }} on {{ serverIdentity()!.host }}:{{ serverIdentity()!.port }} is not
+        elevated, so services cannot be started, stopped or installed. Stop every backend instance and launch one as
+        Administrator — port {{ serverIdentity()!.port }} may still be held by an older, non-elevated instance.
+      </span>
+    </div>
+  }
+
   @if (filtered().length > 0) {
     <div class="services-scroll">
       <table class="services-list">
@@ -126,6 +137,12 @@
                       <mat-icon>content_copy</mat-icon>
                       <span>Clone</span>
                     </button>
+                    @if (svc.installed) {
+                      <button mat-menu-item (click)="reinstallService(svc.name)">
+                        <mat-icon>refresh</mat-icon>
+                        <span>Reinstall</span>
+                      </button>
+                    }
                     <button mat-menu-item (click)="archiveService(svc.name)">
                       <mat-icon>inventory_2</mat-icon>
                       <span>Move to Archive</span>

@@ -1,3 +1,5 @@
+import { ServerIdentityInfo } from "../helpers/ServerIdentity";
+
 /** Operating system release info. */
 export interface OsRelease {
   name: string;
@@ -42,6 +44,11 @@ export interface SystemInfoDetail {
   disks: DiskInfo[];
   logs: LogFileInfo[];
   timeshift?: TimeshiftInfo;
+  /**
+   * Which backend process answered this request. Added by the route, not by
+   * the providers — the dashboard can be served by a stale instance.
+   */
+  server?: ServerIdentityInfo;
 }
 
 /**

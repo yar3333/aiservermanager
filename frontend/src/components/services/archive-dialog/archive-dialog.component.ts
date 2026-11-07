@@ -8,6 +8,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../../services/service.service";
+import { AccountPasswordService } from "../../../services/account-password.service";
 import { ServiceConfig } from "../../../models/service";
 
 /** A row in the combined list: a conf service with its archive state. */
@@ -27,6 +28,7 @@ export class ArchiveDialogComponent implements OnInit {
   private serviceService = inject(ServiceService);
   private dialogRef = inject(MatDialogRef<ArchiveDialogComponent>);
   private snackBar = inject(MatSnackBar);
+  private accountPassword = inject(AccountPasswordService);
 
   readonly active = signal<ServiceConfig[]>([]);
   readonly archived = signal<ServiceConfig[]>([]);
@@ -91,10 +93,15 @@ export class ArchiveDialogComponent implements OnInit {
 
   /** Move a service back out of the archive (moves config, reinstalls the unit). */
   async restore(name: string): Promise<void> {
+    const item = this.archived().find((c) => c.name === name);
+
+    // Restoring reinstalls the service, so a run-as account needs its password now.
+    const password = await this.accountPassword.askFor(item);
+    if (password === null) return;
+
     this.busy.set(name);
     try {
-      const item = this.archived().find((c) => c.name === name);
-      await firstValueFrom(this.serviceService.restoreService(name));
+      await firstValueFrom(this.serviceService.restoreService(name, password ?? undefined));
       if (item) {
         this.archived.set(this.archived().filter((c) => c.name !== name));
         this.active.set([...this.active(), item]);

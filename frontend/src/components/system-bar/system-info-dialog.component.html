@@ -37,6 +37,46 @@
 
       <mat-divider class="section-divider"></mat-divider>
 
+      @if (info()!.server) {
+        <div class="info-section">
+          <h3>Backend</h3>
+          <div class="info-card">
+            <div class="info-card-header">
+              <mat-chip-set>
+                <mat-chip
+                  class="server-chip"
+                  [class.server-chip-ok]="info()!.server!.privileged"
+                  [class.server-chip-warn]="!info()!.server!.privileged"
+                >
+                  {{ info()!.server!.privileged ? "privileged" : "not privileged" }}
+                </mat-chip>
+                <mat-chip class="hostname-chip">pid {{ info()!.server!.pid }}</mat-chip>
+              </mat-chip-set>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Listening on</span>
+              <span class="info-value">{{ info()!.server!.host }}:{{ info()!.server!.port }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Started</span>
+              <span class="info-value">{{ info()!.server!.startedAt | date: "medium" }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Platform</span>
+              <span class="info-value">{{ info()!.server!.platform }}</span>
+            </div>
+            @if (!info()!.server!.privileged) {
+              <p class="server-warning">
+                Without elevated rights the backend cannot start, stop or install services. Stop every backend
+                instance and launch one elevated — an older instance may still own the port.
+              </p>
+            }
+          </div>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+      }
+
       <div class="info-section">
         <h3>Disks</h3>
         @for (disk of info()!.disks; track disk.device) {

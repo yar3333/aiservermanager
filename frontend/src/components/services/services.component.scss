@@ -8,6 +8,26 @@
   flex-direction: column;
 }
 
+.privilege-warning {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #ffebee;
+  color: #c62828;
+  font-size: 0.85rem;
+  line-height: 1.4;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .section-header {
   flex: 0 0 auto;
   display: flex;

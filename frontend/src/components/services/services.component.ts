@@ -10,10 +10,13 @@ import { firstValueFrom } from "rxjs";
 import { ServiceService } from "../../services/service.service";
 import { SelectedServiceService } from "../../services/selected-service.service";
 import { ServiceListService } from "../../services/service-list.service";
+import { SystemService } from "../../services/system.service";
+import { ServerIdentityInfo } from "../../models/gpu";
 import { ServiceAction, ServiceConfig, ServiceType } from "../../models/service";
 import { ServiceDialogComponent, ServiceDialogData } from "./service-dialog/service-dialog.component";
 import { ManagedServicesDialogComponent } from "./managed-services-dialog/managed-services-dialog.component";
 import { ArchiveDialogComponent } from "./archive-dialog/archive-dialog.component";
+import { AccountPasswordService } from "../../services/account-password.service";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog/vllm-dialog.component";
 import { MatIconModule } from "@angular/material/icon";
@@ -43,6 +46,8 @@ export interface ServiceWithConfig {
 export class ServicesComponent implements OnInit {
   private serviceService = inject(ServiceService);
   private serviceList = inject(ServiceListService);
+  private systemService = inject(SystemService);
+  private accountPassword = inject(AccountPasswordService);
   protected selectedServiceService = inject(SelectedServiceService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
@@ -51,6 +56,11 @@ export class ServicesComponent implements OnInit {
   readonly services = this.serviceList.services;
   readonly configs = signal<ServiceConfig[]>([]);
   readonly loading = signal(true);
+  /**
+   * Backend process answering these requests. An unelevated one is refused by
+   * the OS, which otherwise surfaces as a bare "Access is denied" per action.
+   */
+  readonly serverIdentity = signal<ServerIdentityInfo | null>(null);
   /** Name + action currently being processed — prevents double-click. */
   readonly busy = signal<{ name: string; action: ServiceAction | "install" } | null>(null);
 
@@ -98,7 +108,22 @@ export class ServicesComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadServerIdentity();
   }
+
+  /** One-shot — elevation of a running backend process cannot change. */
+  private loadServerIdentity(): void {
+    this.systemService
+      .getSystemInfo()
+      .then((info) => this.serverIdentity.set(info.server ?? null))
+      .catch(() => this.serverIdentity.set(null));
+  }
+
+  /** The answering backend is known not to be able to control OS services. */
+  readonly backendUnprivileged = computed(() => {
+    const identity = this.serverIdentity();
+    return identity !== null && !identity.privileged;
+  });
 
   async load(): Promise<void> {
     this.loading.set(true);
@@ -134,10 +159,14 @@ export class ServicesComponent implements OnInit {
   async installService(name: string): Promise<void> {
     const current = this.busy();
     if (current && current.name === name && current.action === "install") return;
+
+    const password = await this.accountPassword.askFor(this.configOf(name));
+    if (password === null) return;
+
     this.selectedServiceService.select(name);
     this.busy.set({ name, action: "install" });
     try {
-      const result = await firstValueFrom(this.serviceService.installService(name));
+      const result = await firstValueFrom(this.serviceService.installService(name, password ?? undefined));
       if (result.error) {
         this.showError(`${name}: ${result.error}`);
       }
@@ -147,6 +176,19 @@ export class ServicesComponent implements OnInit {
     } finally {
       this.busy.set(null);
     }
+  }
+
+  private configOf(name: string): ServiceConfig | undefined {
+    return this.configs().find((c) => c.name === name);
+  }
+
+  /**
+   * Re-create the OS service from its current config. Needed after editing a
+   * config, and re-registration stops a running instance.
+   */
+  async reinstallService(name: string): Promise<void> {
+    if (!confirm(`Reinstall service "${name}" from its current config? A running instance will be stopped.`)) return;
+    await this.installService(name);
   }
 
   private showError(message: string): void {
@@ -261,10 +303,15 @@ export class ServicesComponent implements OnInit {
     ref.afterClosed().subscribe(async (result: ServiceConfig | undefined) => {
       if (!result) return;
 
+      // Saving re-registers the service, so an account change needs its password now.
+      const password = await this.accountPassword.askFor(result);
+      if (password === null) return;
+      const payload: ServiceConfig = password ? { ...result, runAsPassword: password } : result;
+
       try {
         if (clone) {
           // Clone: create a new service, keep the original untouched.
-          await firstValueFrom(this.serviceService.saveConfig(result));
+          await firstValueFrom(this.serviceService.saveConfig(payload));
         } else {
           const oldName = config?.name ?? null;
           const isNameChange = oldName !== null && oldName !== result.name;
@@ -279,7 +326,7 @@ export class ServicesComponent implements OnInit {
             await firstValueFrom(this.serviceService.deleteConfig(oldName!));
 
             // Create new service with new name
-            await firstValueFrom(this.serviceService.saveConfig(result));
+            await firstValueFrom(this.serviceService.saveConfig(payload));
 
             // Restore enabled state
             if (wasEnabled) {
@@ -292,7 +339,7 @@ export class ServicesComponent implements OnInit {
             }
           } else {
             // Create or update (no name change)
-            await firstValueFrom(this.serviceService.saveConfig(result));
+            await firstValueFrom(this.serviceService.saveConfig(payload));
           }
         }
       } catch (err) {

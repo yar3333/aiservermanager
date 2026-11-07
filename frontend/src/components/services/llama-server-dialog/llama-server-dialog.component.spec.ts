@@ -1,9 +1,11 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { signal, WritableSignal } from "@angular/core";
 import { MatDialogRef, MAT_DIALOG_DATA } from "@angular/material/dialog";
 import { of } from "rxjs";
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog.component";
 import { ServiceConfig } from "../../../models/service";
 import { ServiceService } from "../../../services/service.service";
+import { SystemService } from "../../../services/system.service";
 
 /** Mirrors ~/.config/aiservermanager/services/llama-qwen-bf16-3gpu.conf + env + an unknown flag. */
 const LLAMA_CONFIG: ServiceConfig = {
@@ -25,9 +27,11 @@ describe("LlamaServerDialogComponent (Additional section)", () => {
   let fixture: ComponentFixture<LlamaServerDialogComponent>;
   let component: LlamaServerDialogComponent;
   let dialogRef: { close: jest.Mock };
+  let backendWindows: WritableSignal<boolean>;
 
-  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = []) {
+  function create(config: ServiceConfig | null, allConfigs: ServiceConfig[] = [], windows = false) {
     dialogRef = { close: jest.fn() };
+    backendWindows = signal(false);
     const data: LlamaServerDialogData = { config, allConfigs };
     TestBed.configureTestingModule({
       imports: [LlamaServerDialogComponent],
@@ -35,6 +39,16 @@ describe("LlamaServerDialogComponent (Additional section)", () => {
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: ServiceService, useValue: { getLlamaAutocomplete: jest.fn().mockReturnValue(of([])) } },
+        {
+          provide: SystemService,
+          useValue: {
+            windows: backendWindows.asReadonly(),
+            detectWindows: jest.fn().mockImplementation(async () => {
+              backendWindows.set(windows);
+              return windows;
+            }),
+          },
+        },
       ],
     });
     fixture = TestBed.createComponent(LlamaServerDialogComponent);
@@ -91,6 +105,23 @@ describe("LlamaServerDialogComponent (Additional section)", () => {
     expect(saved.restart).toBe("always");
   });
 
+  it("locks the group field and says LocalSystem on a Windows backend", async () => {
+    create({ ...LLAMA_CONFIG, user: "llama", group: "ai" }, [], true);
+    await fixture.whenStable();
+
+    expect(component.runAs.userHint()).toBe("empty → LocalSystem");
+    expect(component.runAs.groupHint()).toBe("not used on Windows");
+    expect(component.form.controls.group.disabled).toBe(true);
+  });
+
+  it("keeps the group field editable on a Linux backend", async () => {
+    create({ ...LLAMA_CONFIG, user: "llama", group: "ai" });
+    await fixture.whenStable();
+
+    expect(component.runAs.userHint()).toBe("empty → root");
+    expect(component.form.controls.group.disabled).toBe(false);
+  });
+
   it("omits empty user/group and the default restart policy on save", () => {
     create({ ...LLAMA_CONFIG, user: "llama", restart: "on-failure" });
     component.form.controls.user.setValue("  ");
@@ -132,6 +163,10 @@ describe("LlamaServerDialogComponent (composite spec-type)", () => {
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: ServiceService, useValue: { getLlamaAutocomplete: jest.fn().mockReturnValue(of([])) } },
+        {
+          provide: SystemService,
+          useValue: { windows: signal(false), detectWindows: jest.fn().mockResolvedValue(false) },
+        },
       ],
     });
     fixture = TestBed.createComponent(LlamaServerDialogComponent);

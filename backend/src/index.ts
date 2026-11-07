@@ -10,13 +10,14 @@ import hfRoutes from "./routes/hfRoutes";
 import lmStudioRoutes from "./routes/lmStudioRoutes";
 import authRoutes from "./routes/authRoutes";
 import { authMiddleware } from "./middleware/authMiddleware";
+import { ServerIdentity } from "./helpers/ServerIdentity";
 import { SERVICE_MANAGER } from "./di/types";
 import { ServiceManager } from "./services/serviceManager";
 
 const container = createContainer();
 const app = express();
-const PORT = parseInt(process.env.PORT ?? "4243");
-const HOST = process.env.HOST ?? "127.0.0.1";
+const PORT = ServerIdentity.port;
+const HOST = ServerIdentity.host;
 
 app.use(cors());
 app.use(express.json());
@@ -56,6 +57,24 @@ sm.bootstrap().catch((err) => {
   console.error("[ServiceManager] bootstrap failed:", err);
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`aiservermanager backend listening on http://${HOST}:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`aiservermanager backend listening on http://${HOST}:${PORT} (pid ${process.pid})`);
+});
+
+/**
+ * A second instance would otherwise die with a bare EADDRINUSE stack trace
+ * while the dashboard keeps talking to whatever already owns the port.
+ */
+server.on("error", (err: Error) => {
+  const taken = (err as NodeJS.ErrnoException).code === "EADDRINUSE";
+  const probe =
+    process.platform === "win32" ? `netstat -ano | findstr :${PORT}` : `ss -ltnp | grep ":${PORT} "`;
+
+  console.error(
+    taken
+      ? `aiservermanager backend cannot listen on ${HOST}:${PORT} — another process owns the port.\n` +
+          `Stop it with "${probe}" and keep a single instance; this one (pid ${process.pid}) exits.`
+      : `aiservermanager backend failed to listen on ${HOST}:${PORT}: ${err.message}`,
+  );
+  process.exit(1);
 });

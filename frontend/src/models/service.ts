@@ -40,10 +40,20 @@ export interface ServiceConfig {
   flags: string[];
   /** Extra environment variables passed to the service process (KEY → value). */
   environment?: Record<string, string>;
-  /** Run the service as this user (systemd User=). Unset → run as root. */
+  /** Run the service as this user (systemd User= / Windows service account). Unset → root / LocalSystem. */
   user?: string;
-  /** Run the service as this group (systemd Group=). */
+  /** Run the service as this group (systemd Group=). Ignored on Windows. */
   group?: string;
+  /**
+   * Password of the Windows service account. Sent with the save request only:
+   * the backend never stores it and never returns it, so re-registering a
+   * service that runs as a user needs it typed again.
+   */
+  runAsPassword?: string;
+  /** Command that stops the service (systemd ExecStop= / WinSW <stopexecutable>). */
+  stopCommand?: string;
+  /** Working directory of the service process (systemd WorkingDirectory= / WinSW <workingdirectory>). */
+  workingDirectory?: string;
   /** Restart policy (systemd Restart=). Unset → "no" (systemd default). */
   restart?: ServiceRestart;
 }

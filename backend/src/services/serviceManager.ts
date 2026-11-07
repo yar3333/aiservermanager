@@ -135,10 +135,13 @@ export class ServiceManager {
   }
 
   /**
-   * Install the systemd unit for a custom service that has a config but is
-   * not yet registered in the OS (e.g. config added while server was running).
+   * Install the systemd unit for a custom service that is not yet registered in
+   * the OS (e.g. config added while server was running).
+   *
+   * runAsPassword is the Windows service account password, asked by the UI at
+   * this moment: it is handed to the controller and never stored.
    */
-  async installService(name: string): Promise<ServiceStatus> {
+  async installService(name: string, runAsPassword?: string): Promise<ServiceStatus> {
     const defs = this.getServiceDefs();
     const def = defs.find((s) => s.name === name);
     if (!def) {
@@ -156,7 +159,11 @@ export class ServiceManager {
     }
 
     const execStart = buildExecStart(cfg);
-    const result = await controller.install(name, execStart, buildInstallOptions(cfg));
+    const password = runAsPassword?.trim();
+    const result = await controller.install(name, execStart, {
+      ...buildInstallOptions(cfg),
+      ...(password ? { runAsPassword: password } : {}),
+    });
 
     if (!result.error) {
       this.installErrors.delete(name);
