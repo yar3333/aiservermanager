@@ -256,6 +256,9 @@ export function resolveWorkingDirectory(configured: string | undefined, executab
   const configuredTrimmed = configured?.trim();
   if (configuredTrimmed) return configuredTrimmed;
 
-  const dir = path.dirname(executable.trim());
+  // WinSW only ever runs on Windows, so the program path is read with Windows
+  // rules even when this module runs elsewhere: to POSIX "C:\dir\run.cmd" holds
+  // no separator at all and dirname() answers "." instead of the program folder.
+  const dir = path.win32.dirname(executable.trim());
   return dir === "." ? process.cwd() : dir;
 }
