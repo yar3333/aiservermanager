@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
+import { homeDirectory } from "../helpers/homeDirectory";
 
-const CONFIG_DIR = path.join(process.env.HOME ?? "", ".config", "aiservermanager");
+const CONFIG_DIR = path.join(homeDirectory(), ".config", "aiservermanager");
 const MANAGED_FILE = path.join(CONFIG_DIR, "managed-services.json");
 
 /**

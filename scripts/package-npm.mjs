@@ -34,9 +34,20 @@ fs.mkdirSync(path.join(outDir, "bin"), { recursive: true });
 fs.cpSync(distDir, path.join(outDir, "backend", "dist"), { recursive: true });
 fs.cpSync(publicDir, path.join(outDir, "backend", "public", "browser"), { recursive: true });
 
+// Without arguments the bin keeps running the dashboard; any argument goes to
+// the CLI, so a mistyped service command reports an error instead of silently
+// starting a second server on top of the installed one.
 fs.writeFileSync(
   path.join(outDir, "bin", "aiservermanager.js"),
-  '#!/usr/bin/env node\nrequire("../backend/dist/index.js");\n',
+  [
+    "#!/usr/bin/env node",
+    "if (process.argv.length > 2) {",
+    '  require("../backend/dist/cli.js").main(process.argv.slice(2));',
+    "} else {",
+    '  require("../backend/dist/index.js");',
+    "}",
+    "",
+  ].join("\n"),
   "utf-8",
 );
 

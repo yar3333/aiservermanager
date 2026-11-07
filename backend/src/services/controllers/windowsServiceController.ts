@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { ExecTools, ExecResultWithCode } from "../../helpers/ExecTools";
+import { homeDirectory } from "../../helpers/homeDirectory";
 import { ServerIdentity } from "../../helpers/ServerIdentity";
 import { ServiceAction, ServiceStatus } from "../../models/ServiceStatus";
 import { InstallOptions } from "../../models/ServiceConfig";
@@ -19,7 +20,7 @@ import { parseWinSwLogLine } from "../helpers/winswLog";
 const SC = "sc.exe";
 
 /** Per-service WinSW host directories: ~/.config/aiservermanager/winsw/<name>/. */
-const WINSW_ROOT = path.join(process.env.HOME ?? "", ".config", "aiservermanager", "winsw");
+const WINSW_ROOT = path.join(homeDirectory(), ".config", "aiservermanager", "winsw");
 
 /**
  * Packaged WinSW binary. From src/services/controllers (ts-node-dev) and from

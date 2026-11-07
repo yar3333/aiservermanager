@@ -24,6 +24,7 @@ aiservermanager/
 ├── backend/
 │   └── src/
 │       ├── index.ts                  # Express entry, port 4243, SPA fallback
+│       ├── cli.ts                    # install/uninstall/status/start/stop/restart себя как сервиса
 │       ├── files/                    # Raw files copied to dist/files/ at build (for ts-node-dev)
 │       │   ├── wmiGpuQuery.ps1       # PS1 script: WMI + HKLM registry → pciBusId (BB:DD.F)
 │       │   ├── grantLogonServiceRight.ps1 # PS1: выдать учётке SeServiceLogonRight через LSA
@@ -43,9 +44,11 @@ aiservermanager/
 │       │   └── __tests__/
 │       ├── helpers/
 │       │   ├── ExecTools.ts          # safeExec (platform-aware shell), safeExecPs1 (.ps1 files)
+│       │   ├── homeDirectory.ts      # HOME, а на Windows USERPROFILE: пустой HOME даёт относительные пути
 │       │   └── ServerIdentity.ts     # PID, listen address, start time, privilege level of this process
 │       └── services/
 │           ├── gpuService.ts         # Bootstrap (once) + usage polling (every req)
+│           ├── selfInstall.ts        # План установки менеджера как сервиса: entry/PORT/HOST/HOME/PATH
 │           ├── serviceController.ts  # ServiceController стратегия
 │           ├── serviceManager.ts     # Resolves managed + llama services, dispatches actions
 │           ├── serviceConfigController.ts # CRUD for user-created llama configs
@@ -218,6 +221,20 @@ aiservermanager/
 
 **Archive** — архив custom-сервисов (кнопка **"Archive"**, диалог `ArchiveDialogComponent`). Перемещение в архив: stop (если запущен) → uninstall юнита → конфиг переносится из `services/` в `~/.config/aiservermanager/services-archive/`. Извлечение: конфиг возвращается в `services/` и юнит переустанавливается (без enable/start). Архивные сервисы исчезают из списка статусов и не переустанавливаются при `bootstrap()`.
 
+### Установка самого менеджера как сервиса
+
+`npm i -g aiservermanager` → `sudo aiservermanager install` (Linux) / `aiservermanager install` из повышенного PowerShell (Windows). Новых способов регистрации не появляется: `cli.ts` собирает план (`services/selfInstall.ts`) и вызывает `getActiveController().installAndEnable("aiservermanager", …)` — тот же путь, что и для custom-сервисов (systemd-юнит в `/etc/systemd/system`, WinSW-обёртка + `sc config start= auto`).
+
+- **Учётка** — root / LocalSystem: управлять чужими сервисами без прав нельзя. Пароль не спрашивается (LocalSystem — это не учётка пользователя), поэтому трение вин-пароля тут не возникает.
+- **`HOME` пишется в юнит/XML явно** (`Environment=HOME=…`, а на Windows ещё и `USERPROFILE=`). Иначе сервис читал бы `/root/.config/aiservermanager` (или `%SystemRoot%\System32\config\systemprofile`) и все ранее созданные конфиги «исчезли» бы. На Linux при установке через sudo берётся дом `SUDO_USER` (`getent passwd`), а не `/root`.
+- **`PATH` расширяется** (`/opt/rocm/bin`, стандартные каталоги): systemd даёт сервису свой PATH, и без этого `rocm-smi`/`nvidia-smi`/`lspci` не находятся — детекторы молча отдали бы пустой список GPU. На Windows PATH не трогается: сервис получает машинный.
+- **`Restart=always`** / WinSW `<onfailure action="restart" delay="10 sec"/>`: менеджер должен подниматься сам.
+- **Порт проверяется до регистрации** (`netstat`/`ss`): сервис на занятом порту стартует и умирает с EADDRINUSE.
+- `--host` по умолчанию остаётся `127.0.0.1`; `0.0.0.0` — только по явному флагу, потому что вход в дашборд = пароль учётки ОС.
+- `uninstall` снимает регистрацию (`systemctl`-юнит / WinSW-обёртку) и **не трогает** `~/.config/aiservermanager`. После WinSW-uninstall в каталоге обёртки остаются только `*.log` — так и задумано, exe/xml удаляются.
+- **`restart` = stop + start**: `ServiceAction` знает только start/stop/enable/disable, а `sc.exe` не умеет `restart`.
+- Запуск CLI: без аргументов bin по-прежнему поднимает дашборд, любой аргумент уходит в `cli.ts` — опечатка в команде даёт ошибку, а не второй сервер.
+
 ### Windows: хост WinSW для custom-сервисов
 
 SCM принимает только EXE, который сам докладывает о своём состоянии (`StartServiceCtrlDispatcher`). Обычная программа или `.cmd`-обёртка (ComfyUI, `llama-server`) таким не является: `sc create` для них регистрирует сервис, который не стартует никогда. Поэтому `install()` на Windows регистрирует сервис через **WinSW** (Windows Service Wrapper, MIT; бинарь в `backend/src/files/winsw/`, путь переопределяется `AISERVERMANAGER_WINSW`):
@@ -318,7 +335,7 @@ interface SystemInfoDetail {
 
 ### Тесты backend
 
-Jest 30 + ts-jest + supertest. 28 файлов тестов; если исключить `hfDownloadsService.test.ts` (см. ниже) — 27 сьютов и 317 тестов, все зелёные.
+Jest 30 + ts-jest + supertest. 31 файл тестов; если исключить `hfDownloadsService.test.ts` (см. ниже) — 30 сьютов и 346 тестов, все зелёные.
 
 `hfDownloadsService.test.ts` на этой машине не проходит в обоих режимах и к коду отношения не имеет: без повышенного токена 37 тестов падают с `EPERM: operation not permitted, symlink` (симлинки в тестовой обвязке), с повышенным токеном симлинки создаются и 20 тестов падают уже на `HF downloads monitoring is only available on Linux` — сам сервис рассчитан на Linux. Остальные сьюты зелёные; `exec.test.ts` под сильной нагрузкой машины иногда падает по 5-секундному таймауту и проходит при запуске один на один (`--runInBand`).
 

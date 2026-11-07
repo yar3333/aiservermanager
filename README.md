@@ -17,6 +17,31 @@ Web dashboard for monitoring GPU server and managing AI services (llama.cpp, Com
 - **Managed Services** — Discover and manage any installed system service from the dashboard. Start, stop, enable, or disable with a single click. **Enable** means "starts on boot" (`systemctl enable` / start type `Automatic`); **Disable** only takes that autostart away (`systemctl disable` / start type `Manual`) — the service stays startable by hand. Windows `start= disabled` is deliberately not used: it makes the service unstartable at all (start then fails with 1058 until it is enabled again), which is not what the dashboard button means.
 - **Cross-platform** — Runs on Linux (systemctl) and Windows (Windows Services, experimental). Control operations need an elevated backend on Windows and root or passwordless sudo on Linux; the dashboard shows which backend process answers your requests and whether it has those rights.
 
+## Run it as a system service
+
+Running the dashboard in a terminal works for a quick look, but a manager that dies with your SSH session is not much of a manager — and on Windows a backend without admin rights cannot control services at all. The published package registers itself:
+
+```bash
+npm install -g aiservermanager
+sudo aiservermanager install                    # Linux: /etc/systemd/system/aiservermanager.service
+```
+
+```powershell
+npm install -g aiservermanager
+aiservermanager install                         # Windows: run from an elevated PowerShell
+```
+
+```
+aiservermanager status
+aiservermanager restart
+aiservermanager uninstall
+```
+
+- `--port <n>` / `--host <iface>` are baked into the unit; the default binding stays `127.0.0.1`, and `--host 0.0.0.0` is what a headless GPU box needs for LAN access (the dashboard logs in with an OS account password, so exposing it is a decision, not a default).
+- `--config-home <dir>` picks the home whose `.config/aiservermanager` the service reads. The service runs as **root / LocalSystem** (that is what controlling other services requires) but keeps `HOME`/`USERPROFILE` pointed at the user who installed it, so every custom service config you already created stays visible. Under `sudo` the user behind `SUDO_USER` is used automatically.
+- The installer refuses to register a service for a port that is already taken — that service would start and immediately exit.
+- `uninstall` removes the unit / WinSW wrapper and leaves `~/.config/aiservermanager` alone.
+
 ## Architecture
 
 Monorepo with two packages:

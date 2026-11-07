@@ -1,9 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
+import { homeDirectory } from "../helpers/homeDirectory";
 import { ServiceConfig, parseConfigFile, serializeConfig } from "../models/ServiceConfig";
 
-const CONFIG_DIR = path.join(process.env.HOME ?? "", ".config", "aiservermanager", "services");
-const ARCHIVE_DIR = path.join(process.env.HOME ?? "", ".config", "aiservermanager", "services-archive");
+const CONFIG_DIR = path.join(homeDirectory(), ".config", "aiservermanager", "services");
+const ARCHIVE_DIR = path.join(homeDirectory(), ".config", "aiservermanager", "services-archive");
 
 /**
  * Manages service config files in ~/.config/aiservermanager/services/*.conf
