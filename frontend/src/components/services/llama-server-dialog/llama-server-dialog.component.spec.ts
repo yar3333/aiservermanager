@@ -147,6 +147,20 @@ describe("LlamaServerDialogComponent (Additional section)", () => {
     component.form.controls.envText.setValue("# comment\nKEY1=val1\n\nKEY2=val2\n");
     expect(component.parseEnvironment()).toEqual({ KEY1: "val1", KEY2: "val2" });
   });
+
+  it("omits --no-reasoning-preserve while reasoning preserve is on", () => {
+    create(LLAMA_CONFIG);
+    expect(component.form.controls.reasoningPreserve.value).toBe("on");
+    component.save();
+    expect((dialogRef.close.mock.calls[0][0] as ServiceConfig).flags).not.toContain("--no-reasoning-preserve");
+  });
+
+  it("reads and keeps --no-reasoning-preserve when reasoning preserve is off", () => {
+    create({ ...LLAMA_CONFIG, flags: [...LLAMA_CONFIG.flags, "--no-reasoning-preserve"] });
+    expect(component.form.controls.reasoningPreserve.value).toBe("off");
+    component.save();
+    expect((dialogRef.close.mock.calls[0][0] as ServiceConfig).flags).toContain("--no-reasoning-preserve");
+  });
 });
 
 describe("LlamaServerDialogComponent (composite spec-type)", () => {

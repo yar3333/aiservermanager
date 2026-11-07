@@ -175,6 +175,37 @@ describe("AvalonDialogComponent", () => {
     expect(component.form.controls.parallel.value).toBe(3);
   });
 
+  it("reads --no-reasoning-preserve out of EXTRA and writes it back next to --parallel", () => {
+    create({
+      name: "a",
+      type: "avalon",
+      command: RUN_SH,
+      flags: [],
+      environment: { EXTRA: "--parallel=3 --no-reasoning-preserve" },
+    });
+    expect(component.form.controls.parallel.value).toBe(3);
+    expect(component.form.controls.reasoningPreserve.value).toBe("off");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--parallel 3 --no-reasoning-preserve");
+  });
+
+  it("emits EXTRA with only --no-reasoning-preserve when parallel stays at the default", () => {
+    create(AVALON_CONFIG);
+    expect(component.form.controls.reasoningPreserve.value).toBe("on");
+    component.form.controls.reasoningPreserve.setValue("off");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--no-reasoning-preserve");
+  });
+
+  it("omits EXTRA when both parallel and reasoning preserve are at their defaults", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [] });
+    component.form.controls.reasoningPreserve.setValue("off");
+    component.form.controls.reasoningPreserve.setValue("on");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBeUndefined();
+    expect(component.isControlChanged("reasoningPreserve")).toBe(false);
+  });
+
   it("omits EXTRA when the slot count is back to the launcher default of 1", () => {
     create(AVALON_FULL_CONFIG);
     component.form.controls.parallel.setValue(1);

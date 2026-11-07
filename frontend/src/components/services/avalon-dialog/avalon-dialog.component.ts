@@ -49,8 +49,10 @@ const DEFAULT_OPTIONS = {
   host: "0.0.0.0",
   port: 4239,
   ctxSize: 262144,
-  // Concurrency (the only EXTRA option)
+  // Concurrency
   parallel: 1,
+  // Reasoning preservation, forwarded to llama-server through EXTRA
+  reasoningPreserve: "on",
   // Extra launcher arguments + env (free-form)
   extraFlags: "",
   envText: "",
@@ -67,6 +69,11 @@ const MANAGED_ENV_KEYS = ["MODEL", "GPUS", "MMPROJ", "MMDEV", "HOST", "PORT", "C
 function parallelFromExtra(extra: string | undefined): number {
   const match = (extra ?? "").match(/--parallel(?:[=\s]+)(\d+)/);
   return match ? parseInt(match[1], 10) : DEFAULT_OPTIONS.parallel;
+}
+
+/** Value of EXTRA that the Reasoning Preserve field owns (run.sh defaults to preserving). */
+function reasoningPreserveFromExtra(extra: string | undefined): string {
+  return /(^|\s)--no-reasoning-preserve(\s|=|$)/.test(extra ?? "") ? "off" : "on";
 }
 
 /** Return true when the current form value differs from the launcher default. */
@@ -169,6 +176,8 @@ export class AvalonDialogComponent implements OnInit {
     ctxSize: [formatContextSize(DEFAULT_OPTIONS.ctxSize, 1)],
     // Concurrency
     parallel: [DEFAULT_OPTIONS.parallel],
+    // Reasoning — forwarded to llama-server through EXTRA
+    reasoningPreserve: [DEFAULT_OPTIONS.reasoningPreserve],
     // Extra launcher arguments + env (free-form)
     extraFlags: [DEFAULT_OPTIONS.extraFlags],
     envText: [DEFAULT_OPTIONS.envText],
@@ -342,8 +351,9 @@ export class AvalonDialogComponent implements OnInit {
     const ctx = parseInt(env["CTX"] ?? "", 10);
     f.ctxSize.setValue(formatContextSize(isNaN(ctx) ? DEFAULT_OPTIONS.ctxSize : ctx, 1));
 
-    // Concurrency — the only thing this dialog reads out of EXTRA.
+    // Concurrency + reasoning — the only things this dialog reads out of EXTRA.
     f.parallel.setValue(parallelFromExtra(env["EXTRA"]));
+    f.reasoningPreserve.setValue(reasoningPreserveFromExtra(env["EXTRA"]));
 
     // Launcher arguments: run.sh ignores argv, they are kept only so a save cannot lose them.
     f.extraFlags.setValue((cfg.flags ?? []).join("\n"));
@@ -400,7 +410,10 @@ export class AvalonDialogComponent implements OnInit {
     if (ctx > 0 && ctx !== DEFAULT_OPTIONS.ctxSize) env["CTX"] = String(ctx);
 
     const parallel = c.parallel.value ?? DEFAULT_OPTIONS.parallel;
-    if (parallel !== DEFAULT_OPTIONS.parallel && parallel > 0) env["EXTRA"] = `--parallel ${parallel}`;
+    const extra: string[] = [];
+    if (parallel !== DEFAULT_OPTIONS.parallel && parallel > 0) extra.push(`--parallel ${parallel}`);
+    if (c.reasoningPreserve.value === "off") extra.push("--no-reasoning-preserve");
+    if (extra.length) env["EXTRA"] = extra.join(" ");
 
     return Object.assign(env, this.parseEnvironment(c.envText.value as string));
   }

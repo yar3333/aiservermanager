@@ -119,6 +119,7 @@ const DEFAULT_OPTIONS = {
   reasoning: "auto",
   reasoningBudget: -1,
   reasoningFormat: "auto",
+  reasoningPreserve: "on",
   // Auth
   apiKeyFile: "",
 };
@@ -227,6 +228,8 @@ const KNOWN_LLAMA_FLAGS = new Set([
   "--reasoning",
   "--reasoning-budget",
   "--reasoning-format",
+  "--reasoning-preserve",
+  "--no-reasoning-preserve",
   "--api-key-file",
 ]);
 
@@ -395,6 +398,7 @@ export class LlamaServerDialogComponent implements OnInit {
     reasoning: [DEFAULT_OPTIONS.reasoning],
     reasoningBudget: [DEFAULT_OPTIONS.reasoningBudget],
     reasoningFormat: [DEFAULT_OPTIONS.reasoningFormat],
+    reasoningPreserve: [DEFAULT_OPTIONS.reasoningPreserve],
     // Auth
     apiKeyFile: [""],
     // Additional
@@ -726,6 +730,9 @@ export class LlamaServerDialogComponent implements OnInit {
     f.reasoning.setValue(flagValueStr(flags, "--reasoning", DEFAULT_OPTIONS.reasoning));
     f.reasoningBudget.setValue(flagValueNum(flags, "--reasoning-budget", DEFAULT_OPTIONS.reasoningBudget));
     f.reasoningFormat.setValue(flagValueStr(flags, "--reasoning-format", DEFAULT_OPTIONS.reasoningFormat));
+    f.reasoningPreserve.setValue(
+      flagBool(flags, "--reasoning-preserve", "--no-reasoning-preserve", true) ? "on" : "off",
+    );
     // Auth
     f.apiKeyFile.setValue(flagValueStr(flags, "--api-key-file", ""));
     // Additional
@@ -909,6 +916,7 @@ export class LlamaServerDialogComponent implements OnInit {
     this.addIf("--reasoning", c.reasoning.value, DEFAULT_OPTIONS.reasoning);
     this.addIf("--reasoning-budget", c.reasoningBudget.value, DEFAULT_OPTIONS.reasoningBudget);
     this.addIf("--reasoning-format", c.reasoningFormat.value, DEFAULT_OPTIONS.reasoningFormat);
+    if (c.reasoningPreserve.value === "off") this._flags.push("--no-reasoning-preserve");
 
     // Auth
     this.addIf("--api-key-file", c.apiKeyFile.value, DEFAULT_OPTIONS.apiKeyFile);

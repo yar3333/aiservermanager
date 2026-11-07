@@ -1085,7 +1085,9 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ Reasoning ═══════════ -->
-    <mat-expansion-panel [class.has-changed]="isSectionChanged('reasoning', 'reasoningBudget', 'reasoningFormat')">
+    <mat-expansion-panel
+      [class.has-changed]="isSectionChanged('reasoning', 'reasoningBudget', 'reasoningFormat', 'reasoningPreserve')"
+    >
       <mat-expansion-panel-header>
         <mat-panel-title>Reasoning</mat-panel-title>
         <mat-panel-description>Thinking/reasoning mode settings</mat-panel-description>
@@ -1131,6 +1133,16 @@
             <mat-option value="deepseek-legacy">deepseek-legacy</mat-option>
           </mat-select>
           <mat-label>Reasoning Format</mat-label>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningPreserve')">
+          <mat-select
+            formControlName="reasoningPreserve"
+            matTooltip="Keep reasoning content in the chat history when context is shifted. off = --no-reasoning-preserve"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Reasoning Preserve</mat-label>
         </mat-form-field>
       </div>
     </mat-expansion-panel>

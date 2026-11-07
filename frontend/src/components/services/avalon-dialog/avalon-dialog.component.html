@@ -179,7 +179,7 @@
             formControlName="parallel"
             type="number"
             min="1"
-            matTooltip="Concurrent requests — written to EXTRA as --parallel N (last occurrence wins, so it replaces the --parallel 1 of run.sh). 1 = nothing emitted. EXTRA belongs to this field: other EXTRA arguments are replaced"
+            matTooltip="Concurrent requests — written to EXTRA as --parallel N (last occurrence wins, so it replaces the --parallel 1 of run.sh). 1 = nothing emitted. EXTRA belongs to this and the Reasoning fields: other EXTRA arguments are replaced"
           />
           <mat-label>Concurrent requests (--parallel)</mat-label>
         </mat-form-field>
@@ -191,6 +191,27 @@
           Each slot carries its own KV cache, so N &gt; 1 needs the context of every slot to fit the
           hosted-MoE cache left in VRAM. The launcher keeps the MTP draft on one card too.
         </span>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Reasoning ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('reasoningPreserve')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Reasoning</mat-panel-title>
+        <mat-panel-description>run.sh forwards EXTRA to llama-server</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningPreserve')">
+          <mat-select
+            formControlName="reasoningPreserve"
+            matTooltip="Keep reasoning content in the chat history when context is shifted. off = --no-reasoning-preserve in EXTRA; EXTRA belongs to this and the Parallel field, so other EXTRA arguments are replaced"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Reasoning Preserve</mat-label>
+        </mat-form-field>
       </div>
     </mat-expansion-panel>
 
