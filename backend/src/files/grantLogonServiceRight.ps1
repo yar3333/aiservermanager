@@ -39,6 +39,10 @@ public static class LsaRights
 
     private const int POLICY_ALL_ACCESS = 0x000F003F;
     private const int STATUS_OBJECT_NAME_NOT_FOUND = unchecked((int)0xC0000034);
+    // An account the policy store holds no rights for comes back as NONE_MAPPED
+    // rather than an empty list — a normal state for a user account, since a right
+    // held through a group is not an entry under that account's own SID.
+    private const int STATUS_NONE_MAPPED = unchecked((int)0xC0000073);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern int LsaOpenPolicy(IntPtr SystemName, ref LSA_OBJECT_ATTRIBUTES ObjectAttributes, int Access, out IntPtr PolicyHandle);
@@ -96,14 +100,21 @@ public static class LsaRights
     {
         IntPtr policy;
         int status = Open(out policy);
-        if (status != 0) throw new COMException("LsaOpenPolicy failed", LsaNtStatusToWinError(status));
+        // The code goes into the message, not only into the exception's HResult:
+        // PowerShell prints Message for a COMException, and a bare
+        // "LsaEnumerateAccountRights failed" leaves the operator — and the log —
+        // with no way to tell access-denied from a name that maps to nothing.
+        // Concatenation, not $"…": Add-Type on Windows PowerShell compiles C# 5.
+        if (status != 0) throw new COMException("LsaOpenPolicy failed (Win32 error " + LsaNtStatusToWinError(status) + ")", LsaNtStatusToWinError(status));
         try
         {
             IntPtr rightsPtr;
             uint count;
             status = LsaEnumerateAccountRights(policy, sid, out rightsPtr, out count);
-            if (status == STATUS_OBJECT_NAME_NOT_FOUND) return new string[0];
-            if (status != 0) throw new COMException("LsaEnumerateAccountRights failed", LsaNtStatusToWinError(status));
+            // Neither code is a failure to read: both mean the store has no rights
+            // recorded for this account, which is where every first install starts.
+            if (status == STATUS_OBJECT_NAME_NOT_FOUND || status == STATUS_NONE_MAPPED) return new string[0];
+            if (status != 0) throw new COMException("LsaEnumerateAccountRights failed (Win32 error " + LsaNtStatusToWinError(status) + ")", LsaNtStatusToWinError(status));
             try
             {
                 var result = new string[count];

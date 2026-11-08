@@ -97,6 +97,33 @@ describe("WindowsServiceController logon right", () => {
       "Log on as a service",
     );
   });
+
+  it("hands the operator the command that grants the right where privileges allow", async () => {
+    // This backend is a service, so "run it elevated" is no help — the error has
+    // to carry something that can actually be run, with the account already filled in.
+    mockedExec.safeExecPs1.mockResolvedValue({
+      stdout: "FAIL: SeServiceLogonRight: LsaEnumerateAccountRights failed (Win32 error 5)\n",
+      stderr: "",
+    });
+
+    const error = await grant(controller, { domain: "YHOST", user: "Yaroslav" });
+
+    expect(error).toContain("Win32 error 5");
+    expect(error).toMatch(
+      /powershell -NoProfile -ExecutionPolicy Bypass -File "[^"]*grantLogonServiceRight\.ps1" -Domain "YHOST" -User "Yaroslav"/,
+    );
+    expect(error).toContain("elevated PowerShell");
+    expect(error).toContain("secpol.msc");
+  });
+
+  it("sends a UPN as one name, because the script resolves its domain itself", async () => {
+    mockedExec.safeExecPs1.mockResolvedValue({ stdout: "", stderr: "" });
+
+    const error = await grant(controller, { user: "svc-llama@corp.example" });
+
+    expect(error).toContain('-User "svc-llama@corp.example"');
+    expect(error).not.toContain("-Domain");
+  });
 });
 
 describe("WindowsServiceController start type", () => {

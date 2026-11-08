@@ -406,11 +406,25 @@ export class WindowsServiceController implements ServiceController {
     if (output.startsWith("OK")) return undefined;
 
     const fullName = identity.domain ? `${identity.domain}\\${identity.user}` : identity.user;
+    // The same script the install just ran, spelled out so the operator can run it
+    // where the privilege does exist. "Run the backend elevated" is no help for a
+    // service: it already runs as LocalSystem, and a service account is exactly the
+    // case where the right still has to be granted by someone who can edit policy.
+    const accountArgs = identity.domain
+      ? `-Domain "${identity.domain}" -User "${identity.user}"`
+      : `-User "${identity.user}"`;
+    const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${GRANT_RIGHT_SCRIPT}" ${accountArgs}`;
+
     return (
       output +
       ` — "${fullName}" cannot be given the "Log on as a service" right, so the service ` +
-      `could never start. Grant the right in secpol.msc (Local Policies → User Rights ` +
-      `Assignment) or run the backend elevated and install again.`
+      `could never start. That right lives in the security policy, and writing it needs the ` +
+      `"Manage auditing and security log" privilege, which this backend does not have. ` +
+      `Fix it either way:\n` +
+      `  1. run this from an elevated PowerShell, then install the service again:\n` +
+      `     ${command}\n` +
+      `  2. or assign the right by hand: secpol.msc → Local Policies → User Rights Assignment → ` +
+      `"Log on as a service".`
     );
   }
 
