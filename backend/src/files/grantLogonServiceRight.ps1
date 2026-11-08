@@ -62,6 +62,86 @@ public static class LsaRights
     [DllImport("advapi32.dll")]
     private static extern int LsaNtStatusToWinError(int Status);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID
+    {
+        public uint LowPart;
+        public int HighPart;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID_AND_ATTRIBUTES
+    {
+        public LUID Luid;
+        public uint Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES
+    {
+        public uint PrivilegeCount;
+        public LUID_AND_ATTRIBUTES Privilege;
+    }
+
+    private const int TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    private const int TOKEN_QUERY = 0x0008;
+    private const uint SE_PRIVILEGE_ENABLED = 0x00000002;
+    private const int ERROR_NOT_ALL_ASSIGNED = 1300;
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr ProcessHandle, int DesiredAccess, out IntPtr TokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TOKEN_PRIVILEGES NewState, int BufferLength, IntPtr PreviousState, IntPtr ReturnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    /**
+     * Turn a privilege on for this process and say what happened.
+     *
+     * Reading or writing the security policy needs SeSecurityPrivilege ENABLED,
+     * and the privilege is put into a token switched off: an elevated
+     * administrator token and a LocalSystem service token both hold it disabled,
+     * so without this call LsaEnumerateAccountRights answers access-denied even
+     * though LsaOpenPolicy already succeeded.
+     */
+    public static string EnablePrivilege(string name)
+    {
+        IntPtr token;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out token))
+            return "cannot open this process token (Win32 error " + Marshal.GetLastWin32Error() + ")";
+        try
+        {
+            LUID luid;
+            if (!LookupPrivilegeValue(null, name, out luid))
+                return "'" + name + "' is unknown on this machine (Win32 error " + Marshal.GetLastWin32Error() + ")";
+
+            var state = new TOKEN_PRIVILEGES
+            {
+                PrivilegeCount = 1,
+                Privilege = new LUID_AND_ATTRIBUTES { Luid = luid, Attributes = SE_PRIVILEGE_ENABLED }
+            };
+            if (!AdjustTokenPrivileges(token, false, ref state, Marshal.SizeOf(typeof(TOKEN_PRIVILEGES)), IntPtr.Zero, IntPtr.Zero))
+                return "cannot enable '" + name + "' (Win32 error " + Marshal.GetLastWin32Error() + ")";
+
+            // AdjustTokenPrivileges returns true when it assigned nothing at all;
+            // that is the case of a token that simply does not hold the privilege,
+            // which no amount of elevation-in-name can fix.
+            int notAssigned = Marshal.GetLastWin32Error();
+            if (notAssigned == ERROR_NOT_ALL_ASSIGNED)
+                return "this process does not hold '" + name + "' — run it elevated";
+            return "ok";
+        }
+        finally { CloseHandle(token); }
+    }
+
     private static int Open(out IntPtr policy)
     {
         var oa = new LSA_OBJECT_ATTRIBUTES { Length = Marshal.SizeOf(typeof(LSA_OBJECT_ATTRIBUTES)) };
@@ -146,6 +226,16 @@ try {
     Fail "cannot load the LSA policy API: $($_.Exception.Message)"
 }
 
+# Reading and writing the security policy needs SeSecurityPrivilege ENABLED in
+# this process, and it lands in a token switched off — in an elevated
+# administrator shell and in a LocalSystem service alike. Without this the policy
+# opens but every read of an account's rights is denied.
+$privilegeState = [LsaRights]::EnablePrivilege("SeSecurityPrivilege")
+function WithPrivilege([string]$message) {
+    if ($privilegeState -eq "ok") { return $message }
+    return "$message (SeSecurityPrivilege: $privilegeState)"
+}
+
 # A user@domain identity carries its own domain; anything else needs one, and the
 # caller already expanded the "." (local machine) shorthand.
 try {
@@ -172,11 +262,11 @@ try {
     }
     $grantStatus = [LsaRights]::Grant($sidBytes, @($Right))
 } catch {
-    Fail "$($Right): $($_.Exception.Message.Trim())"
+    Fail (WithPrivilege "$($Right): $($_.Exception.Message.Trim())")
 }
 
 if ($grantStatus -ne 0) {
-    Fail "cannot grant $Right to $fullName (Win32 error $grantStatus). Granting a user right needs the 'Manage auditing and security log' privilege — run the backend elevated, or assign the right in secpol.msc (Local Policies → User Rights Assignment)."
+    Fail (WithPrivilege "cannot grant $Right to $fullName (Win32 error $grantStatus). Writing the right needs the 'Manage auditing and security log' privilege enabled in the process that writes it — or assign the right in secpol.msc (Local Policies → User Rights Assignment).")
 }
 
 Write-Output "OK: granted $Right to $fullName"

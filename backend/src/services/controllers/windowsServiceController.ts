@@ -418,9 +418,9 @@ export class WindowsServiceController implements ServiceController {
     return (
       output +
       ` — "${fullName}" cannot be given the "Log on as a service" right, so the service ` +
-      `could never start. That right lives in the security policy, and writing it needs the ` +
-      `"Manage auditing and security log" privilege, which this backend does not have. ` +
-      `Fix it either way:\n` +
+      `could never start. Writing that right needs the "Manage auditing and security log" ` +
+      `privilege enabled in the process that writes it; the code above says which of the two ` +
+      `LSA steps refused and what the privilege was worth there. Fix it either way:\n` +
       `  1. run this from an elevated PowerShell, then install the service again:\n` +
       `     ${command}\n` +
       `  2. or assign the right by hand: secpol.msc → Local Policies → User Rights Assignment → ` +
