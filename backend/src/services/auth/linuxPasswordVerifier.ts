@@ -18,7 +18,9 @@ interface PamModule {
 @injectable()
 export class LinuxPasswordVerifier implements PasswordVerifier {
   async verify(password: string): Promise<VerifyOutcome> {
-    const resolved = resolveAuthAccount();
+    // Pinned to the platform this strategy serves, so the suite behaves the same
+    // on whichever host CI runs it.
+    const resolved = resolveAuthAccount(process.env, "linux");
     if ("error" in resolved) {
       console.error(`[LinuxPasswordVerifier] ${resolved.error}`);
       return { status: "error", message: resolved.error };

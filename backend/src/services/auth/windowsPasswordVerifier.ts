@@ -20,7 +20,10 @@ export class WindowsPasswordVerifier implements PasswordVerifier {
   private readonly scriptPath = path.resolve(__dirname, "../../files/validatePassword.ps1");
 
   async verify(password: string): Promise<VerifyOutcome> {
-    const resolved = resolveAuthAccount();
+    // Pinned to win32 rather than process.platform: the suite runs wherever CI
+    // happens to be, and what decides whether a service account has a password
+    // is the platform this strategy serves, not the host running the tests.
+    const resolved = resolveAuthAccount(process.env, "win32");
     if ("error" in resolved) {
       console.error(`[WindowsPasswordVerifier] ${resolved.error}`);
       return { status: "error", message: resolved.error };
