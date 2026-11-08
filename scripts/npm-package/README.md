@@ -11,7 +11,9 @@ Requires Node.js >= 24.
 npx --yes aiservermanager@latest
 ```
 
-Open http://127.0.0.1:4243 and log in with your OS account password.
+Open http://127.0.0.1:4243 and log in with your OS account password — the account
+the backend runs as. Installed as a service that is the account recorded by
+`install`, see [Login account](#login-account).
 
 ## Run as a system service
 
@@ -30,8 +32,19 @@ Then `aiservermanager status`, `restart`, `uninstall`.
 - `--config-home <dir>` — whose `.config/aiservermanager` the service reads. The
   service runs as root / LocalSystem but keeps `HOME`/`USERPROFILE` on the
   installing user's home, so existing service configs stay visible.
+- `--auth-user <name>` — whose password opens the dashboard (`NAME`, `HOST\NAME`
+  or `NAME@domain`). Defaults to the user running the install.
 
 The uninstall removes the OS registration and keeps your configs.
+
+## Login account
+
+The dashboard checks a real OS password, so it needs an account that *has* one.
+The service runs as root / LocalSystem, and neither has a password anybody could
+type, so `install` records the invoking user as `AUTH_USER` in the unit. Without
+it the login answers that no account is configured rather than calling a correct
+password wrong. Change it by installing again with `--auth-user <name>`, or by
+setting `AUTH_USER` in the unit / WinSW XML and restarting the service.
 
 ## Linux: PAM auth
 

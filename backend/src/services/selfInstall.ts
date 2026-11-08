@@ -40,6 +40,8 @@ export interface SelfInstallInput {
   configHome?: string;
   /** Shell PATH to keep on top of the service search path (Linux). */
   currentPath?: string;
+  /** Account whose password opens the dashboard; see `defaultAuthUser`. */
+  authUser?: string;
 }
 
 /**
@@ -88,6 +90,35 @@ export async function defaultConfigHome(
 }
 
 /**
+ * Account whose password should open the dashboard after install.
+ *
+ * The service runs as root / LocalSystem, and neither has a password anyone can
+ * type — so the dashboard would have nothing to check a login against (on Windows
+ * it checked the non-existent local account "SYSTEM" and every correct password
+ * came back "invalid"). Record the invoking user instead: that is whose password
+ * the person in front of the browser already knows.
+ *
+ * An elevated PowerShell keeps the invoking user's identity, and Linux installs
+ * go through sudo, where `SUDO_USER` is the human rather than root.
+ */
+export function defaultAuthUser(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (platform === "win32") {
+    const user = env.USERNAME?.trim();
+    if (!user) return undefined;
+    const domain = env.USERDOMAIN?.trim();
+    const machine = env.COMPUTERNAME?.trim();
+    // A bare name means a local account; a user from another domain has to say so.
+    return domain && machine && domain.toLowerCase() !== machine.toLowerCase() ? `${domain}\\${user}` : user;
+  }
+
+  const user = env.SUDO_USER?.trim() || env.LOGNAME?.trim() || env.USER?.trim();
+  return user || undefined;
+}
+
+/**
  * Plan for running ai server manager itself as an OS service.
  *
  * The service runs as root / LocalSystem because controlling other services is
@@ -116,6 +147,9 @@ export function buildSelfInstallPlan(input: SelfInstallInput): SelfInstallPlan {
     HOST: input.host,
     HOME: configHome,
   };
+  if (input.authUser?.trim()) {
+    environment.AUTH_USER = input.authUser.trim();
+  }
   if (isWindows) {
     environment.USERPROFILE = configHome;
   } else {

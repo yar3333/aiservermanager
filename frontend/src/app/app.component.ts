@@ -103,9 +103,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   async onLogin(): Promise<void> {
     this.loginError.set(null);
-    const ok = await this.authService.login(this.loginPassword());
-    if (!ok) {
-      this.loginError.set("Invalid password");
+    const result = await this.authService.login(this.loginPassword());
+    if (!result.ok) {
+      this.loginError.set(result.message);
     } else {
       this.loading.set(true);
       this.initGpus();

@@ -4,10 +4,30 @@ import * as os from "os";
 import * as path from "path";
 import { inject, injectable } from "inversify";
 import { PASSWORD_VERIFIER } from "../di/types";
+import { resolveAuthAccount } from "./auth/authAccount";
 import { PasswordVerifier } from "./auth/passwordVerifier";
 
 const CONFIG_DIR = path.join(os.homedir(), ".config", "aiservermanager");
 const SECRET_FILE = path.join(CONFIG_DIR, "auth-secret");
+
+/**
+ * Why a login was refused. "unavailable" means the check itself could not run
+ * (no account configured, PAM missing, verifier timed out) — the caller's
+ * password is not what failed there, so it must not be reported as wrong.
+ */
+export type LoginResult = { token: string } | { error: "invalid" } | { error: "unavailable"; message: string };
+
+/**
+ * Name carried in the token. When no account can be resolved the verifier refuses
+ * every login, so no token is ever minted with the placeholder.
+ */
+function tokenUsername(): string {
+  const resolved = resolveAuthAccount();
+  if ("account" in resolved) return resolved.account.user;
+
+  console.warn(`[AuthService] ${resolved.error}`);
+  return "unknown";
+}
 
 /**
  * Authentication service: password verification + JWT token generation.
@@ -19,6 +39,11 @@ const SECRET_FILE = path.join(CONFIG_DIR, "auth-secret");
  * Brute-force protection:
  * - Per-IP rate limit: max 10 login attempts per minute
  * - Account lockout: after 5 consecutive failures → locked for 15 minutes
+ *
+ * Both live in memory only. Persisting the counter bought little — an attacker
+ * who can restart the service can delete the file just as well — while costing a
+ * write per miss and turning the lockout into a 15-minute DoS that a service
+ * restart cannot clear.
  */
 @injectable()
 export class AuthService {
@@ -31,14 +56,12 @@ export class AuthService {
   private readonly windowMs = 60_000; // 1 minute
   private readonly consecutiveLimit = 5;
   private readonly lockoutMs = 15 * 60 * 1000; // 15 min
-  private readonly LOCKOUT_FILE = path.join(CONFIG_DIR, "lockout.json");
   private _consecutiveFails = 0;
   private _lockoutUntil = 0;
 
   constructor(@inject(PASSWORD_VERIFIER) private readonly verifier: PasswordVerifier) {
     this.jwtSecret = this.loadOrCreateSecret();
-    this.username = os.userInfo().username;
-    this.loadLockoutState();
+    this.username = tokenUsername();
     // Cleanup stale entries every 5 min
     setInterval(() => this.cleanupStale(), 5 * 60 * 1000);
   }
@@ -67,27 +90,32 @@ export class AuthService {
   }
 
   /**
-   * Verify system password and return a JWT token, or null on failure.
+   * Verify system password and return a JWT token, or why the login was refused.
    * Rate limit is checked by the route BEFORE this method is called.
    */
-  async login(ip: string, password: string): Promise<string | null> {
-    if (!password) return null;
+  async login(ip: string, password: string): Promise<LoginResult> {
+    if (!password) return { error: "invalid" };
 
     // Timing-safe: verify lockout BEFORE touching the verifier
     // (route already checks rateLimit, but this is belt-and-suspenders)
     if (Date.now() < this._lockoutUntil) {
       this.recordAttempt(ip);
-      return null;
+      return { error: "invalid" };
     }
 
-    const valid = await this.verifier.verify(password);
+    const outcome = await this.verifier.verify(password);
 
-    if (valid) {
+    if (outcome.status === "ok") {
       // Success — reset lockout state
       this._consecutiveFails = 0;
       this._lockoutUntil = 0;
-      this.persistLockoutState();
-      return this.generateToken();
+      return { token: this.generateToken() };
+    }
+
+    if (outcome.status === "error") {
+      // Nothing was guessed: a broken verifier must not spend the lockout budget,
+      // or a misconfigured backend locks the operator out for 15 minutes at a time.
+      return { error: "unavailable", message: outcome.message };
     }
 
     // Failure — record for rate limit + update lockout
@@ -97,8 +125,7 @@ export class AuthService {
       this._lockoutUntil = Date.now() + this.lockoutMs;
       console.warn(`[AuthService] Account locked for 15 min after ${this._consecutiveFails} consecutive failures`);
     }
-    this.persistLockoutState();
-    return null;
+    return { error: "invalid" };
   }
 
   /** Verify a JWT token and return the decoded payload. */
@@ -129,34 +156,6 @@ export class AuthService {
       } else {
         this.failedByIp.set(ip, pruned);
       }
-    }
-  }
-
-  private persistLockoutState(): void {
-    try {
-      fs.writeFileSync(
-        this.LOCKOUT_FILE,
-        JSON.stringify({ consecutiveFails: this._consecutiveFails, lockoutUntil: this._lockoutUntil }),
-        "utf-8",
-      );
-    } catch (err) {
-      console.error("[AuthService] Failed to persist lockout state:", err);
-    }
-  }
-
-  private loadLockoutState(): void {
-    try {
-      const raw = fs.readFileSync(this.LOCKOUT_FILE, "utf-8");
-      const data = JSON.parse(raw) as { consecutiveFails?: number; lockoutUntil?: number };
-      if (typeof data.consecutiveFails === "number") this._consecutiveFails = data.consecutiveFails;
-      if (typeof data.lockoutUntil === "number") this._lockoutUntil = data.lockoutUntil;
-      // If lockout expired while server was down, reset
-      if (Date.now() >= this._lockoutUntil) {
-        this._consecutiveFails = 0;
-        this._lockoutUntil = 0;
-      }
-    } catch {
-      // File doesn't exist yet — normal on first run
     }
   }
 

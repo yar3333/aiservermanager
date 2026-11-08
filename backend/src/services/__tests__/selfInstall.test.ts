@@ -3,6 +3,7 @@ import * as os from "os";
 import { ExecTools } from "../../helpers/ExecTools";
 import {
   buildSelfInstallPlan,
+  defaultAuthUser,
   defaultConfigHome,
   linuxServicePath,
   resolveEntryScript,
@@ -17,6 +18,31 @@ const mockedFs = fs as unknown as { existsSync: jest.Mock };
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+describe("defaultAuthUser", () => {
+  it("names the local account behind an elevated Windows shell", () => {
+    // An elevated PowerShell keeps the invoking user; the dashboard has to check
+    // that person's password, because the service it becomes runs as LocalSystem.
+    expect(defaultAuthUser("win32", { USERNAME: "yan", USERDOMAIN: "WORK", COMPUTERNAME: "WORK" })).toBe("yan");
+  });
+
+  it("keeps the domain when the account does not come from this machine", () => {
+    expect(defaultAuthUser("win32", { USERNAME: "yan", USERDOMAIN: "CORP", COMPUTERNAME: "WORK" })).toBe(
+      "CORP\\yan",
+    );
+  });
+
+  it("follows sudo to the human on Linux, not to root", () => {
+    expect(defaultAuthUser("linux", { SUDO_USER: "yan", USER: "root" })).toBe("yan");
+    expect(defaultAuthUser("linux", { LOGNAME: "yan", USER: "root" })).toBe("yan");
+    expect(defaultAuthUser("linux", { USER: "yan" })).toBe("yan");
+  });
+
+  it("says nothing when the environment names no human at all", () => {
+    expect(defaultAuthUser("win32", {})).toBeUndefined();
+    expect(defaultAuthUser("linux", {})).toBeUndefined();
+  });
 });
 
 describe("buildSelfInstallPlan", () => {
@@ -41,6 +67,22 @@ describe("buildSelfInstallPlan", () => {
       HOME: "C:\\Users\\yan",
       USERPROFILE: "C:\\Users\\yan",
     });
+  });
+
+  it("pins the account whose password opens the dashboard", () => {
+    // LocalSystem has no password to type, so without this the service would
+    // check a login that does not exist and call every real password wrong.
+    const plan = buildSelfInstallPlan({
+      platform: "win32",
+      host: "127.0.0.1",
+      port: 4243,
+      nodePath: "C:\\nodejs\\node.exe",
+      entryScript: "C:\\app\\backend\\dist\\index.js",
+      configHome: "C:\\Users\\yan",
+      authUser: "CORP\\yan",
+    });
+
+    expect(plan.options.environment?.AUTH_USER).toBe("CORP\\yan");
   });
 
   it("keeps the home visible to a root systemd service and widens PATH for the GPU probes", () => {

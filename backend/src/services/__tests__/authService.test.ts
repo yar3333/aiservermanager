@@ -31,22 +31,23 @@ jest.mock("os", () => {
   return {
     ...actual,
     userInfo: () => ({ username: "testuser" }),
+    hostname: () => "workstation",
   };
 });
 
 import { AuthService } from "../authService";
-import { PasswordVerifier } from "../auth/passwordVerifier";
+import { PasswordVerifier, VerifyOutcome } from "../auth/passwordVerifier";
 
 // ── Helpers ──
 
-function createMockVerifier(resolveWith: boolean): PasswordVerifier {
+function createMockVerifier(outcome: VerifyOutcome): PasswordVerifier {
   return {
-    verify: jest.fn(() => Promise.resolve(resolveWith)),
+    verify: jest.fn(() => Promise.resolve(outcome)),
   };
 }
 
 function createAuthService(verifier?: PasswordVerifier): AuthService {
-  return new AuthService(verifier ?? createMockVerifier(false));
+  return new AuthService(verifier ?? createMockVerifier({ status: "denied" }));
 }
 
 // ── Tests ──
@@ -57,10 +58,13 @@ beforeEach(() => {
   mockReadFileSync.calls.length = 0;
   mockReadFileSync.values.clear();
   mockMkdirSync.calls.length = 0;
+  // The token names the account whose password opened the dashboard.
+  process.env.AUTH_USER = "testuser";
 });
 
 afterEach(() => {
   jest.useRealTimers();
+  delete process.env.AUTH_USER;
 });
 
 describe("AuthService brute-force protection", () => {
@@ -69,7 +73,7 @@ describe("AuthService brute-force protection", () => {
 
   beforeEach(() => {
     mockVerifier = {
-      verify: jest.fn(() => Promise.resolve(false)),
+      verify: jest.fn(() => Promise.resolve({ status: "denied" } as VerifyOutcome)),
     } as unknown as PasswordVerifier & { verify: jest.Mock };
     authService = createAuthService(mockVerifier);
   });
@@ -83,7 +87,7 @@ describe("AuthService brute-force protection", () => {
   describe("login with rate limiting", () => {
     it("records failed attempts per IP", async () => {
       for (let i = 0; i < 5; i++) {
-        expect(await authService.login("192.168.1.1", "wrong")).toBeNull();
+        expect(await authService.login("192.168.1.1", "wrong")).toEqual({ error: "invalid" });
       }
 
       // After 5 consecutive failures the account is locked
@@ -98,12 +102,12 @@ describe("AuthService brute-force protection", () => {
       }
 
       // 5th succeeds — reset
-      mockVerifier.verify.mockResolvedValue(true);
-      const token = await authService.login("192.168.1.1", "correct");
-      expect(token).not.toBeNull();
+      mockVerifier.verify.mockResolvedValue({ status: "ok" });
+      const result = await authService.login("192.168.1.1", "correct");
+      expect("token" in result).toBe(true);
     });
 
-    it("returns null during lockout without calling verifier", async () => {
+    it("returns invalid during lockout without calling verifier", async () => {
       // Trigger lockout with 5 failures
       for (let i = 0; i < 5; i++) {
         await authService.login("10.0.0.1", "wrong");
@@ -113,7 +117,7 @@ describe("AuthService brute-force protection", () => {
       mockVerifier.verify.mockClear();
 
       const result = await authService.login("10.0.0.1", "anything");
-      expect(result).toBeNull();
+      expect(result).toEqual({ error: "invalid" });
       expect(mockVerifier.verify).not.toHaveBeenCalled();
     });
 
@@ -129,48 +133,96 @@ describe("AuthService brute-force protection", () => {
     });
   });
 
-  describe("lockout persistence", () => {
-    it("persists lockout state to file after failure", async () => {
+  describe("a verifier that could not run", () => {
+    it("reports it as unavailable instead of a wrong password", async () => {
+      mockVerifier.verify.mockResolvedValue({ status: "error", message: "AUTH_USER is not set" });
+
+      expect(await authService.login("1.2.3.4", "whatever")).toEqual({
+        error: "unavailable",
+        message: "AUTH_USER is not set",
+      });
+    });
+
+    it("spends neither the lockout nor the per-IP budget on it", async () => {
+      // A misconfigured backend used to lock the operator out after 5 timeouts
+      // of a check that never compared a single password.
+      for (let i = 0; i < 8; i++) {
+        mockVerifier.verify.mockResolvedValue({ status: "error", message: "verifier timed out" });
+        await authService.login("10.0.0.1", "whatever");
+      }
+
+      expect(authService.checkRateLimit("10.0.0.1")).toBeNull();
+
+      mockVerifier.verify.mockResolvedValue({ status: "ok" });
+      expect("token" in (await authService.login("10.0.0.1", "correct"))).toBe(true);
+    });
+  });
+
+  describe("lockout state stays in memory", () => {
+    it("writes nothing to disk on a failed login", async () => {
+      // A persisted counter costs a write per miss and turns the lockout into a
+      // 15-minute DoS that restarting the service cannot clear.
+      for (let i = 0; i < 6; i++) {
+        await authService.login("10.0.0.1", "wrong");
+      }
+
+      const written = mockWriteFileSync.calls.map((call) => String(call[0]));
+      expect(written.filter((target) => target.includes("lockout"))).toEqual([]);
+    });
+
+    it("starts clean in a new instance, which is what makes a restart a way out", async () => {
       for (let i = 0; i < 5; i++) {
         await authService.login("10.0.0.1", "wrong");
       }
+      expect(authService.checkRateLimit("10.0.0.1")).not.toBeNull();
 
-      expect(mockWriteFileSync.calls.length).toBeGreaterThan(0);
-      const lastCall = mockWriteFileSync.calls[mockWriteFileSync.calls.length - 1];
-      const data = JSON.parse(lastCall[1] as string);
-      expect(data.consecutiveFails).toBe(5);
-      expect(data.lockoutUntil).toBeGreaterThan(0);
+      const fresh = createAuthService(createMockVerifier({ status: "ok" }));
+      expect(fresh.checkRateLimit("10.0.0.1")).toBeNull();
     });
 
-    it("resets lockout state on successful login", async () => {
-      for (let i = 0; i < 3; i++) {
+    it("still locks out and clears the lockout after the window", async () => {
+      for (let i = 0; i < 5; i++) {
+        await authService.login("10.0.0.1", "wrong");
+      }
+      expect(authService.checkRateLimit("10.0.0.1")?.retryAfter).toBeGreaterThan(0);
+
+      jest.advanceTimersByTime(15 * 60 * 1000 + 1);
+      expect(authService.checkRateLimit("10.0.0.1")).toBeNull();
+    });
+
+    it("resets the consecutive counter on a successful login", async () => {
+      for (let i = 0; i < 4; i++) {
         await authService.login("10.0.0.1", "wrong");
       }
 
-      mockVerifier.verify.mockResolvedValue(true);
+      mockVerifier.verify.mockResolvedValue({ status: "ok" });
       await authService.login("10.0.0.1", "correct");
 
-      const lastData = JSON.parse(mockWriteFileSync.calls[mockWriteFileSync.calls.length - 1][1] as string);
-      expect(lastData.consecutiveFails).toBe(0);
-      expect(lastData.lockoutUntil).toBe(0);
+      for (let i = 0; i < 4; i++) {
+        mockVerifier.verify.mockResolvedValue({ status: "denied" });
+        await authService.login("10.0.0.1", "wrong");
+      }
+      // 4 + 4 misses with a success between them: never five in a row.
+      expect(authService.checkRateLimit("192.168.9.9")).toBeNull();
     });
   });
 
   describe("JWT token", () => {
     it("generates valid JWT on successful login", async () => {
-      mockVerifier.verify.mockResolvedValue(true);
+      mockVerifier.verify.mockResolvedValue({ status: "ok" });
 
-      const token = await authService.login("1.2.3.4", "correct");
-      expect(token).not.toBeNull();
-      expect(typeof token).toBe("string");
-      expect(token!.split(".")).toHaveLength(3);
+      const result = await authService.login("1.2.3.4", "correct");
+      if (!("token" in result)) throw new Error(`expected a token, got ${JSON.stringify(result)}`);
+      expect(typeof result.token).toBe("string");
+      expect(result.token.split(".")).toHaveLength(3);
     });
 
     it("verifies valid token", async () => {
-      mockVerifier.verify.mockResolvedValue(true);
+      mockVerifier.verify.mockResolvedValue({ status: "ok" });
 
-      const token = await authService.login("1.2.3.4", "correct");
-      const payload = authService.verifyToken(token!);
+      const result = await authService.login("1.2.3.4", "correct");
+      if (!("token" in result)) throw new Error(`expected a token, got ${JSON.stringify(result)}`);
+      const payload = authService.verifyToken(result.token);
       expect(payload).not.toBeNull();
       expect(payload!.username).toBe("testuser");
     });
@@ -186,9 +238,9 @@ describe("AuthService brute-force protection", () => {
       expect(mockVerifier.verify).toHaveBeenCalledWith("secret");
     });
 
-    it("returns null on empty password without calling verifier", async () => {
+    it("returns invalid on empty password without calling verifier", async () => {
       const result = await authService.login("1.2.3.4", "");
-      expect(result).toBeNull();
+      expect(result).toEqual({ error: "invalid" });
       expect(mockVerifier.verify).not.toHaveBeenCalled();
     });
   });

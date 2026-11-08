@@ -5,7 +5,7 @@ import { SERVICE_CONTROLLER } from "./di/types";
 import { ServiceController } from "./services/serviceController";
 import { ServerIdentity } from "./helpers/ServerIdentity";
 import { ExecTools } from "./helpers/ExecTools";
-import { SELF_SERVICE_NAME, buildSelfInstallPlan, defaultConfigHome } from "./services/selfInstall";
+import { SELF_SERVICE_NAME, buildSelfInstallPlan, defaultAuthUser, defaultConfigHome } from "./services/selfInstall";
 
 const USAGE = `aiservermanager — GPU server monitoring and AI service manager
 
@@ -19,23 +19,26 @@ Install options:
   --port <n>          port the service listens on (default ${ServerIdentity.port})
   --host <iface>      interface to bind (default ${ServerIdentity.host}; 0.0.0.0 for the LAN)
   --config-home <dir> home holding .config/aiservermanager (default the invoking user's home)
+  --auth-user <name>  account whose password opens the dashboard (default the invoking user;
+                      NAME, HOST\\NAME or NAME@domain). The service itself runs as root /
+                      LocalSystem, which has no password to type, so this is the login account.
 
 Installing needs an elevated shell: sudo on Linux, an elevated PowerShell on Windows.`;
 
 /** Parsed command line, or a message explaining why parsing failed. */
 export type ParsedArgs =
-  | { command: string; port?: number; host?: string; configHome?: string }
+  | { command: string; port?: number; host?: string; configHome?: string; authUser?: string }
   | { error: string };
 
 const COMMANDS = new Set(["install", "uninstall", "status", "start", "stop", "restart"]);
-const VALUE_FLAGS = new Set(["--port", "--host", "--config-home"]);
+const VALUE_FLAGS = new Set(["--port", "--host", "--config-home", "--auth-user"]);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const command = argv[0] ?? "help";
   if (command === "help" || command === "--help" || command === "-h") return { command: "help" };
   if (!COMMANDS.has(command)) return { error: `Unknown command: ${command}` };
 
-  const parsed: { port?: number; host?: string; configHome?: string } = {};
+  const parsed: { port?: number; host?: string; configHome?: string; authUser?: string } = {};
   for (let i = 1; i < argv.length; i += 2) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -50,6 +53,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
       parsed.port = port;
     } else if (flag === "--host") {
       parsed.host = value;
+    } else if (flag === "--auth-user") {
+      parsed.authUser = value;
     } else {
       parsed.configHome = value;
     }
@@ -70,6 +75,8 @@ export interface CliOverrides {
   configHome?: string;
   entryScript?: string;
   execPath?: string;
+  /** Account whose password opens the dashboard; defaults to the invoking user. */
+  authUser?: string;
   /** Target platform of the plan; tests pin it so they do not follow the host. */
   platform?: NodeJS.Platform;
 }
@@ -129,6 +136,7 @@ async function install(argv: string[], overrides: CliOverrides): Promise<number>
   const port = args.port ?? ServerIdentity.port;
   const host = args.host ?? ServerIdentity.host;
   const configHome = args.configHome ?? overrides.configHome ?? (await defaultConfigHome());
+  const authUser = args.authUser?.trim() || overrides.authUser || defaultAuthUser(overrides.platform);
 
   const owner = await (overrides.portOwner ?? findPortOwner)(port);
   if (owner) {
@@ -144,6 +152,7 @@ async function install(argv: string[], overrides: CliOverrides): Promise<number>
     host,
     port,
     configHome,
+    authUser,
     entryScript: overrides.entryScript,
     nodePath: overrides.execPath,
     platform: overrides.platform,
@@ -154,6 +163,9 @@ async function install(argv: string[], overrides: CliOverrides): Promise<number>
   console.log(`  arguments ${(plan.options.args ?? []).join(" ") || "(none)"}`);
   console.log(`  listens   http://${host}:${port}`);
   console.log(`  configs   ${configDir}`);
+  console.log(
+    `  login     ${authUser ?? "(no account — the dashboard cannot check passwords until AUTH_USER names one)"}`,
+  );
 
   const installed = await controller.installAndEnable(plan.name, plan.execStart, plan.options);
   if (installed.error) {

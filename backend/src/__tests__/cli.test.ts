@@ -52,11 +52,24 @@ afterEach(() => {
 
 describe("parseArgs", () => {
   it("reads the install options", () => {
-    expect(parseArgs(["install", "--port", "4399", "--host", "0.0.0.0", "--config-home", "/home/yan"])).toEqual({
+    expect(
+      parseArgs([
+        "install",
+        "--port",
+        "4399",
+        "--host",
+        "0.0.0.0",
+        "--config-home",
+        "/home/yan",
+        "--auth-user",
+        "CORP\\yan",
+      ]),
+    ).toEqual({
       command: "install",
       port: 4399,
       host: "0.0.0.0",
       configHome: "/home/yan",
+      authUser: "CORP\\yan",
     });
   });
 
@@ -99,6 +112,21 @@ describe("run install", () => {
     );
     expect(controller.perform).toHaveBeenCalledWith("aiservermanager", "start");
     expect(io.out()).toContain("http://127.0.0.1:4399");
+  });
+
+  it("sends the login account into the service so its dashboard has something to check", async () => {
+    const controller = fakeController();
+    const io = capture();
+
+    const code = await run(["install", "--auth-user", "CORP\\yan"], overrides(controller, { platform: "win32" }));
+
+    expect(code).toBe(0);
+    expect(controller.installAndEnable).toHaveBeenCalledWith(
+      "aiservermanager",
+      expect.any(String),
+      expect.objectContaining({ environment: expect.objectContaining({ AUTH_USER: "CORP\\yan" }) }),
+    );
+    expect(io.out()).toContain("CORP\\yan");
   });
 
   it("hands systemd one ExecStart line and widens the service PATH", async () => {

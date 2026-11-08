@@ -39,6 +39,7 @@ aiservermanager uninstall
 
 - `--port <n>` / `--host <iface>` are baked into the unit; the default binding stays `127.0.0.1`, and `--host 0.0.0.0` is what a headless GPU box needs for LAN access (the dashboard logs in with an OS account password, so exposing it is a decision, not a default).
 - `--config-home <dir>` picks the home whose `.config/aiservermanager` the service reads. The service runs as **root / LocalSystem** (that is what controlling other services requires) but keeps `HOME`/`USERPROFILE` pointed at the user who installed it, so every custom service config you already created stays visible. Under `sudo` the user behind `SUDO_USER` is used automatically.
+- `--auth-user <name>` (`NAME`, `HOST\NAME` or `NAME@domain`) sets **whose password opens the dashboard**, written into the unit as `AUTH_USER`; it defaults to the user running the install. Needed because the service account has no password to type: without an account the login says so instead of calling a correct password wrong, and changing it takes an install with the new name (or `AUTH_USER` in the unit plus a restart).
 - The installer refuses to register a service for a port that is already taken — that service would start and immediately exit.
 - `uninstall` removes the unit / WinSW wrapper and leaves `~/.config/aiservermanager` alone.
 

@@ -28,21 +28,36 @@ describe("AuthService", () => {
     expect(req.request.body).toEqual({ password: "secret" });
     req.flush({ token: "abc123" });
 
-    await expect(promise).resolves.toBe(true);
+    await expect(promise).resolves.toEqual({ ok: true });
     expect(localStorage.getItem("asm_token")).toBe("abc123");
     expect(service.getToken()).toBe("abc123");
     expect(service.isAuthenticated()).toBe(true);
     expect(service.authState.value).toBe(true);
   });
 
-  it("returns false and keeps auth state on failed login", async () => {
+  it("keeps auth state and reports a wrong password on failed login", async () => {
     const promise = service.login("wrong");
 
     httpMock.expectOne("/api/auth/login").error(new ProgressEvent("error"));
 
-    await expect(promise).resolves.toBe(false);
+    await expect(promise).resolves.toEqual({ ok: false, message: "Invalid password" });
     expect(service.isAuthenticated()).toBe(false);
     expect(service.authState.value).toBe(false);
+  });
+
+  it("passes the backend's own reason through when the check could not run", async () => {
+    // 503 means nothing was compared: telling "Invalid password" here would send
+    // the operator looking for a typo in a password that was never wrong.
+    const promise = service.login("secret");
+
+    httpMock
+      .expectOne("/api/auth/login")
+      .flush({ error: "No dashboard login account: AUTH_USER is not set." }, { status: 503, statusText: "Unavailable" });
+
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    expect((result as { message: string }).message).toContain("AUTH_USER");
+    expect(service.isAuthenticated()).toBe(false);
   });
 
   it("logout clears the token and notifies subscribers", () => {

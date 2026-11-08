@@ -36,13 +36,21 @@ export default function authRoutes(container: Container): Router {
         });
       }
 
-      const token = await authService.login(ip, password);
+      const result = await authService.login(ip, password);
 
-      if (!token) {
-        return res.status(401).json({ error: "Invalid password" });
+      if ("token" in result) {
+        res.json({ token: result.token });
+        return;
       }
 
-      res.json({ token });
+      // A verifier that could not run is this backend's problem, not a wrong
+      // password — answering 401 would send the operator hunting for a typo.
+      if (result.error === "unavailable") {
+        res.status(503).json({ error: result.message });
+        return;
+      }
+
+      res.status(401).json({ error: "Invalid password" });
     } catch (error) {
       console.error("[Auth] login error:", error);
       res.status(500).json({ error: "Internal server error" });

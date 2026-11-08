@@ -33,14 +33,25 @@ describe("Auth routes", () => {
     });
 
     it("returns 401 when password is invalid", async () => {
-      (mockAuthService as any).login.mockResolvedValue(null);
+      (mockAuthService as any).login.mockResolvedValue({ error: "invalid" });
       const res = await request(app).post("/api/auth/login").send({ password: "wrong" });
       expect(res.status).toBe(401);
       expect(res.body.error).toContain("Invalid password");
     });
 
+    it("says what is wrong when the password check itself could not run", async () => {
+      // A backend that cannot check any password must not blame the password.
+      (mockAuthService as any).login.mockResolvedValue({
+        error: "unavailable",
+        message: 'No dashboard login account: AUTH_USER is not set.',
+      });
+      const res = await request(app).post("/api/auth/login").send({ password: "anything" });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toContain("AUTH_USER");
+    });
+
     it("returns 200 with token when password is valid", async () => {
-      (mockAuthService as any).login.mockResolvedValue("fake-jwt-token");
+      (mockAuthService as any).login.mockResolvedValue({ token: "fake-jwt-token" });
       const res = await request(app).post("/api/auth/login").send({ password: "correct" });
       expect(res.status).toBe(200);
       expect(res.body.token).toBe("fake-jwt-token");
@@ -57,13 +68,13 @@ describe("Auth routes", () => {
     });
 
     it("passes client IP to login", async () => {
-      (mockAuthService as any).login.mockResolvedValue("token");
+      (mockAuthService as any).login.mockResolvedValue({ token: "token" });
       await request(app).post("/api/auth/login").set("X-Forwarded-For", "1.2.3.4, 5.6.7.8").send({ password: "test" });
       expect((mockAuthService as any).login).toHaveBeenCalledWith("1.2.3.4", "test");
     });
 
     it("uses req.ip when no X-Forwarded-For", async () => {
-      (mockAuthService as any).login.mockResolvedValue("token");
+      (mockAuthService as any).login.mockResolvedValue({ token: "token" });
       await request(app).post("/api/auth/login").send({ password: "test" });
       // req.ip from supertest is "::1" or "127.0.0.1"
       const [ip] = (mockAuthService as any).login.mock.calls[0];
