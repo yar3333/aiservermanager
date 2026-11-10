@@ -407,9 +407,7 @@ export class WindowsServiceController implements ServiceController {
 
     const fullName = identity.domain ? `${identity.domain}\\${identity.user}` : identity.user;
     // The same script the install just ran, spelled out so the operator can run it
-    // where the privilege does exist. "Run the backend elevated" is no help for a
-    // service: it already runs as LocalSystem, and a service account is exactly the
-    // case where the right still has to be granted by someone who can edit policy.
+    // in a terminal and see its output directly: install only shows the tail of it.
     const accountArgs = identity.domain
       ? `-Domain "${identity.domain}" -User "${identity.user}"`
       : `-User "${identity.user}"`;
@@ -418,9 +416,8 @@ export class WindowsServiceController implements ServiceController {
     return (
       output +
       ` — "${fullName}" cannot be given the "Log on as a service" right, so the service ` +
-      `could never start. Writing that right needs the "Manage auditing and security log" ` +
-      `privilege enabled in the process that writes it; the code above says which of the two ` +
-      `LSA steps refused and what the privilege was worth there. Fix it either way:\n` +
+      `could never start. Writing that right needs an administrator token; the code above ` +
+      `names the LSA call that refused and the Win32 error. Fix it either way:\n` +
       `  1. run this from an elevated PowerShell, then install the service again:\n` +
       `     ${command}\n` +
       `  2. or assign the right by hand: secpol.msc → Local Policies → User Rights Assignment → ` +

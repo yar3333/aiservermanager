@@ -37,7 +37,13 @@ public static class LsaRights
         public IntPtr SecurityQualityOfService;
     }
 
-    private const int POLICY_ALL_ACCESS = 0x000F003F;
+    // Each LSA call checks the rights the policy handle was opened with, and both
+    // LsaEnumerateAccountRights and LsaAddAccountRights list POLICY_LOOKUP_NAMES.
+    // The mask that circulates in samples, 0x000F003F, is STANDARD_RIGHTS_REQUIRED
+    // plus 0x3F and does not contain it: opening the policy succeeds and every read
+    // of an account's rights answers access-denied, which looks exactly like a
+    // privilege problem.
+    private const int POLICY_ALL_ACCESS = 0x000F0FFF;
     private const int STATUS_OBJECT_NAME_NOT_FOUND = unchecked((int)0xC0000034);
     // An account the policy store holds no rights for comes back as NONE_MAPPED
     // rather than an empty list — a normal state for a user account, since a right
@@ -106,11 +112,12 @@ public static class LsaRights
     /**
      * Turn a privilege on for this process and say what happened.
      *
-     * Reading or writing the security policy needs SeSecurityPrivilege ENABLED,
-     * and the privilege is put into a token switched off: an elevated
-     * administrator token and a LocalSystem service token both hold it disabled,
-     * so without this call LsaEnumerateAccountRights answers access-denied even
-     * though LsaOpenPolicy already succeeded.
+     * The documented requirement for the account-right calls is POLICY_LOOKUP_NAMES
+     * on the policy handle, but this privilege guards the security policy store and
+     * lands in a token switched off — in an elevated administrator token and in a
+     * LocalSystem service token alike. Enabling it costs one call and removes it as
+     * a suspect; its state rides in the failure message so a denial can be told
+     * apart from a privilege that was never in the token.
      */
     public static string EnablePrivilege(string name)
     {
@@ -226,10 +233,10 @@ try {
     Fail "cannot load the LSA policy API: $($_.Exception.Message)"
 }
 
-# Reading and writing the security policy needs SeSecurityPrivilege ENABLED in
-# this process, and it lands in a token switched off — in an elevated
-# administrator shell and in a LocalSystem service alike. Without this the policy
-# opens but every read of an account's rights is denied.
+# SeSecurityPrivilege is switched on best effort: it guards the security policy
+# store and lands in a token switched off, so it is worth having out of the way.
+# Its state is reported in any failure, which is what tells a denial apart from a
+# privilege the token never had.
 $privilegeState = [LsaRights]::EnablePrivilege("SeSecurityPrivilege")
 function WithPrivilege([string]$message) {
     if ($privilegeState -eq "ok") { return $message }
@@ -255,18 +262,27 @@ $sidBytes = New-Object byte[] $sid.BinaryLength
 $sid.GetBinaryForm($sidBytes, 0)
 $fullName = "$($sid.Translate([System.Security.Principal.NTAccount]))"
 
+# Reading the account's rights is only a pre-check: LsaAddAccountRights ignores
+# rights the account already holds, so a denied read is no reason to give up — the
+# write is what the caller asked for. The denial is kept for the report instead.
+$readFailure = $null
 try {
     if ([LsaRights]::Enumerate($sidBytes) -contains $Right) {
         Write-Output "OK: $fullName already has $Right"
         exit 0
     }
-    $grantStatus = [LsaRights]::Grant($sidBytes, @($Right))
 } catch {
-    Fail (WithPrivilege "$($Right): $($_.Exception.Message.Trim())")
+    $readFailure = $_.Exception.Message.Trim()
 }
 
+$grantStatus = [LsaRights]::Grant($sidBytes, @($Right))
 if ($grantStatus -ne 0) {
-    Fail (WithPrivilege "cannot grant $Right to $fullName (Win32 error $grantStatus). Writing the right needs the 'Manage auditing and security log' privilege enabled in the process that writes it — or assign the right in secpol.msc (Local Policies → User Rights Assignment).")
+    $message = "cannot grant $Right to $fullName (Win32 error $grantStatus). Writing the right " +
+        "needs an elevated process: the policy handle is opened with POLICY_ALL_ACCESS, which " +
+        "the DACL grants only to administrators — or assign the right by hand in secpol.msc " +
+        "(Local Policies → User Rights Assignment)."
+    if ($readFailure) { $message = "$message Reading the account's rights failed too: $readFailure" }
+    Fail (WithPrivilege $message)
 }
 
 Write-Output "OK: granted $Right to $fullName"
