@@ -1,3 +1,6 @@
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { ExecTools } from "../../../helpers/ExecTools";
 import { ServerIdentity } from "../../../helpers/ServerIdentity";
 import { WindowsServiceController } from "../windowsServiceController";
@@ -177,5 +180,57 @@ describe("WindowsServiceController start type", () => {
     await controller.perform("comfyui", "enable");
 
     expect(mockedExec.safeExecWithCode).toHaveBeenCalledWith('sc.exe config "comfyui" start= auto');
+  });
+});
+
+describe("WindowsServiceController journal log choice", () => {
+  let dir: string;
+  let controller: WindowsServiceController;
+
+  /** Call the private picker against a throwaway WinSW-style directory. */
+  const pick = (name: string) =>
+    (controller as unknown as { pickLogFile(d: string, n: string): string | null }).pickLogFile(dir, name);
+
+  const write = (file: string, content: string, mtimeSeconds: number) => {
+    const full = path.join(dir, file);
+    fs.writeFileSync(full, content);
+    fs.utimesSync(full, mtimeSeconds, mtimeSeconds);
+  };
+
+  beforeEach(() => {
+    controller = new WindowsServiceController();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "winsw-journal-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps stdout when the program writes there", () => {
+    write("llama-server.out.log", "stdout line\n", 1_000_000);
+    write("llama-server.err.log", "stderr line\n", 2_000_000);
+
+    expect(pick("llama-server")).toBe(path.join(dir, "llama-server.out.log"));
+  });
+
+  it("falls back to stderr when stdout exists but is empty", () => {
+    write("llama-server.out.log", "", 2_000_000);
+    write("llama-server.err.log", "llama.cpp writes its log to stderr\n", 1_000_000);
+
+    const chosen = pick("llama-server");
+
+    expect(chosen).toBe(path.join(dir, "llama-server.err.log"));
+    expect(fs.readFileSync(chosen!, "utf-8")).toContain("stderr");
+  });
+
+  it("returns stdout when no log has content yet", () => {
+    write("llama-server.out.log", "", 1_000_000);
+    write("llama-server.err.log", "", 2_000_000);
+
+    expect(pick("llama-server")).toBe(path.join(dir, "llama-server.out.log"));
+  });
+
+  it("returns null when the service has no logs at all", () => {
+    expect(pick("llama-server")).toBeNull();
   });
 });

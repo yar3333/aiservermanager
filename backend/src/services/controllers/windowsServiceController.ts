@@ -577,20 +577,30 @@ export class WindowsServiceController implements ServiceController {
     return size > length ? text.slice(text.indexOf("\n") + 1) : text;
   }
 
-  /** Newest WinSW log of a service; stdout beats stderr, otherwise the freshest file wins. */
+  /** Newest WinSW log with content; stdout beats stderr, otherwise the freshest file wins. */
   private pickLogFile(dir: string, name: string): string | null {
     const candidates = fs
       .readdirSync(dir)
       .filter((file) => file.startsWith(`${name}.`) && file.includes(".log"))
-      .map((file) => ({ file, full: path.join(dir, file), mtime: fs.statSync(path.join(dir, file)).mtimeMs }));
+      .map((file) => {
+        const full = path.join(dir, file);
+        const stat = fs.statSync(full);
+        return { file, full, mtime: stat.mtimeMs, size: stat.size };
+      });
 
     if (candidates.length === 0) return null;
 
+    // Programs that log to stderr (llama.cpp and the other AI runtimes) leave
+    // <name>.out.log at 0 bytes while their output lands in .err.log, so an
+    // unconditional "stdout wins" answer would show an empty journal.
     const out = candidates.find((c) => c.file === `${name}.out.log`);
-    if (out) return out.full;
+    if (out && out.size > 0) return out.full;
 
-    candidates.sort((a, b) => b.mtime - a.mtime);
-    return candidates[0].full;
+    const nonEmpty = candidates.filter((c) => c.size > 0).sort((a, b) => b.mtime - a.mtime);
+    if (nonEmpty.length > 0) return nonEmpty[0].full;
+
+    // Nothing written yet: still point at stdout so the panel shows no output.
+    return out?.full ?? candidates.sort((a, b) => b.mtime - a.mtime)[0].full;
   }
 
   async getJournal(name: string, count: number = 100): Promise<JournalLine[] | { error: string }> {
