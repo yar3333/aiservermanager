@@ -53,6 +53,9 @@ const DEFAULT_OPTIONS = {
   parallel: 1,
   // Reasoning preservation, forwarded to llama-server through EXTRA
   reasoningPreserve: "on",
+  // llama-server arguments outside the structured fields (the rest of EXTRA)
+  fitTarget: "",
+  extraArgs: "",
   // Extra launcher arguments + env (free-form)
   extraFlags: "",
   envText: "",
@@ -65,15 +68,60 @@ const DEFAULT_OPTIONS = {
  */
 const MANAGED_ENV_KEYS = ["MODEL", "GPUS", "MMPROJ", "MMDEV", "HOST", "PORT", "CTX", "EXTRA"];
 
+/** EXTRA arguments that carry a value and have their own field. */
+const OWNED_EXTRA_FLAGS = ["--fit-target", "--parallel"];
+
+/** MiB --fit must leave free for a vision projector to share the LLM card (measured ~1.16 GiB). */
+const MIN_FIT_TARGET_FOR_SHARED_CARD = 1280;
+
+/** EXTRA switches with their own field. */
+const OWNED_EXTRA_SWITCHES = ["--no-reasoning-preserve"];
+
+function extraTokens(extra: string | undefined): string[] {
+  return (extra ?? "").trim().split(/\s+/).filter(Boolean);
+}
+
+/** Value of an EXTRA argument, accepting both `--flag N` and `--flag=N`. */
+function extraFlagValue(extra: string | undefined, flag: string): string | undefined {
+  const tokens = extraTokens(extra);
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === flag) return tokens[i + 1];
+    if (tokens[i].startsWith(`${flag}=`)) return tokens[i].slice(flag.length + 1);
+  }
+  return undefined;
+}
+
+/** Value of EXTRA minus every argument a structured field owns, kept verbatim otherwise. */
+function unownedExtra(extra: string | undefined): string {
+  const tokens = extraTokens(extra);
+  const rest: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const owned = OWNED_EXTRA_FLAGS.find((f) => token === f || token.startsWith(`${f}=`));
+    if (owned) {
+      if (token === owned) i++; // skip the value too
+      continue;
+    }
+    if (OWNED_EXTRA_SWITCHES.includes(token)) continue;
+    rest.push(token);
+  }
+  return rest.join(" ");
+}
+
 /** Value of EXTRA that the Parallel field owns. */
 function parallelFromExtra(extra: string | undefined): number {
-  const match = (extra ?? "").match(/--parallel(?:[=\s]+)(\d+)/);
-  return match ? parseInt(match[1], 10) : DEFAULT_OPTIONS.parallel;
+  const value = parseInt(extraFlagValue(extra, "--parallel") ?? "", 10);
+  return isNaN(value) ? DEFAULT_OPTIONS.parallel : value;
+}
+
+/** Value of EXTRA that the Fit target field owns; empty = llama.cpp decides. */
+function fitTargetFromExtra(extra: string | undefined): string {
+  return extraFlagValue(extra, "--fit-target") ?? DEFAULT_OPTIONS.fitTarget;
 }
 
 /** Value of EXTRA that the Reasoning Preserve field owns (run.sh defaults to preserving). */
 function reasoningPreserveFromExtra(extra: string | undefined): string {
-  return /(^|\s)--no-reasoning-preserve(\s|=|$)/.test(extra ?? "") ? "off" : "on";
+  return extraTokens(extra).includes("--no-reasoning-preserve") ? "off" : "on";
 }
 
 /** Return true when the current form value differs from the launcher default. */
@@ -178,6 +226,10 @@ export class AvalonDialogComponent implements OnInit {
     parallel: [DEFAULT_OPTIONS.parallel],
     // Reasoning — forwarded to llama-server through EXTRA
     reasoningPreserve: [DEFAULT_OPTIONS.reasoningPreserve],
+    // VRAM headroom --fit leaves on the LLM card, and the rest of EXTRA verbatim. The number
+    // input hands the control a number, the config carries a string: both spellings are read.
+    fitTarget: [DEFAULT_OPTIONS.fitTarget as string | number],
+    extraArgs: [DEFAULT_OPTIONS.extraArgs],
     // Extra launcher arguments + env (free-form)
     extraFlags: [DEFAULT_OPTIONS.extraFlags],
     envText: [DEFAULT_OPTIONS.envText],
@@ -210,6 +262,9 @@ export class AvalonDialogComponent implements OnInit {
 
   /** MMDEV offload escape hatches the launcher recognises (lowercase — it compares literally). */
   readonly mmdevOffloadValues = ["none", "cpu"];
+
+  /** Shown in the clash warning: the fit target that makes a ViT fit on the LLM card. */
+  readonly minFitTargetForSharedCard = MIN_FIT_TARGET_FOR_SHARED_CARD;
 
   /** Suggestions for MMDEV: GPU names plus the two ways to keep the ViT off the GPU. */
   readonly mmdevSuggestions = computed<string[]>(() => [...this.deviceNames(), ...this.mmdevOffloadValues]);
@@ -293,8 +348,9 @@ export class AvalonDialogComponent implements OnInit {
   });
 
   /**
-   * `--fit` claims the whole VRAM of the LLM card, so a ViT on that same card fails to
-   * allocate (the launcher prints the same warning).
+   * `--fit` claims the VRAM of the LLM card apart from the headroom --fit-target asks for, so a
+   * ViT on that same card fails to allocate unless the headroom covers it (~1.16 GiB, measured
+   * 2026-11-12 on build 9e4f26f54 — run.sh prints the same advice).
    */
   readonly isVisionDeviceClash = computed(() => {
     if (!this.isVisionOn()) return false;
@@ -304,7 +360,8 @@ export class AvalonDialogComponent implements OnInit {
       .split(",")
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
-    return gpus.includes(mmdev);
+    if (!gpus.includes(mmdev)) return false;
+    return +(this.formValue()?.fitTarget as number | string) < MIN_FIT_TARGET_FOR_SHARED_CARD;
   });
 
   /**
@@ -351,9 +408,12 @@ export class AvalonDialogComponent implements OnInit {
     const ctx = parseInt(env["CTX"] ?? "", 10);
     f.ctxSize.setValue(formatContextSize(isNaN(ctx) ? DEFAULT_OPTIONS.ctxSize : ctx, 1));
 
-    // Concurrency + reasoning — the only things this dialog reads out of EXTRA.
+    // Concurrency + reasoning — the structured pieces of EXTRA; whatever EXTRA also holds
+    // that no field owns stays editable in extraArgs so a save cannot drop it.
     f.parallel.setValue(parallelFromExtra(env["EXTRA"]));
     f.reasoningPreserve.setValue(reasoningPreserveFromExtra(env["EXTRA"]));
+    f.fitTarget.setValue(fitTargetFromExtra(env["EXTRA"]));
+    f.extraArgs.setValue(unownedExtra(env["EXTRA"]));
 
     // Launcher arguments: run.sh ignores argv, they are kept only so a save cannot lose them.
     f.extraFlags.setValue((cfg.flags ?? []).join("\n"));
@@ -411,8 +471,13 @@ export class AvalonDialogComponent implements OnInit {
 
     const parallel = c.parallel.value ?? DEFAULT_OPTIONS.parallel;
     const extra: string[] = [];
+    const fitTarget = String(c.fitTarget.value ?? "").trim();
+    if (fitTarget) extra.push(`--fit-target ${fitTarget}`);
     if (parallel !== DEFAULT_OPTIONS.parallel && parallel > 0) extra.push(`--parallel ${parallel}`);
     if (c.reasoningPreserve.value === "off") extra.push("--no-reasoning-preserve");
+    // Arguments no field owns are carried verbatim; the fields win over the same flag typed here.
+    const unowned = unownedExtra(c.extraArgs.value as string);
+    if (unowned) extra.push(unowned);
     if (extra.length) env["EXTRA"] = extra.join(" ");
 
     return Object.assign(env, this.parseEnvironment(c.envText.value as string));

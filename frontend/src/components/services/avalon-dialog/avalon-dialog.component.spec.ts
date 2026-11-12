@@ -214,6 +214,99 @@ describe("AvalonDialogComponent", () => {
     expect(component.isControlChanged("parallel")).toBe(false);
   });
 
+  it("round-trips the fit target and reasoning switch of the real config verbatim", () => {
+    create({
+      name: "a",
+      type: "avalon",
+      command: RUN_SH,
+      flags: [],
+      environment: { MMPROJ, MMDEV: "ROCm0", EXTRA: "--fit-target 1536 --no-reasoning-preserve" },
+    });
+    expect(component.form.controls.fitTarget.value).toBe("1536");
+    expect(component.form.controls.reasoningPreserve.value).toBe("off");
+    expect(component.form.controls.extraArgs.value).toBe("");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--fit-target 1536 --no-reasoning-preserve");
+  });
+
+  it("keeps EXTRA arguments the dialog has no field for instead of erasing them", () => {
+    create({
+      name: "a",
+      type: "avalon",
+      command: RUN_SH,
+      flags: [],
+      environment: { EXTRA: "-otd exps=ROCm0 --parallel 2 --spec-draft-n-max 4" },
+    });
+    expect(component.form.controls.parallel.value).toBe(2);
+    expect(component.form.controls.extraArgs.value).toBe("-otd exps=ROCm0 --spec-draft-n-max 4");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--parallel 2 -otd exps=ROCm0 --spec-draft-n-max 4");
+  });
+
+  it("emits an edited fit target and the untouched rest of EXTRA together", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: "--fit-min-size 64" } });
+    expect(component.form.controls.extraArgs.value).toBe("--fit-min-size 64");
+    component.form.controls.fitTarget.setValue(2048);
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--fit-target 2048 --fit-min-size 64");
+  });
+
+  it("lets the structured fields win over the same argument typed in the free-form field", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: "--fit-target 1536" } });
+    component.form.controls.extraArgs.setValue("--parallel 9 --fit-target 640 --no-reasoning-preserve --fit 1");
+    component.form.controls.parallel.setValue(3);
+    component.form.controls.fitTarget.setValue(1536);
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--fit-target 1536 --parallel 3 --fit 1");
+  });
+
+  it("omits the fit target and reports it unchanged while the field is empty", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: "--parallel 2" } });
+    expect(component.form.controls.fitTarget.value).toBe("");
+    expect(component.isControlChanged("fitTarget")).toBe(false);
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--parallel 2");
+  });
+
+  it("accepts the --fit-target=N spelling", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: "--fit-target=1536" } });
+    expect(component.form.controls.fitTarget.value).toBe("1536");
+    expect(component.form.controls.extraArgs.value).toBe("");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--fit-target 1536");
+  });
+
+  it("emits a single fit target when the stored EXTRA repeats the argument", () => {
+    create({
+      name: "a",
+      type: "avalon",
+      command: RUN_SH,
+      flags: [],
+      environment: { EXTRA: "--fit-target 1536 --fit-target 640" },
+    });
+    expect(component.form.controls.fitTarget.value).toBe("1536");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("--fit-target 1536");
+  });
+
+  it("carries an EXTRA that holds nothing but unowned arguments through the save untouched", () => {
+    const extra = "-otd exps=ROCm0 --spec-draft-n-max 4";
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: extra } });
+    expect(component.form.controls.extraArgs.value).toBe(extra);
+    expect(component.isControlChanged("extraArgs")).toBe(true);
+    expect(component.isSectionChanged("fitTarget", "extraArgs")).toBe(true);
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe(extra);
+  });
+
+  it("collapses newlines and repeated spaces typed into the free-form argument field", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { EXTRA: "--fit 1" } });
+    // Replacing the field replaces the unowned part of EXTRA wholesale — the field is its source.
+    component.form.controls.extraArgs.setValue("-otd  exps=ROCm0\n--fit-min-size 64\n");
+    component.save();
+    expect(saved().environment?.["EXTRA"]).toBe("-otd exps=ROCm0 --fit-min-size 64");
+  });
+
   it("formats and re-parses the context size, emitting the raw token count", () => {
     create(AVALON_FULL_CONFIG);
     expect(component.form.controls.ctxSize.value).toBe("128K");
@@ -265,6 +358,45 @@ describe("AvalonDialogComponent", () => {
 
     component.form.controls.mmdev.setValue("ROCm2");
     expect(component.isVisionDeviceClash()).toBe(false);
+  });
+
+  it("accepts a vision card shared with the LLM once the fit target leaves room for the projector", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { MMPROJ, GPUS: "ROCm0", MMDEV: "ROCm0", EXTRA: "--fit-target 1536" } });
+    expect(component.isVisionDeviceClash()).toBe(false);
+
+    component.form.controls.fitTarget.setValue(1024);
+    expect(component.isVisionDeviceClash()).toBe(true);
+  });
+
+  it("treats exactly 1280 MiB of fit target as enough room and 1 MiB less as not", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { MMPROJ, GPUS: "ROCm0", MMDEV: "ROCm0" } });
+    component.form.controls.fitTarget.setValue("1280");
+    expect(component.isVisionDeviceClash()).toBe(false);
+
+    component.form.controls.fitTarget.setValue("1279");
+    expect(component.isVisionDeviceClash()).toBe(true);
+  });
+
+  it("warns for a cleared fit target on a shared vision card, the launcher default being 400", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { MMPROJ, GPUS: "ROCm0", MMDEV: "ROCm0", EXTRA: "--fit-target 1536" } });
+    expect(component.isVisionDeviceClash()).toBe(false);
+
+    component.form.controls.fitTarget.setValue(null);
+    expect(component.isVisionDeviceClash()).toBe(true);
+  });
+
+  it("matches the vision card against every card of a multi-GPU list", () => {
+    create({
+      name: "a",
+      type: "avalon",
+      command: RUN_SH,
+      flags: [],
+      environment: { MMPROJ, GPUS: "ROCm0,ROCm1", MMDEV: "ROCm1", EXTRA: "--fit-target 1536" },
+    });
+    expect(component.isVisionDeviceClash()).toBe(false);
+
+    component.form.controls.fitTarget.setValue("");
+    expect(component.isVisionDeviceClash()).toBe(true);
   });
 
   it("does not warn about a vision card clash while the ViT is off the GPU or vision is off", () => {
@@ -347,6 +479,38 @@ describe("AvalonDialogComponent", () => {
 
     expect(component.runAs.userHint()).toBe("empty → root");
     expect(component.form.controls.group.disabled).toBe(false);
+  });
+
+  it("renders the fit-target input and the free-form argument field, wired to their controls", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { MMPROJ, EXTRA: "--fit-target 1536 -otd exps=ROCm0" } });
+    const el = fixture.nativeElement as HTMLElement;
+
+    const fitInput = el.querySelector('input[formcontrolname="fitTarget"]') as HTMLInputElement;
+    const extraArea = el.querySelector('textarea[formcontrolname="extraArgs"]') as HTMLTextAreaElement;
+    expect(fitInput).not.toBeNull();
+    expect(extraArea).not.toBeNull();
+
+    component.form.controls.fitTarget.setValue(2048);
+    component.form.controls.extraArgs.setValue("--fit-min-size 64");
+    fixture.detectChanges();
+    expect(fitInput.value).toBe("2048");
+    expect(extraArea.value).toBe("--fit-min-size 64");
+  });
+
+  it("hides the shared-card warning once the fit target leaves room, and shows it again below the threshold", () => {
+    create({ name: "a", type: "avalon", command: RUN_SH, flags: [], environment: { MMPROJ, GPUS: "ROCm0", MMDEV: "ROCm0" } });
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector(".hint-warning")).not.toBeNull();
+    expect(el.querySelector(".hint-warning")?.textContent).toContain("1280");
+
+    component.form.controls.fitTarget.setValue(1536);
+    fixture.detectChanges();
+    expect(el.querySelector(".hint-warning")).toBeNull();
+
+    component.form.controls.fitTarget.setValue(640);
+    fixture.detectChanges();
+    expect(el.querySelector(".hint-warning")).not.toBeNull();
   });
 
   it("marks changed fields against the launcher defaults", () => {

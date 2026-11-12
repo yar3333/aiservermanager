@@ -49,7 +49,7 @@
     </mat-expansion-panel>
 
     <!-- ═══════════ GPUs & Vision ═══════════ -->
-    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('gpus', 'mmproj', 'mmdev')">
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('gpus', 'mmproj', 'mmdev', 'fitTarget')">
       <mat-expansion-panel-header>
         <mat-panel-title>GPUs &amp; Vision</mat-panel-title>
         <mat-panel-description>Hosted-MoE layout: dense weights on GPU, experts in RAM</mat-panel-description>
@@ -91,6 +91,19 @@
         </mat-autocomplete>
       </div>
 
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('fitTarget')">
+          <input
+            matInput
+            formControlName="fitTarget"
+            type="number"
+            min="0"
+            matTooltip="VRAM (MiB) that --fit leaves free on the LLM card (--fit-target in EXTRA). llama.cpp default: 400. The vision projector needs ~1280, so a ViT on the LLM card itself requires at least that"
+          />
+          <mat-label>Fit target, MiB (--fit-target)</mat-label>
+        </mat-form-field>
+      </div>
+
       @if (isVisionOn()) {
         <div class="subsection-label">Vision projector</div>
       }
@@ -106,8 +119,9 @@
         <div class="hint hint-warning" role="alert">
           <mat-icon>warning</mat-icon>
           <span>
-            Vision GPU equals the LLM GPU ({{ form.controls.gpus.value }}) — --fit takes that card's VRAM
-            completely and the projector fails to allocate. Pick another card or set the vision GPU to cpu.
+            Vision GPU equals the LLM GPU ({{ form.controls.gpus.value }}) — --fit claims that card's VRAM down
+            to the fit target, and the projector needs {{ minFitTargetForSharedCard }} MiB of it. Pick another
+            card, set the vision GPU to cpu, or raise the fit target to {{ minFitTargetForSharedCard }} and above.
           </span>
         </div>
       }
@@ -179,7 +193,7 @@
             formControlName="parallel"
             type="number"
             min="1"
-            matTooltip="Concurrent requests — written to EXTRA as --parallel N (last occurrence wins, so it replaces the --parallel 1 of run.sh). 1 = nothing emitted. EXTRA belongs to this and the Reasoning fields: other EXTRA arguments are replaced"
+            matTooltip="Concurrent requests — written to EXTRA as --parallel N (last occurrence wins, so it replaces the --parallel 1 of run.sh). 1 = nothing emitted. Everything else EXTRA holds stays in the Extra llama-server arguments field"
           />
           <mat-label>Concurrent requests (--parallel)</mat-label>
         </mat-form-field>
@@ -205,13 +219,42 @@
         <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningPreserve')">
           <mat-select
             formControlName="reasoningPreserve"
-            matTooltip="Keep reasoning content in the chat history when context is shifted. off = --no-reasoning-preserve in EXTRA; EXTRA belongs to this and the Parallel field, so other EXTRA arguments are replaced"
+            matTooltip="Keep reasoning content in the chat history when context is shifted. off = --no-reasoning-preserve in EXTRA; everything else EXTRA holds stays in the Extra llama-server arguments field below"
           >
             <mat-option value="on">on</mat-option>
             <mat-option value="off">off</mat-option>
           </mat-select>
           <mat-label>Reasoning Preserve</mat-label>
         </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Extra llama-server arguments ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('fitTarget', 'extraArgs')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Extra llama-server arguments</mat-panel-title>
+        <mat-panel-description>The part of EXTRA no other field asks for</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('extraArgs')">
+        <textarea
+          matInput
+          formControlName="extraArgs"
+          rows="2"
+          wrap="off"
+          class="flags-textarea"
+          placeholder="-otd exps=ROCm0 --spec-draft-n-max 4"
+          matTooltip="Arguments appended to the llama-server command line through EXTRA, kept verbatim. Loaded from the existing EXTRA and written back untouched. --fit-target, --parallel and --no-reasoning-preserve belong to their own fields: typed here, they are ignored in favour of those fields"
+        ></textarea>
+        <mat-label>Other arguments (EXTRA)</mat-label>
+      </mat-form-field>
+
+      <div class="hint">
+        <mat-icon>info</mat-icon>
+        <span>
+          EXTRA is assembled from the structured fields first, then these arguments — so a save keeps
+          everything the dialog has no field for (-otd exps=…, --spec-draft-n-max, --fit-min-size, …).
+        </span>
       </div>
     </mat-expansion-panel>
 
