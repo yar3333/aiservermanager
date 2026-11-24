@@ -43,6 +43,30 @@ env.GPUS=ROCm0
     );
   });
 
+  it("recognises the strata-rdna3 type and writes it back", () => {
+    const cfg = parseConfigFile(
+      "strata-qwen3_8_flash-q8-3gpu-256k",
+      `type=strata-rdna3
+command=/home/yar/MyDocs/AiChat/strata-rdna3/run.sh
+unit.user=yar
+--model /data/model-00001-of-00006.gguf
+--mtp off
+`,
+    );
+
+    expect(cfg.type).toBe("strata-rdna3");
+    expect(cfg.user).toBe("yar");
+    expect(cfg.flags).toEqual(["--model /data/model-00001-of-00006.gguf", "--mtp off"]);
+    expect(serializeConfig(cfg)).toBe(
+      "type=strata-rdna3\ncommand=/home/yar/MyDocs/AiChat/strata-rdna3/run.sh\nunit.user=yar\n--model /data/model-00001-of-00006.gguf\n--mtp off\n",
+    );
+  });
+
+  it("drops an unknown type instead of guessing one", () => {
+    const cfg = parseConfigFile("odd", `type=strata\ncommand=/bin/true\n`);
+    expect(cfg.type).toBeUndefined();
+  });
+
   it("yields undefined environment when no env lines present (backward compat)", () => {
     const raw = `type=generic
 command=/usr/bin/python3

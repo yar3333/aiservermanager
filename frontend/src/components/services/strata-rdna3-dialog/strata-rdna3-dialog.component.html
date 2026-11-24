@@ -1,0 +1,422 @@
+<h2 mat-dialog-title>
+  {{ isClone ? "Clone" : isEdit ? "Edit" : "Add" }} Strata (rdna3) service
+</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="strata-form">
+    <!-- Service identity -->
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('name')">
+      <input matInput formControlName="name" placeholder="e.g. strata-qwen3_8_flash-q8-4gpu-256k" />
+      <mat-label>Service Name</mat-label>
+      @if (form.controls.name.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      } @else if (form.controls.name.errors?.["pattern"]) {
+        <mat-error>Starts with letter, alphanumeric + hyphens/underscores, max 128 chars</mat-error>
+      } @else if (form.controls.name.errors?.["nameTaken"]) {
+        <mat-error>Another service already uses this name</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('command')">
+      <input matInput formControlName="command" [matAutocomplete]="commandAuto" placeholder="/path/to/strata-rdna3/run.sh" />
+      <mat-label>Command (Strata rdna3 launcher)</mat-label>
+      @if (form.controls.command.errors?.["required"]) {
+        <mat-error>Required</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-autocomplete #commandAuto="matAutocomplete">
+      @for (ec of filteredCommands(); track ec.command) {
+        <mat-option [value]="ec.command">
+          <span class="auto-path">{{ ec.command }}</span>
+          <span class="auto-from">({{ ec.from }})</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
+
+    <!-- ═══════════ Model & Pack ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('model', 'pack', 'mmproj', 'dataDir', 'rocm', 'keysIni')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Model &amp; Pack</mat-panel-title>
+        <mat-panel-description>Empty = the path built into run.sh</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <app-file-autocomplete
+        formControlName="model"
+        label="Model — first GGUF shard (--model)"
+        placeholder="/home/.../Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf"
+        fieldClass="full-width"
+        [existingPaths]="existingModelPaths()"
+      />
+
+      <app-file-autocomplete
+        formControlName="pack"
+        label="Expert pack (--pack)"
+        placeholder="/home/yar/.lmstudio/packs/unsloth-ud-iq4_xs"
+        fieldClass="full-width"
+        [existingPaths]="existingPackPaths()"
+      />
+
+      <div class="hint">
+        <mat-icon>info</mat-icon>
+        <span>
+          The pack is a directory holding index.txt, built by the fork's iq_pack.py — run.sh
+          refuses to start without it.
+        </span>
+      </div>
+
+      <div class="subsection-label">Vision &amp; roots</div>
+
+      <app-file-autocomplete
+        formControlName="mmproj"
+        label="mmproj for vision (--mmproj)"
+        placeholder="/home/yar/.lmstudio/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+        fieldClass="full-width"
+        [existingPaths]="existingMmprojPaths()"
+      />
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('dataDir')">
+          <input matInput formControlName="dataDir" placeholder="/home/yar/.lmstudio" matTooltip="Root the launcher resolves default model and pack paths from (--data-dir). Default: /home/yar/.lmstudio" />
+          <mat-label>Data dir (--data-dir)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('rocm')">
+          <input matInput formControlName="rocm" placeholder="/opt/rocm-7.2.2" matTooltip="ROCm root whose lib/ the engine loads (--rocm). Default: /opt/rocm-7.2.2" />
+          <mat-label>ROCm root (--rocm)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('keysIni')">
+          <input matInput formControlName="keysIni" placeholder="../llama/keys.ini" matTooltip="File the API key is read from (--keys-ini). The key never becomes an argument — argv is visible in ps. Default: ../llama/keys.ini, overridable with the API_KEY environment variable below" />
+          <mat-label>API key file (--keys-ini)</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Card Layout ═══════════ -->
+    <mat-expansion-panel expanded [class.has-changed]="isSectionChanged('gpus', 'tp', 'layerSplit', 'pipelineWindows')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Card Layout</mat-panel-title>
+        <mat-panel-description>Which cards the model and the encoder get</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('gpus')">
+          <input matInput formControlName="gpus" type="text" placeholder="0,1" [matTooltip]="gpuTooltip()" />
+          <mat-label>Cards (--gpus)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('tp')">
+          <mat-select
+            formControlName="tp"
+            matTooltip="Tensor parallel. The engine accepts 1|2 only, so more than two cards needs none — layer split alone. none emits --tp none; the launcher drops the flag entirely"
+          >
+            @for (t of tpOptions; track t) {
+              <mat-option [value]="t">{{ t === "none" ? "none — layer split only" : t }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Tensor parallel (--tp)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('layerSplit')">
+          <input matInput formControlName="layerSplit" placeholder="auto" matTooltip="First layer of every next card (--layer-split). auto lets the engine decide; four cards are usually 12,24,36" />
+          <mat-label>Layer split (--layer-split)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('pipelineWindows')">
+          <input
+            matInput
+            formControlName="pipelineWindows"
+            type="number"
+            min="0"
+            matTooltip="Pipeline stages (--pipeline-windows). 0 runs the stages one after another — measured best short decode and prefill on two cards"
+          />
+          <mat-label>Pipeline windows (--pipeline-windows)</mat-label>
+        </mat-form-field>
+      </div>
+
+      @if (isTensorParallelTooNarrow()) {
+        <div class="hint hint-warning" role="alert">
+          <mat-icon>warning</mat-icon>
+          <span>
+            {{ gpusList().length }} cards with --tp {{ form.controls.tp.value }}: the engine takes 1|2 for
+            --tensor-parallel, so the extra cards are unreachable. Set tensor parallel to none and lay the
+            model out with --layer-split (for four cards, 12,24,36).
+          </span>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Context & Cache ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('ctxSize', 'convCacheMib', 'convSlots', 'kvResident', 'vramReserveMib', 'pleIo')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Context &amp; Cache</mat-panel-title>
+        <mat-panel-description>Empty fields keep the launcher's or the fork's value</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('ctxSize')">
+          <input
+            matInput
+            formControlName="ctxSize"
+            type="text"
+            [matAutocomplete]="ctxAuto"
+            (blur)="onCtxSizeInput()"
+            (keyup.enter)="onCtxSizeInput()"
+            placeholder="e.g. 256K, 262144"
+            matTooltip="Context length (--ctx). Supports 20000, 20K. Default: 256K"
+          />
+          <mat-label>Context (--ctx)</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #ctxAuto="matAutocomplete">
+          @for (p of ctxPresets(); track p.label) {
+            <mat-option [value]="p.label">{{ p.label }}</mat-option>
+          }
+        </mat-autocomplete>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('convCacheMib')">
+          <input matInput formControlName="convCacheMib" type="number" min="0" matTooltip="Conversation cache in MiB (--conv-cache-mib). 0 — nothing is reused between requests. Default: 0" />
+          <mat-label>Conversation cache, MiB</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('convSlots')">
+          <input matInput formControlName="convSlots" type="text" placeholder="fork default (8)" matTooltip="Conversation cache slots (--conv-slots). Empty leaves the pair the fork's config carries; a typed value replaces it" />
+          <mat-label>Conversation slots (--conv-slots)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('kvResident')">
+          <input matInput formControlName="kvResident" type="text" placeholder="fork default (32768)" matTooltip="Tokens that stay resident in VRAM (--kv-resident). 0 puts the whole KV in VRAM; empty leaves the fork's config value" />
+          <mat-label>KV resident (--kv-resident)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('vramReserveMib')">
+          <input matInput formControlName="vramReserveMib" type="text" placeholder="fork default (512)" matTooltip="VRAM left free per card (--vram-reserve-mib). 2048 when the vision encoder shares a card with the model — below that the encoder is killed" />
+          <mat-label>VRAM reserve, MiB (--vram-reserve-mib)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('pleIo')">
+          <mat-select formControlName="pleIo" matTooltip="Where the PLE table lives (--ple-io). direct reads it from SSD on every token and costs 4-5x the speed (22 against 95 tok/s on two cards)">
+            @for (p of pleIoOptions; track p) {
+              <mat-option [value]="p">{{ p }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>PLE table (--ple-io)</mat-label>
+        </mat-form-field>
+      </div>
+
+      @if (isPleIoSlow()) {
+        <div class="hint hint-warning" role="alert">
+          <mat-icon>speed</mat-icon>
+          <span>
+            --ple-io direct reads the PLE table from SSD on every token — measured 4-5x slower
+            (22 against 95 tok/s on two cards). Keep it only when the table cannot fit RAM.
+          </span>
+        </div>
+      }
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Modes ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('mtp', 'vision', 'visionDev', 'megakernel', 'toolcall', 'reasoningEffort', 'reasoningBudget')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Modes</mat-panel-title>
+        <mat-panel-description>MTP draft, vision, megakernel, agent mode</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('mtp')">
+          <mat-select formControlName="mtp" matTooltip="MTP draft head (--mtp). On two cards it costs ~30% at 50K context and gains ~25% on short prompts; with the expert cache above 90% it pays off. Default: on">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>MTP draft (--mtp)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('megakernel')">
+          <mat-select
+            formControlName="megakernel"
+            matTooltip="Persistent verify kernel (--megakernel). It wants every CU of the card, so it is wrong while the card is shared with vision or ComfyUI. Default: off"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Megakernel (--megakernel)</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('vision')">
+          <mat-select formControlName="vision" matTooltip="Image encoder (--vision). off saves the VRAM the projector needs. Default: off">
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Vision (--vision)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('visionDev')">
+          <input
+            matInput
+            formControlName="visionDev"
+            type="number"
+            min="0"
+            [matAutocomplete]="visionDevAuto"
+            matTooltip="Card the encoder runs on (--vision-dev). Pick one the model does not use, or leave a VRAM reserve of 2048 MiB and above"
+          />
+          <mat-label>Vision card (--vision-dev)</mat-label>
+        </mat-form-field>
+        <mat-autocomplete #visionDevAuto="matAutocomplete">
+          @for (i of gpuIndices(); track i) {
+            <mat-option [value]="i">{{ i }}</mat-option>
+          }
+        </mat-autocomplete>
+      </div>
+
+      @if (isVisionCardClash()) {
+        <div class="hint hint-warning" role="alert">
+          <mat-icon>warning</mat-icon>
+          <span>
+            Vision card {{ form.controls.visionDev.value }} is one of the model cards
+            ({{ form.controls.gpus.value }}) and the VRAM reserve is below
+            {{ minVramReserveForSharedCard }} MiB — the engine fills that card to zero and the encoder is
+            killed. Use another card, or set the reserve to {{ minVramReserveForSharedCard }} and above.
+          </span>
+        </div>
+      }
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('toolcall')">
+          <mat-select
+            formControlName="toolcall"
+            matTooltip="Agent mode (--toolcall): temperature 0.2, top_p 0.9 and tool_call_recovery on. Default: off"
+          >
+            <mat-option value="on">on</mat-option>
+            <mat-option value="off">off</mat-option>
+          </mat-select>
+          <mat-label>Tool calling (--toolcall)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningEffort')">
+          <mat-select
+            formControlName="reasoningEffort"
+            matTooltip="Default reasoning level (--reasoning-effort). A request carrying its own reasoning_effort still wins. run.sh applies this only in toolcall mode, so the field is locked while tool calling is off. Default: medium"
+          >
+            @for (e of reasoningEfforts; track e) {
+              <mat-option [value]="e">{{ e }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Reasoning effort (--reasoning-effort)</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('reasoningBudget')">
+          <input
+            matInput
+            formControlName="reasoningBudget"
+            type="text"
+            placeholder="not set"
+            matTooltip="Reasoning budget in tokens (--reasoning-budget). Empty leaves it unset — a budget cuts hard on complex tasks"
+          />
+          <mat-label>Reasoning budget (--reasoning-budget)</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Server ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('port')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Server</mat-panel-title>
+        <mat-panel-description>run.sh binds 127.0.0.1; the key comes from the environment</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col" [class.changed]="isControlChanged('port')">
+          <input matInput formControlName="port" type="number" matTooltip="API port (--port). Default: 4239" />
+          <mat-label>Port</mat-label>
+        </mat-form-field>
+      </div>
+
+      <div class="hint">
+        <mat-icon>info</mat-icon>
+        <span>
+          The launcher keeps the key out of argv: it reads API_KEY or the keys file above. Without a
+          key anyone who reaches the port uses the model, and requests through frp get 403 on the host
+          check.
+        </span>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Additional ═══════════ -->
+    <mat-expansion-panel [class.has-changed]="isSectionChanged('extraFlags', 'envText')">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Additional</mat-panel-title>
+        <mat-panel-description>Options this dialog has no field for</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('extraFlags')">
+        <textarea
+          matInput
+          formControlName="extraFlags"
+          rows="3"
+          wrap="off"
+          class="flags-textarea"
+          placeholder="--some-new-option 3"
+          matTooltip="Launcher arguments kept verbatim, one per line. Loaded from the existing config and written back untouched; the flags above belong to their fields and are ignored here"
+        ></textarea>
+        <mat-label>Other launcher arguments (one per line)</mat-label>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width" [class.changed]="isControlChanged('envText')">
+        <textarea
+          matInput
+          formControlName="envText"
+          rows="3"
+          wrap="off"
+          class="env-textarea"
+          placeholder="API_KEY=sk-...&#10;PATH=/opt/rocm-7.2.2/bin:/usr/bin"
+          matTooltip="Environment variables for the service process (KEY=VALUE, one per line). API_KEY overrides the keys file"
+        ></textarea>
+        <mat-label>Environment variables (KEY=VALUE, one per line)</mat-label>
+      </mat-form-field>
+    </mat-expansion-panel>
+
+    <!-- ═══════════ Service unit ═══════════ -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Service unit</mat-panel-title>
+        <mat-panel-description>systemd User / Group / Restart policy</mat-panel-description>
+      </mat-expansion-panel-header>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="user" placeholder="yar" [matTooltip]="runAs.userHint()" />
+          <mat-label>Run as user</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <input matInput formControlName="group" placeholder="ai" [matTooltip]="runAs.groupHint()" />
+          <mat-label>Run as group</mat-label>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-col">
+          <mat-select formControlName="restart">
+            @for (r of restartOptions; track r) {
+              <mat-option [value]="r">{{ r === "no" ? "no (default)" : r }}</mat-option>
+            }
+          </mat-select>
+          <mat-label>Restart policy</mat-label>
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid">
+    {{ isEdit && !isClone ? "Save" : "Create" }}
+  </button>
+</mat-dialog-actions>

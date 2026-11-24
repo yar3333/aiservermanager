@@ -12,8 +12,8 @@ export interface ServiceStatus {
 /** Actions the client can perform. */
 export type ServiceAction = "start" | "stop" | "enable" | "disable";
 
-/** Service type: generic (arbitrary), llama-server, vllm or avalon (structured configs). */
-export type ServiceType = "generic" | "llama-server" | "vllm" | "avalon";
+/** Service type: generic (arbitrary), llama-server, vllm, avalon or strata-rdna3 (structured configs). */
+export type ServiceType = "generic" | "llama-server" | "vllm" | "avalon" | "strata-rdna3";
 
 /** Supported systemd Restart= values. */
 export const SERVICE_RESTART_VALUES = [

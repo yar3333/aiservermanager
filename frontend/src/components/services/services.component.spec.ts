@@ -10,6 +10,7 @@ import { SystemService } from "../../services/system.service";
 import { AccountPasswordService } from "../../services/account-password.service";
 import { ServerIdentityInfo } from "../../models/gpu";
 import { LlamaServerDialogComponent } from "./llama-server-dialog/llama-server-dialog.component";
+import { StrataRdna3DialogComponent } from "./strata-rdna3-dialog/strata-rdna3-dialog.component";
 import { ServiceConfig, ServiceStatus } from "../../models/service";
 
 const STATUSES: ServiceStatus[] = [
@@ -198,6 +199,39 @@ describe("ServicesComponent", () => {
           config: expect.objectContaining({ name: "llama-server-copy" }),
         }),
       }),
+    );
+  });
+
+  it("opens the strata-rdna3 dialog for a strata config, not the generic one", async () => {
+    await fixture.whenStable();
+    const strata: ServiceConfig = {
+      name: "strata-qwen3_8_flash-q8-3gpu-256k",
+      type: "strata-rdna3",
+      command: "/home/yar/MyDocs/AiChat/strata-rdna3/run.sh",
+      flags: ["--mtp off"],
+    };
+    const svc: ServiceWithConfig = {
+      name: strata.name,
+      running: false,
+      enabled: false,
+      installed: true,
+      config: strata,
+      hasConfig: true,
+    };
+
+    component.editService(svc);
+    expect(dialog.open).toHaveBeenCalledWith(
+      StrataRdna3DialogComponent,
+      expect.objectContaining({
+        data: expect.objectContaining({ config: strata, clone: false }),
+      }),
+    );
+
+    dialog.open.mockClear();
+    component.addService("strata-rdna3");
+    expect(dialog.open).toHaveBeenCalledWith(
+      StrataRdna3DialogComponent,
+      expect.objectContaining({ data: expect.objectContaining({ config: null }) }),
     );
   });
 

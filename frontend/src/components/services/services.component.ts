@@ -20,6 +20,7 @@ import { AccountPasswordService } from "../../services/account-password.service"
 import { LlamaServerDialogComponent, LlamaServerDialogData } from "./llama-server-dialog/llama-server-dialog.component";
 import { VllmDialogComponent, VllmDialogData } from "./vllm-dialog/vllm-dialog.component";
 import { AvalonDialogComponent, AvalonDialogData } from "./avalon-dialog/avalon-dialog.component";
+import { StrataRdna3DialogComponent, StrataRdna3DialogData } from "./strata-rdna3-dialog/strata-rdna3-dialog.component";
 import { MatIconModule } from "@angular/material/icon";
 
 /** Merged service status + optional config for custom services. */
@@ -293,6 +294,10 @@ export class ServicesComponent implements OnInit {
       const data: AvalonDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(AvalonDialogComponent, { data, minWidth: "800px" });
       this.handleDialogResult(ref, config, clone);
+    } else if (type === "strata-rdna3") {
+      const data: StrataRdna3DialogData = { config, allConfigs: this.configs(), clone };
+      const ref = this.dialog.open(StrataRdna3DialogComponent, { data, minWidth: "800px" });
+      this.handleDialogResult(ref, config, clone);
     } else {
       const data: ServiceDialogData = { config, allConfigs: this.configs(), clone };
       const ref = this.dialog.open(ServiceDialogComponent, { data, minWidth: "1000px" });
@@ -302,7 +307,11 @@ export class ServicesComponent implements OnInit {
 
   private handleDialogResult(
     ref: MatDialogRef<
-      LlamaServerDialogComponent | ServiceDialogComponent | VllmDialogComponent | AvalonDialogComponent
+      | LlamaServerDialogComponent
+      | ServiceDialogComponent
+      | VllmDialogComponent
+      | AvalonDialogComponent
+      | StrataRdna3DialogComponent
     >,
     config: ServiceConfig | null,
     clone = false,

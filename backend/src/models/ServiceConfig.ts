@@ -1,5 +1,8 @@
-/** Service type: generic (arbitrary), llama-server, vllm or avalon (structured configs). */
-export type ServiceType = "generic" | "llama-server" | "vllm" | "avalon";
+/** Every type a config file may declare. */
+export const SERVICE_TYPES = ["generic", "llama-server", "vllm", "avalon", "strata-rdna3"] as const;
+
+/** Service type: generic (arbitrary), llama-server, vllm, avalon or strata-rdna3 (structured configs). */
+export type ServiceType = (typeof SERVICE_TYPES)[number];
 
 /** Valid environment variable name (POSIX / systemd rule). */
 const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -132,8 +135,8 @@ export function parseConfigFile(name: string, raw: string): ServiceConfig {
 
     if (trimmed.startsWith("type=")) {
       const val = trimmed.slice("type=".length).trim();
-      if (val === "generic" || val === "llama-server" || val === "vllm" || val === "avalon") {
-        type = val;
+      if ((SERVICE_TYPES as readonly string[]).includes(val)) {
+        type = val as ServiceType;
       }
     } else if (trimmed.startsWith("command=")) {
       command = trimmed.slice("command=".length).trim();
