@@ -6,4 +6,4 @@ backend/public/
 .angular/
 *.tsbuildinfo
 release/
-update-service.cmd
+update-service.*
