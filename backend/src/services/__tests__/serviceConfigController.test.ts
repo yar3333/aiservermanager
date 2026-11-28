@@ -91,7 +91,7 @@ describe("ServiceConfigController (archive)", () => {
       expect(controller.uninstall).not.toHaveBeenCalled();
     });
 
-    it("still archives the config when uninstall reports a warning", async () => {
+    it("does not archive when the unit survives the uninstall — the config stays for a retry", async () => {
       writeConfig("my-svc", servicesDir);
       const controller = makeController({
         uninstall: jest.fn().mockResolvedValue({ ok: false, error: "boom" }),
@@ -100,8 +100,10 @@ describe("ServiceConfigController (archive)", () => {
 
       const result = await scc.archiveService("my-svc");
 
-      expect(result.ok).toBe(true);
-      expect(fs.existsSync(path.join(archiveDir, "my-svc.conf"))).toBe(true);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("boom");
+      expect(fs.existsSync(path.join(servicesDir, "my-svc.conf"))).toBe(true);
+      expect(fs.existsSync(path.join(archiveDir, "my-svc.conf"))).toBe(false);
     });
   });
 

@@ -264,8 +264,10 @@ export class ServicesComponent implements OnInit {
   }
 
   /** Move a custom service to the archive: stop, uninstall the unit, shelve its config. */
-  async archiveService(name: string): Promise<void> {
-    if (!confirm(`Move service "${name}" to the archive? It will be stopped, uninstalled, and its config shelved. You can restore it from the archive.`)) return;
+  async archiveService(svc: ServiceWithConfig): Promise<void> {
+    const name = svc.name;
+    // A running service keeps running until archived, so only it needs a warning.
+    if (svc.running && !confirm(`Move running service "${name}" to the archive? It will be stopped, uninstalled, and its config shelved. You can restore it from the archive.`)) return;
     this.selectedServiceService.select(name);
     try {
       await firstValueFrom(this.serviceService.archiveService(name));

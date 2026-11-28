@@ -172,8 +172,12 @@ export class ServiceConfigController {
   }
 
   /**
-   * Archive a service: stop if running → uninstall OS service → move config to the archive.
-   * Unlike deleteService, the config file is kept (in services-archive/) for later restore.
+   * Archive a service: uninstall the OS service (stop + disable + remove the unit)
+   * → move config to the archive. Unlike deleteService, the config file is kept
+   * (in services-archive/) for later restore.
+   * A failed uninstall aborts the archive: an archived service has no card in the
+   * UI, so a surviving unit would keep running and starting at boot with no way
+   * left to remove it. The config stays in services/ for a retry.
    * @returns { ok, error? }
    */
   async archiveService(name: string): Promise<{ ok: boolean; error?: string }> {
@@ -184,12 +188,15 @@ export class ServiceConfigController {
 
     const controller = await this.getActiveController();
 
-    // Uninstall OS service first (best-effort). The config must still live in
-    // services/ here so the controller's hasCustomConfig() gates sudo correctly.
+    // Uninstall OS service first. The config must still live in services/ here
+    // so the controller's hasCustomConfig() gates sudo correctly.
     if (controller) {
       const uninstallResult = await controller.uninstall(name);
       if (!uninstallResult.ok) {
-        console.warn(`[ServiceConfigController] uninstall warning for "${name}":`, uninstallResult.error);
+        return {
+          ok: false,
+          error: `Failed to uninstall the OS service "${name}", it is still registered — nothing was archived: ${uninstallResult.error}`,
+        };
       }
     }
 
