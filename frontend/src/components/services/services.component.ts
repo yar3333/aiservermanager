@@ -186,11 +186,12 @@ export class ServicesComponent implements OnInit {
 
   /**
    * Re-create the OS service from its current config. Needed after editing a
-   * config, and re-registration stops a running instance.
+   * config, and re-registration stops a running instance — hence the confirm,
+   * but only for a running service: a stopped one has nothing to lose.
    */
-  async reinstallService(name: string): Promise<void> {
-    if (!confirm(`Reinstall service "${name}" from its current config? A running instance will be stopped.`)) return;
-    await this.installService(name);
+  async reinstallService(svc: ServiceWithConfig): Promise<void> {
+    if (svc.running && !confirm(`Reinstall running service "${svc.name}" from its current config? It will be stopped.`)) return;
+    await this.installService(svc.name);
   }
 
   private showError(message: string): void {

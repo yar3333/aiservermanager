@@ -48,8 +48,8 @@ describe("ServicesComponent", () => {
   let systemService: { getSystemInfo: jest.Mock };
   let accountPassword: { askFor: jest.Mock };
 
-  /** The custom service as archived from the card menu, with a chosen running state. */
-  function archivedTarget(running: boolean): ServiceWithConfig {
+  /** The custom service as acted on from the card menu, with a chosen running state. */
+  function customTarget(running: boolean): ServiceWithConfig {
     return { ...STATUSES[0], running, config: CONFIGS[0], hasConfig: true };
   }
 
@@ -166,7 +166,7 @@ describe("ServicesComponent", () => {
   it("archives a custom service after confirmation", async () => {
     await fixture.whenStable();
     jest.spyOn(window, "confirm").mockReturnValue(true);
-    await component.archiveService(archivedTarget(true));
+    await component.archiveService(customTarget(true));
     expect(serviceService.archiveService).toHaveBeenCalledWith("llama-server");
     expect(serviceService.fetchServices).toHaveBeenCalled();
   });
@@ -174,7 +174,7 @@ describe("ServicesComponent", () => {
   it("skips archiving when confirmation is declined", async () => {
     await fixture.whenStable();
     jest.spyOn(window, "confirm").mockReturnValue(false);
-    await component.archiveService(archivedTarget(true));
+    await component.archiveService(customTarget(true));
     expect(serviceService.archiveService).not.toHaveBeenCalled();
   });
 
@@ -182,7 +182,7 @@ describe("ServicesComponent", () => {
     await fixture.whenStable();
     const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
     confirmSpy.mockClear();
-    await component.archiveService(archivedTarget(false));
+    await component.archiveService(customTarget(false));
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(serviceService.archiveService).toHaveBeenCalledWith("llama-server");
   });
@@ -193,7 +193,7 @@ describe("ServicesComponent", () => {
     serviceService.archiveService.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500, error: { error: "unit stop failed" } })),
     );
-    await component.archiveService(archivedTarget(true));
+    await component.archiveService(customTarget(true));
     expect(snackBar.open).toHaveBeenCalledWith(
       'Archive "llama-server": unit stop failed',
       "Dismiss",
@@ -293,15 +293,24 @@ describe("ServicesComponent", () => {
   it("reinstalls a custom service after confirmation", async () => {
     await fixture.whenStable();
     jest.spyOn(window, "confirm").mockReturnValue(true);
-    await component.reinstallService("llama-server");
+    await component.reinstallService(customTarget(true));
     expect(serviceService.installService).toHaveBeenCalledWith("llama-server", undefined);
   });
 
   it("skips reinstall when confirmation is declined", async () => {
     await fixture.whenStable();
     jest.spyOn(window, "confirm").mockReturnValue(false);
-    await component.reinstallService("llama-server");
+    await component.reinstallService(customTarget(true));
     expect(serviceService.installService).not.toHaveBeenCalled();
+  });
+
+  it("reinstalls a stopped service without asking", async () => {
+    await fixture.whenStable();
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+    confirmSpy.mockClear();
+    await component.reinstallService(customTarget(false));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(serviceService.installService).toHaveBeenCalledWith("llama-server", undefined);
   });
 
   it("asks for the account password right before registering a service that runs as a user", async () => {
